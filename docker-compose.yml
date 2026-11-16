@@ -1,0 +1,19 @@
+# Local development only. Do not use this file for production.
+# MongoDB is bound to 127.0.0.1 so it is not reachable from the network; it has no auth.
+services:
+  mongo:
+    image: mongo:8.0
+    container_name: aksaraloka-mongo
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - aksaraloka-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  aksaraloka-mongo-data:

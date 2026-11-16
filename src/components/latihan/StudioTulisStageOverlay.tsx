@@ -1,0 +1,2577 @@
+"use client";
+
+import { useState, useRef, useEffect, useMemo, type CSSProperties } from "react";
+import {
+  BookPageDisplacementDefs,
+  ParchmentInkFilters,
+  ParchmentSpineShadowOverlay,
+} from "@/components/shared/ParchmentInkFilters";
+import { BookHomographyCalibrator } from "@/components/shared/BookHomographyCalibrator";
+import {
+  computeCoverStageMetrics,
+  computeSpreadQuadProjection,
+  READING_2D_DEFAULT_CALIBRATION,
+  STAGE_SOURCE_HEIGHT,
+  STAGE_SOURCE_WIDTH,
+  STUDIO_BOOK_DEFAULT_CALIBRATION,
+  type BookSpreadCalibration,
+  type CoverStageMetrics,
+} from "@/lib/ui/bookHomography";
+import type { GrimoireChapterId } from "@/lib/learning/narrativeCurriculumData";
+import {
+  applyStudioSeedPreset,
+  deleteSavedManuscriptFromPustaka,
+  loadSavedManuscriptToEditor,
+  saveCurrentManuscriptToPustaka,
+  setActiveGrimoireChapter,
+  toggleStudioRevisionCheck,
+  updateStudioDraft,
+  useAksaralokaLearning,
+} from "@/lib/learning/learningStore";
+import {
+  INITIAL_STUDIO_DRAFT,
+  SELF_REVISION_CHECKLIST,
+  STORY_SEED_PRESETS,
+  analyzeStudentManuscript,
+  applyAutomaticEydFixes,
+  buildKbbiReferenceUrl,
+  type FantasyThemeCategory,
+  type StudioExtraSpread,
+} from "@/lib/learning/literaryDetector";
+import {
+  playChime,
+  playErrorTone,
+  playPageFlip,
+  playSealUnlock,
+} from "@/lib/learning/audioEngine";
+
+interface StudioTulisStageOverlayProps {
+  readonly isVisible: boolean;
+  readonly isBookFocused: boolean;
+  readonly onSetBookFocused: (focused: boolean) => void;
+  readonly onJumpToKitabChapter: (chapter: GrimoireChapterId) => void;
+  readonly onOpenPetaModal: () => void;
+}
+
+type StudioViewTab = "dual_book" | "audit_revisi" | "galeri_piagam";
+
+const THEME_OPTIONS: readonly FantasyThemeCategory[] = [
+  "Lintas Waktu & Konsekuensi",
+  "Dunia Sihir & Akademi",
+  "Mitos & Pusaka Nusantara",
+];
+
+const SEAL_BADGES: readonly {
+  readonly id: GrimoireChapterId;
+  readonly label: string;
+}[] = [
+    { id: "alur", label: "Segel I · Alur" },
+    { id: "watak", label: "Segel II · Watak & 5 Indera" },
+    { id: "bahasa", label: "Segel III · Majas & EYD V" },
+  ];
+
+const CORE_SPREAD_LABELS: readonly {
+  readonly index: number;
+  readonly shortLabel: string;
+}[] = [
+    {
+      index: 0,
+      shortLabel: "Lembar 1: Peta Rancang",
+    },
+    {
+      index: 1,
+      shortLabel: "Lembar 2: Orientasi & Komplikasi",
+    },
+    {
+      index: 2,
+      shortLabel: "Lembar 3: Klimaks & Resolusi",
+    },
+  ];
+
+export function StudioTulisStageOverlay({
+  isVisible,
+  isBookFocused,
+  onSetBookFocused,
+  onJumpToKitabChapter,
+  onOpenPetaModal,
+}: StudioTulisStageOverlayProps) {
+  const { state, metrics } = useAksaralokaLearning();
+  const draft = state.studioDraft;
+  const extraSpreads = draft.extraSpreads ?? [];
+  const totalSpreads = 3 + extraSpreads.length;
+  const analysis = analyzeStudentManuscript(draft);
+
+  const [activeViewTab, setActiveViewTab] = useState<StudioViewTab>("dual_book");
+  const [currentSpread, setCurrentSpread] = useState<number>(0);
+  const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
+  const [isGuideDrawerOpen, setIsGuideDrawerOpen] = useState<boolean>(false);
+  const [kbbiLookupQuery, setKbbiLookupQuery] = useState("");
+  const [statusBanner, setStatusBanner] = useState<string | null>(null);
+  const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [stageMetrics, setStageMetrics] = useState<CoverStageMetrics>({
+    width: STAGE_SOURCE_WIDTH,
+    height: STAGE_SOURCE_HEIGHT,
+    offsetX: 0,
+    offsetY: 0,
+    scale: 1,
+  });
+  const [studioBookCalibration, setStudioBookCalibration] =
+    useState<BookSpreadCalibration>(STUDIO_BOOK_DEFAULT_CALIBRATION);
+  const studio2dContainerRef = useRef<HTMLDivElement | null>(null);
+  const [studio2dLayout, setStudio2dLayout] = useState({
+    width: 946,
+    height: 603,
+    offsetX: 0,
+    offsetY: 0,
+  });
+  const [studio2dCalibration, setStudio2dCalibration] =
+    useState<BookSpreadCalibration>(READING_2D_DEFAULT_CALIBRATION);
+  const [isCalibrating, setIsCalibrating] = useState<boolean>(
+    () =>
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("calibrate") === "1"
+  );
+
+  useEffect(() => {
+    return () => {
+      if (flipTimerRef.current) {
+        clearTimeout(flipTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncCoverStage = () => {
+      setStageMetrics(
+        computeCoverStageMetrics(window.innerWidth, window.innerHeight)
+      );
+    };
+    const rafId = window.requestAnimationFrame(syncCoverStage);
+    window.addEventListener("resize", syncCoverStage);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", syncCoverStage);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible || !isBookFocused) return;
+    const el = studio2dContainerRef.current;
+    if (!el) return;
+
+    const syncStudio2dLayout = () => {
+      const target = studio2dContainerRef.current;
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      const width = target.clientWidth || Math.round(rect.width);
+      const height = target.clientHeight || Math.round(rect.height);
+      if (width < 120 || height < 80) return;
+
+      setStudio2dLayout((prev) => {
+        if (
+          prev.width === width &&
+          prev.height === height &&
+          Math.abs(prev.offsetX - rect.left) < 0.5 &&
+          Math.abs(prev.offsetY - rect.top) < 0.5
+        ) {
+          return prev;
+        }
+        return {
+          width,
+          height,
+          offsetX: rect.left,
+          offsetY: rect.top,
+        };
+      });
+    };
+
+    const rafId = window.requestAnimationFrame(syncStudio2dLayout);
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => syncStudio2dLayout())
+        : null;
+    resizeObserver?.observe(el);
+    window.addEventListener("resize", syncStudio2dLayout);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", syncStudio2dLayout);
+    };
+  }, [isVisible, isBookFocused, isCalibrating]);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        process.env.NODE_ENV === "development" &&
+        e.altKey &&
+        e.shiftKey &&
+        e.code === "KeyK"
+      ) {
+        e.preventDefault();
+        setIsCalibrating((prev) => !prev);
+        return;
+      }
+      if (e.key === "Escape") {
+        if (isCalibrating) {
+          setIsCalibrating(false);
+        } else if (isBookFocused) {
+          if (isGuideDrawerOpen) {
+            setIsGuideDrawerOpen(false);
+          } else {
+            playPageFlip();
+            onSetBookFocused(false);
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    isVisible,
+    isBookFocused,
+    isCalibrating,
+    isGuideDrawerOpen,
+    onSetBookFocused,
+  ]);
+
+  const studio3dBaseWidth = Math.max(195, Math.round(stageMetrics.width * 0.152));
+  const studio3dBaseHeight = Math.max(
+    200,
+    Math.round(stageMetrics.height * 0.266)
+  );
+
+  const studio3dProj = useMemo(
+    () =>
+      computeSpreadQuadProjection({
+        stageWidth: stageMetrics.width,
+        stageHeight: stageMetrics.height,
+        baseLeftWidth: studio3dBaseWidth,
+        baseRightWidth: studio3dBaseWidth,
+        baseHeight: studio3dBaseHeight,
+        curveScale: stageMetrics.scale,
+        calibration: studioBookCalibration,
+      }),
+    [
+      stageMetrics.width,
+      stageMetrics.height,
+      stageMetrics.scale,
+      studio3dBaseWidth,
+      studio3dBaseHeight,
+      studioBookCalibration,
+    ]
+  );
+
+  const studio2dScale = studio2dLayout.width / 946;
+  const studio2dLeftBaseWidth = Math.max(
+    240,
+    Math.round(studio2dLayout.width * 0.388)
+  );
+  const studio2dRightBaseWidth = Math.max(
+    240,
+    Math.round(studio2dLayout.width * 0.405)
+  );
+  const studio2dBaseHeight = Math.max(
+    300,
+    Math.round(studio2dLayout.height * 0.896)
+  );
+
+  const studio2dProj = useMemo(
+    () =>
+      computeSpreadQuadProjection({
+        stageWidth: studio2dLayout.width,
+        stageHeight: studio2dLayout.height,
+        baseLeftWidth: studio2dLeftBaseWidth,
+        baseRightWidth: studio2dRightBaseWidth,
+        baseHeight: studio2dBaseHeight,
+        curveScale: studio2dScale,
+        calibration: studio2dCalibration,
+      }),
+    [
+      studio2dLayout.width,
+      studio2dLayout.height,
+      studio2dLeftBaseWidth,
+      studio2dRightBaseWidth,
+      studio2dBaseHeight,
+      studio2dScale,
+      studio2dCalibration,
+    ]
+  );
+
+  if (!isVisible) return null;
+
+  const safeCurrentSpread = Math.min(currentSpread, Math.max(0, totalSpreads - 1));
+
+  const isSealUnlockedForId = (id: GrimoireChapterId): boolean => {
+    if (id === "alur") return state.sealAlurUnlocked;
+    if (id === "watak") return state.sealWatakUnlocked;
+    return state.sealBahasaUnlocked;
+  };
+
+  const showTempBanner = (msg: string) => {
+    setStatusBanner(msg);
+  };
+
+  const triggerSpreadTransition = (targetSpread: number) => {
+    const clamped = Math.max(0, Math.min(totalSpreads - 1, targetSpread));
+    if (
+      activeViewTab === "dual_book" &&
+      clamped === safeCurrentSpread &&
+      flipDirection === null
+    ) {
+      return;
+    }
+
+    const dir: "next" | "prev" = clamped >= safeCurrentSpread ? "next" : "prev";
+    playPageFlip();
+    setFlipDirection(dir);
+
+    if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
+    flipTimerRef.current = setTimeout(() => {
+      setActiveViewTab("dual_book");
+      setCurrentSpread(clamped);
+      setFlipDirection(null);
+      flipTimerRef.current = null;
+    }, 440);
+  };
+
+  const triggerTabFlip = (nextTab: StudioViewTab) => {
+    if (nextTab === activeViewTab || flipDirection !== null) return;
+    setIsGuideDrawerOpen(false);
+    const order: Record<StudioViewTab, number> = {
+      dual_book: 0,
+      audit_revisi: 1,
+      galeri_piagam: 2,
+    };
+    const dir: "next" | "prev" =
+      order[nextTab] >= order[activeViewTab] ? "next" : "prev";
+    playPageFlip();
+    setFlipDirection(dir);
+
+    if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
+    flipTimerRef.current = setTimeout(() => {
+      setActiveViewTab(nextTab);
+      setFlipDirection(null);
+      flipTimerRef.current = null;
+    }, 440);
+  };
+
+  const handleEnterFocusBook = (targetSpread?: number) => {
+    playPageFlip();
+    if (typeof targetSpread === "number") {
+      setCurrentSpread(targetSpread);
+    }
+    setActiveViewTab("dual_book");
+    onSetBookFocused(true);
+  };
+
+  const handleOpenBookAtTab = (targetTab: StudioViewTab) => {
+    playPageFlip();
+    setIsGuideDrawerOpen(false);
+    setActiveViewTab(targetTab);
+    onSetBookFocused(true);
+  };
+
+  const handleExitFocusBookToDesk = () => {
+    playPageFlip();
+    setIsGuideDrawerOpen(false);
+    onSetBookFocused(false);
+  };
+
+  const handleApplySeedOutline = (seedId: string, title: string) => {
+    playChime();
+    applyStudioSeedPreset(seedId, "outline_only");
+    setIsGuideDrawerOpen(false);
+    setCurrentSpread(0);
+    setActiveViewTab("dual_book");
+    showTempBanner(
+      `Kerangka Ide "${title}" dimuat ke Lembar 1. Silakan modifikasi atau klik "Rakit Draf Awal & Buka Lembar 2" untuk mulai mengembangkan ceritamu!`
+    );
+  };
+
+  const handleApplySeedFullModel = (seedId: string, title: string) => {
+    playChime();
+    applyStudioSeedPreset(seedId, "full_model_reference");
+    setIsGuideDrawerOpen(false);
+    setCurrentSpread(1);
+    setActiveViewTab("dual_book");
+    showTempBanner(
+      `Teks Model Contoh "${title}" dimuat sebagai bahan pelajara. Sunting dan tulis kalimat versimu sendiri agar dapat disimpan sebagai Karya Asli Siswa.`
+    );
+  };
+
+  const handleResetDraft = () => {
+    playChime();
+    setCurrentSpread(0);
+    setIsGuideDrawerOpen(false);
+    updateStudioDraft({
+      ...INITIAL_STUDIO_DRAFT,
+      authorName: draft.authorName,
+      authorClass: draft.authorClass,
+    });
+    showTempBanner("Lembar draf dikosongkan. Siap menulis cerita fantasi orisinalmu!");
+  };
+
+  /**
+   * Scaffold-to-Draft Helper: Merakit draf awal 4 tahap (Orientasi, Komplikasi, Klimaks, Resolusi)
+   * dari isian Langkah 1-4 di Lembar 1, lalu membalik halaman buku ke Lembar 2 secara otomatis.
+   */
+  const handleGenerateDraftFromOutline = () => {
+    const protag = draft.protagonistName.trim() || "Aruna";
+    const antag = draft.antagonistName.trim() || "Bayang Kabut";
+    const place = draft.settingPlace.trim() || "Perpustakaan Kuno";
+    const sight =
+      draft.sensorySight.trim() ||
+      "cahaya keemasan berpendar di sela kabut temaram";
+    const sound =
+      draft.sensorySound.trim() ||
+      "gemuruh langkah berat menggema di kejauhan";
+    const smellTouch =
+      draft.sensorySmellTouch.trim() ||
+      "aroma kertas tua yang lembap dan udara dingin menusuk kulit";
+    const rule =
+      draft.worldRule.trim() ||
+      "setiap keajaiban menuntut keberanian dan kejujuran pemiliknya";
+
+    const pOrientasi =
+      draft.paragraphOrientasi.trim() ||
+      `Di ${place}, ${protag} melangkah dengan hati-hati saat ${sight}. Udara di sekitarnya terasa dipenuhi ${smellTouch}. ${draft.outlineOrientasi.trim() ||
+      `${protag} menemukan sebuah benda bertuah yang menyimpan aturan bahwa ${rule}.`
+      }`;
+
+    const pKomplikasi =
+      (draft.paragraphKomplikasi ?? "").trim() ||
+      `Tiba-tiba ${sound} ketika ${antag} muncul menghadang jalan keluar di ${place}. ${draft.outlineKomplikasiKlimaks.trim() ||
+      `Kemunculan ${antag} memicu ketegangan karena ia berusaha merampas benda bertuah tersebut.`
+      }`;
+
+    const pKlimaks =
+      draft.paragraphKlimaks.trim() ||
+      `${antag} berseru dengan lantang, "Serahkan pusaka itu sekarang juga atau kau akan menyesal!" ${protag} bergerak cepat bagaikan anak panah yang melesat dari busurnya untuk mempertahankan pusaka tersebut sambil mematuhi aturan dunianya.`;
+
+    const pResolusi =
+      draft.paragraphResolusi.trim() ||
+      `Namun ${protag} tidak menyerah dan berhasil mengatasi rintangan tanpa melanggar pantangan pusaka itu. Akhirnya ${antag} menyadari bahwa keserakahan tidak akan pernah menang melawan ketulusan hati, dan suasana di ${place} kembali damai.`;
+
+    playSealUnlock();
+    updateStudioDraft({
+      protagonistName: protag,
+      antagonistName: antag,
+      settingPlace: place,
+      worldRule: rule,
+      paragraphOrientasi: pOrientasi,
+      paragraphKomplikasi: pKomplikasi,
+      paragraphKlimaks: pKlimaks,
+      paragraphResolusi: pResolusi,
+      isModelPresetReference: false,
+      storyTitle: draft.storyTitle.trim() || `Kisah ${protag} di ${place}`,
+      amanat:
+        draft.amanat.trim() ||
+        "Kita harus bertanggung jawab, jujur, dan pantang menyerah saat menghadapi kesulitan.",
+    });
+    showTempBanner(
+      "Kerangka Langkah 1-4 berhasil dirakit menjadi fondasi 4 paragraf di Lembar 2 & 3! Silakan kembangkan dengan kalimatmu sendiri."
+    );
+    triggerSpreadTransition(1);
+  };
+
+  const handleAddExtraSpread = () => {
+    const nextNumber = extraSpreads.length + 1;
+    const leftPageNum = 7 + extraSpreads.length * 2;
+    const rightPageNum = leftPageNum + 1;
+    const newSpread: StudioExtraSpread = {
+      id: `spread-extra-${Date.now()}`,
+      leftTitle: `Lembar Tambahan ${nextNumber}A (Hlm. ${leftPageNum})`,
+      rightTitle: `Lembar Tambahan ${nextNumber}B (Hlm. ${rightPageNum})`,
+      leftText: "",
+      rightText: "",
+    };
+    const nextExtras = [...extraSpreads, newSpread];
+    updateStudioDraft({ extraSpreads: nextExtras });
+
+    const newSpreadIndex = 3 + nextExtras.length - 1;
+    playPageFlip();
+    setFlipDirection("next");
+    if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
+    flipTimerRef.current = setTimeout(() => {
+      setActiveViewTab("dual_book");
+      setCurrentSpread(newSpreadIndex);
+      setFlipDirection(null);
+      flipTimerRef.current = null;
+    }, 440);
+
+    showTempBanner(
+      `Lembar Kertas Baru (Halaman ${leftPageNum}–${rightPageNum}) telah ditambahkan ke dalam buku!`
+    );
+  };
+
+  const handleUpdateExtraSpread = (
+    spreadId: string,
+    patch: Partial<Omit<StudioExtraSpread, "id">>
+  ) => {
+    const updated = extraSpreads.map((item) =>
+      item.id === spreadId ? { ...item, ...patch } : item
+    );
+    updateStudioDraft({ extraSpreads: updated });
+  };
+
+  const handleRemoveExtraSpread = (spreadId: string) => {
+    playChime();
+    const updated = extraSpreads.filter((item) => item.id !== spreadId);
+    updateStudioDraft({ extraSpreads: updated });
+    setCurrentSpread((prev) => Math.min(prev, 2 + updated.length));
+    showTempBanner("Lembar kertas tambahan telah dihapus dari buku.");
+  };
+
+  const handleInsertTimeConjunctionSnippet = () => {
+    playChime();
+    const snippet =
+      " Tiba-tiba terdengar suara gemuruh dari balik lorong yang memicu ketegangan.";
+    updateStudioDraft({
+      paragraphKomplikasi: `${(draft.paragraphKomplikasi ?? "").trimEnd()}${snippet}`,
+    });
+    showTempBanner(
+      "Kalimat pemicu konflik berkonjungsi kronologis ('Tiba-tiba') disisipkan ke Paragraf II (Komplikasi)."
+    );
+  };
+
+  const handleInsertMajasSnippet = () => {
+    playChime();
+    const snippet =
+      " Semangatnya menyala terang bagaikan bintang kejora di tengah gelapnya malam.";
+    updateStudioDraft({
+      paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()}${snippet}`,
+    });
+    showTempBanner(
+      "Contoh Majas Asosiasi ('bagaikan bintang kejora') disisipkan ke Paragraf III (Klimaks)."
+    );
+  };
+
+  const handleInsertDialogSnippet = () => {
+    playChime();
+    const speaker = draft.protagonistName.trim() || "Tokoh Utama";
+    const snippet = ` ${speaker} berseru dengan tegas, "Aku tidak akan mundur menghadapi ujian ini!"`;
+    updateStudioDraft({
+      paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()}${snippet}`,
+    });
+    showTempBanner(
+      "Template Kalimat Langsung berkaidah EYD V disisipkan ke Paragraf III (Klimaks)."
+    );
+  };
+
+  const handleInsertIndirectSnippet = () => {
+    playChime();
+    const speaker = draft.protagonistName.trim() || "Ia";
+    const snippet = ` Akhirnya ${speaker} menyatakan bahwa keberanian dan kejujuran jauh lebih berharga daripada jalan pintas.`;
+    updateStudioDraft({
+      paragraphResolusi: `${draft.paragraphResolusi.trimEnd()}${snippet}`,
+    });
+    showTempBanner(
+      "Template Kalimat Tak Langsung & Konjungsi Alur disisipkan ke Paragraf IV (Resolusi)."
+    );
+  };
+
+  const handleApplyAllEydFixes = () => {
+    if (analysis.eydAndLexiconIssues.length === 0) {
+      playChime();
+      showTempBanner(
+        "Tidak ditemukan pelanggaran kata depan 'di' atau kata tidak baku pada naskahmu."
+      );
+      return;
+    }
+    playSealUnlock();
+    const fixedExtras = extraSpreads.map((sp) => ({
+      ...sp,
+      leftText: applyAutomaticEydFixes(sp.leftText),
+      rightText: applyAutomaticEydFixes(sp.rightText),
+    }));
+    updateStudioDraft({
+      paragraphOrientasi: applyAutomaticEydFixes(draft.paragraphOrientasi),
+      paragraphKomplikasi: applyAutomaticEydFixes(draft.paragraphKomplikasi ?? ""),
+      paragraphKlimaks: applyAutomaticEydFixes(draft.paragraphKlimaks),
+      paragraphResolusi: applyAutomaticEydFixes(draft.paragraphResolusi),
+      extraSpreads: fixedExtras,
+    });
+    showTempBanner(
+      "Seluruh temuan kata depan 'di', tanda baca petik, dan kata baku KBBI VI telah diperbaiki secara otomatis!"
+    );
+  };
+
+  const handleSaveManuscript = () => {
+    if (analysis.isModelPresetReference) {
+      playErrorTone();
+      showTempBanner(
+        "Naskah saat ini masih berupa Teks Model Contoh. Silakan ubah atau tulis kalimat ceritamu sendiri sebelum menyimpan ke Galeri Karya."
+      );
+      return;
+    }
+    if (analysis.totalWords < 15) {
+      playErrorTone();
+      showTempBanner(
+        "Tuliskan minimal 15 kata pada bagian paragraf cerita sebelum menyimpan ke Galeri Karya."
+      );
+      return;
+    }
+    playSealUnlock();
+    const saved = saveCurrentManuscriptToPustaka();
+    showTempBanner(
+      `Manuskrip "${saved.storyTitle}" (${saved.wordCount} kata, Skor ${saved.studioScore}%) berhasil disimpan ke Galeri Karya!`
+    );
+  };
+
+  const handlePrintManuscriptAndCharter = () => {
+    playChime();
+    const win = window.open("", "_blank", "width=940,height=880");
+    if (!win) return;
+
+    const safeAuthor =
+      draft.authorName.trim() || "................................................";
+    const safeClass = draft.authorClass.trim() || "VII-....";
+    const safeTitle =
+      draft.storyTitle.trim() || "Manuskrip Cerita Fantasi Tanpa Judul";
+    const safeAmanat =
+      draft.amanat.trim() || "(Belum dirumuskan oleh penulis)";
+    const safeWorldRule = draft.worldRule.trim() || "(Belum ditulis)";
+
+    const extraParagraphsHtml = extraSpreads
+      .flatMap((sp) => [sp.leftText.trim(), sp.rightText.trim()])
+      .filter(Boolean)
+      .map((text) => `<p class="story-para">${text}</p>`)
+      .join("");
+
+    const komplikasiHtml = (draft.paragraphKomplikasi ?? "").trim()
+      ? `<p class="story-para">${draft.paragraphKomplikasi}</p>`
+      : "";
+
+    const html = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>Piagam & Manuskrip Naratif — ${safeTitle}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      color: #18130d;
+      margin: 0;
+      padding: 28px 36px;
+      line-height: 1.55;
+      background: #fff;
+    }
+    .charter-box {
+      border: 3px double #8c6826;
+      padding: 22px 26px;
+      border-radius: 10px;
+      background: #fdfbf7;
+    }
+    .header {
+      border-bottom: 2px solid #8c6826;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .brand {
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #7c5819;
+      font-weight: bold;
+    }
+    h1 {
+      font-size: 21px;
+      margin: 4px 0 0 0;
+    }
+    h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #5b4012;
+      border-bottom: 1px solid #dec99a;
+      padding-bottom: 4px;
+      margin: 16px 0 8px 0;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 18px;
+      background: #f8f3e6;
+      border: 1px solid #d5bd8a;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 12.5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+    th, td {
+      border: 1px solid #cbb27c;
+      padding: 6px 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f3ead6;
+      font-weight: bold;
+    }
+    .story-container {
+      margin-top: 10px;
+      padding: 14px 18px;
+      border: 1px solid #cbb27c;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .story-title {
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+      margin: 0 0 10px 0;
+      color: #2b1d07;
+    }
+    .story-para {
+      text-indent: 24px;
+      margin: 0 0 10px 0;
+      font-size: 13.5px;
+      text-align: justify;
+    }
+    .amanat-box {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-left: 4px solid #8c6826;
+      background: #f8f3e6;
+      font-size: 12.5px;
+    }
+    @media print {
+      body { padding: 10px 14px; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom:14px; padding:10px 14px; background:#1e160d; color:#f4d993; border-radius:8px; display:flex; justify-content:space-between; align-items:center; font-family:sans-serif; font-size:13px;">
+    <span><strong>Pratinjau Cetak Piagam &amp; Manuskrip Naratif</strong> — Siap dicetak atau disimpan sebagai PDF untuk dikumpulkan ke Guru.</span>
+    <button onclick="window.print()" style="background:#f4d993; color:#111; border:none; padding:7px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Cetak / Simpan PDF</button>
+  </div>
+
+  <div class="charter-box">
+    <div class="header">
+      <div>
+        <div class="brand">PUSTAKA AGUNG E-AKSARALOKA · BAHASA INDONESIA KELAS VII SMP</div>
+        <h1>PIAGAM PENJAGA AKSARA &amp; MANUSKRIP CERITA FANTASI</h1>
+      </div>
+      <div style="text-align:right; font-size:11.5px;">
+        <div>Bab II: Berkelana di Dunia Imajinasi (Hlm. 52–70)</div>
+        <div><strong>Skor Holistik: ${metrics.holisticTotalPercentage}%</strong></div>
+      </div>
+    </div>
+
+    <div class="meta-grid">
+      <div><strong>Nama Penulis Muda:</strong> ${safeAuthor}</div>
+      <div><strong>Kelas:</strong> ${safeClass}</div>
+      <div><strong>Tema Fantasi:</strong> ${draft.themeCategory}</div>
+      <div><strong>Segel Materi Terbuka:</strong> ${metrics.unlockedSealsCount} / 3 Segel (${metrics.overallPercentage}%)</div>
+      <div><strong>Skor Analisis Naskah (Studio Tulis):</strong> ${analysis.studioScore}% (${analysis.passedIndicatorsCount}/5 Indikator)</div>
+      <div><strong>Jumlah Kata Manuskrip:</strong> ${analysis.totalWords} kata</div>
+    </div>
+
+    <h2>I. Peta Rancang Semesta (Kerangka Langkah 1–4)</h2>
+    <table>
+      <tbody>
+        <tr>
+          <th style="width:28%;">Aturan Logika Dunia Fantasi</th>
+          <td>${safeWorldRule}</td>
+        </tr>
+        <tr>
+          <th>Tokoh Protagonis &amp; Bukti Watak</th>
+          <td><strong>${draft.protagonistName || "-"}</strong> — ${draft.protagonistTraitAction || "-"}</td>
+        </tr>
+        <tr>
+          <th>Tokoh Antagonis &amp; Pemicu Konflik</th>
+          <td><strong>${draft.antagonistName || "-"}</strong> — ${draft.antagonistConflictTrigger || "-"}</td>
+        </tr>
+        <tr>
+          <th>Latar Tempat &amp; Peta Lima Indera</th>
+          <td>
+            <strong>Latar:</strong> ${draft.settingPlace || "-"}<br/>
+            <strong>Penglihatan:</strong> ${draft.sensorySight || "-"} |
+            <strong>Pendengaran:</strong> ${draft.sensorySound || "-"} |
+            <strong>Penciuman/Peraba:</strong> ${draft.sensorySmellTouch || "-"}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>II. Manuskrip Cerita Fantasi Karya Siswa (Langkah 5–6)</h2>
+    <div class="story-container">
+      <div class="story-title">${safeTitle}</div>
+      <p class="story-para">${draft.paragraphOrientasi || "(Paragraf Orientasi belum ditulis)"}</p>
+      ${komplikasiHtml}
+      <p class="story-para">${draft.paragraphKlimaks || "(Paragraf Puncak Klimaks belum ditulis)"}</p>
+      <p class="story-para">${draft.paragraphResolusi || "(Paragraf Resolusi belum ditulis)"}</p>
+      ${extraParagraphsHtml}
+      <div class="amanat-box">
+        <strong>Amanat / Pesan Moral Cerita:</strong><br/>
+        ${safeAmanat}
+      </div>
+    </div>
+
+    <h2>III. Rapor 5 Indikator Detektor Sastra Otomatis &amp; Kaidah EYD V</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Indikator Kompetensi Menulis</th>
+          <th>Rujukan TP</th>
+          <th>Status</th>
+          <th>Skor</th>
+          <th>Temuan Bukti di Dalam Naskah</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${analysis.indicators
+        .map(
+          (ind) => `<tr>
+          <td><strong>${ind.title}</strong></td>
+          <td>${ind.tpCode}</td>
+          <td>${ind.passed ? "Terpenuhi" : "Perlu Pengayaan"}</td>
+          <td>${ind.earnedScore} / ${ind.scoreWeight}</td>
+          <td>${ind.detectedSnippets.length > 0 ? ind.detectedSnippets.join("; ") : ind.summary}</td>
+        </tr>`
+        )
+        .join("")}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>`;
+
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  };
+
+  // Ringkasan teks untuk pratinjau 3D di atas buku meja POV (frame-188.webp)
+  const deskLeftPreviewTitle =
+    draft.storyTitle.trim() || "Kitab Manuskrip Fantasi";
+  const deskLeftPreviewBody =
+    draft.paragraphOrientasi.trim() ||
+    draft.outlineOrientasi.trim() ||
+    (draft.protagonistName.trim()
+      ? `Tokoh Utama: ${draft.protagonistName} di ${draft.settingPlace || "Dunia Imajinasi"}. Aturan Dunia: ${draft.worldRule || "Belum ditetapkan"}`
+      : "Lembar buku di meja tulis telah terbuka. Klik permukaan buku ini untuk menundukkan pandangan dan mulai menulis cerita fantasimu.");
+
+  const deskRightPreviewBody =
+    (draft.paragraphKomplikasi ?? "").trim() ||
+    draft.paragraphKlimaks.trim() ||
+    draft.paragraphResolusi.trim() ||
+    "Susun kerangka dunia fantasimu di Lembar 1, lalu kembangkan Orientasi, Komplikasi, Klimaks, dan Resolusi secara bertahap di Lembar 2 dan Lembar 3.";
+
+  const activeExtraSpread: StudioExtraSpread | undefined =
+    safeCurrentSpread >= 3 ? extraSpreads[safeCurrentSpread - 3] : undefined;
+
+  // Gaya input/textarea goresan pena transparan murni agar teks menyatu langsung di atas perkamen
+  const inkInputClass =
+    "parchment-pen-input w-full px-1 py-0.5 text-[11.5px] leading-tight font-semibold italic placeholder:text-[#5c3d1e]/70";
+  const inkTextareaClass =
+    "parchment-scroll-hidden parchment-pen-input w-full resize-none px-1 py-0.5 text-[11px] leading-[1.35] italic placeholder:text-[#5c3d1e]/70";
+  const inkStoryTextareaClass =
+    "parchment-scroll parchment-pen-textarea w-full flex-1 min-h-0 resize-none border-0 bg-transparent px-1 py-0.5 font-serif text-xs sm:text-[13px] placeholder:text-[#5c3d1e]/70";
+
+  const scalePx = (n: number) => `${(n * stageMetrics.scale).toFixed(2)}px`;
+
+  const studio2dLeftPageStyle: CSSProperties = {
+    width: `${studio2dLeftBaseWidth}px`,
+    height: `${studio2dBaseHeight}px`,
+    transformOrigin: "0 0",
+    transform: studio2dProj.leftMatrixCss,
+    filter: studio2dProj.hasLeftCurve ? "url(#studio-2d-curve-left)" : undefined,
+  };
+
+  const studio2dRightPageStyle: CSSProperties = {
+    width: `${studio2dRightBaseWidth}px`,
+    height: `${studio2dBaseHeight}px`,
+    transformOrigin: "0 0",
+    transform: studio2dProj.rightMatrixCss,
+    filter: studio2dProj.hasRightCurve ? "url(#studio-2d-curve-right)" : undefined,
+  };
+
+  return (
+    <div
+      className="pointer-events-none select-none"
+      aria-label="Antarmuka Hibrida Meja Studio Tulis dan Buku Menulis Cerita"
+    >
+      <ParchmentInkFilters />
+      {/* ===================================================================== */}
+      {/* STATE A: MODE 3D MEJA PUSTAKA (Homografi 4-Titik + Kurva + Action Dock) */}
+      {/* Tanpa stacking-context terisolasi agar .parchment-ink menyatu langsung */}
+      {/* di atas serat kertas frame-188.webp pada ScrollCanvasSequence.        */}
+      {/* ===================================================================== */}
+      {!isBookFocused && (
+        <>
+          <BookPageDisplacementDefs
+            prefix="studio-3d"
+            leftWidth={studio3dBaseWidth}
+            rightWidth={studio3dBaseWidth}
+            pageHeight={studio3dBaseHeight}
+            leftDisp={studio3dProj.leftDisp}
+            rightDisp={studio3dProj.rightDisp}
+            inkAbsorption
+          />
+
+          {/* Cover-Matched Stage Container: Locked 1:1 with 1920x1080 Canvas Geometry */}
+          <div
+            className="pointer-events-none fixed overflow-hidden"
+            style={{
+              left: `${stageMetrics.offsetX}px`,
+              top: `${stageMetrics.offsetY}px`,
+              width: `${stageMetrics.width}px`,
+              height: `${stageMetrics.height}px`,
+            }}
+          >
+            {/* Left 3D Desk Page: Calibrated 4-Point Homography + Page Arch Curve */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                if (isCalibrating) return;
+                handleEnterFocusBook();
+              }}
+              onKeyDown={(e) => {
+                if (isCalibrating) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleEnterFocusBook();
+                }
+              }}
+              aria-label="Klik halaman kiri buku di atas meja untuk membuka Buku Menulis Cerita"
+              className="parchment-ink parchment-desk-ink-bleed pointer-events-auto absolute top-0 left-0 flex cursor-pointer flex-col justify-between overflow-hidden select-none focus-visible:outline-2 focus-visible:outline-[#f4d993]"
+              style={{
+                width: `${studio3dBaseWidth}px`,
+                height: `${studio3dBaseHeight}px`,
+                padding: `${scalePx(22)} ${scalePx(16)} ${scalePx(18)} ${scalePx(20)}`,
+                transformOrigin: "0 0",
+                transform: studio3dProj.leftMatrixCss,
+                filter: "url(#studio-3d-curve-left)",
+                maskImage:
+                  "radial-gradient(ellipse 90% 90% at 62% 39%, black 63%, rgba(0,0,0,0.5) 84%, transparent 98%)",
+                WebkitMaskImage:
+                  "radial-gradient(ellipse 90% 90% at 62% 39%, black 63%, rgba(0,0,0,0.5) 84%, transparent 98%)",
+              }}
+            >
+              <div className="book-ink-sweep-left flex flex-1 min-h-0 flex-col justify-between">
+                <div style={{ display: "flex", flexDirection: "column", gap: scalePx(7) }}>
+                  <div
+                    className="book-ink-step-1 flex items-center justify-between border-b border-[#5c3d1e]/26 font-brand font-bold uppercase tracking-[0.14em] text-[#523115]/82"
+                    style={{ fontSize: scalePx(9.5), paddingBottom: scalePx(4) }}
+                  >
+                    <span className="truncate">{draft.themeCategory}</span>
+                    <span className="shrink-0">Hal. 1</span>
+                  </div>
+                  <h3
+                    className="book-ink-step-2 font-serif font-bold text-[#351c0a]/88 line-clamp-2"
+                    style={{ fontSize: scalePx(15.5), lineHeight: 1.24 }}
+                  >
+                    {deskLeftPreviewTitle}
+                  </h3>
+                  <p
+                    className="book-ink-step-3 font-serif text-[#42260f]/86 line-clamp-5"
+                    style={{ fontSize: scalePx(12.2), lineHeight: 1.48 }}
+                  >
+                    {deskLeftPreviewBody}
+                  </p>
+                </div>
+                <div
+                  className="book-ink-step-4 border-t border-[#5c3d1e]/24 text-right font-serif italic text-[#523115]/80"
+                  style={{ fontSize: scalePx(9.8), paddingTop: scalePx(4) }}
+                >
+                  Klik buku untuk menulis -&gt;
+                </div>
+              </div>
+            </div>
+
+            {/* Right 3D Desk Page: Calibrated 4-Point Homography + Page Arch Curve */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                if (isCalibrating) return;
+                handleEnterFocusBook();
+              }}
+              onKeyDown={(e) => {
+                if (isCalibrating) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleEnterFocusBook();
+                }
+              }}
+              aria-label="Klik halaman kanan buku di atas meja untuk membuka Buku Menulis Cerita"
+              className="parchment-ink parchment-desk-ink-bleed pointer-events-auto absolute top-0 left-0 flex cursor-pointer flex-col justify-between overflow-hidden select-none focus-visible:outline-2 focus-visible:outline-[#f4d993]"
+              style={{
+                width: `${studio3dBaseWidth}px`,
+                height: `${studio3dBaseHeight}px`,
+                padding: `${scalePx(22)} ${scalePx(22)} ${scalePx(18)} ${scalePx(15)}`,
+                transformOrigin: "0 0",
+                transform: studio3dProj.rightMatrixCss,
+                filter: "url(#studio-3d-curve-right)",
+                maskImage:
+                  "radial-gradient(ellipse 90% 90% at 38% 39%, black 63%, rgba(0,0,0,0.5) 84%, transparent 98%)",
+                WebkitMaskImage:
+                  "radial-gradient(ellipse 90% 90% at 38% 39%, black 63%, rgba(0,0,0,0.5) 84%, transparent 98%)",
+              }}
+            >
+              <div className="book-ink-sweep-right flex flex-1 min-h-0 flex-col justify-between">
+                <div style={{ display: "flex", flexDirection: "column", gap: scalePx(7) }}>
+                  <div
+                    className="book-ink-step-2 flex items-center justify-between border-b border-[#5c3d1e]/26 font-brand font-bold uppercase tracking-[0.14em] text-[#523115]/82"
+                    style={{ fontSize: scalePx(9.5), paddingBottom: scalePx(4) }}
+                  >
+                    <span>Pratinjau Tulisan di Meja</span>
+                    <span className="shrink-0">Hal. 2</span>
+                  </div>
+                  <p
+                    className="book-ink-step-3 font-serif text-[#42260f]/86 line-clamp-6"
+                    style={{ fontSize: scalePx(12.2), lineHeight: 1.48 }}
+                  >
+                    {deskRightPreviewBody}
+                  </p>
+                </div>
+                <div
+                  className="book-ink-step-4 flex items-center justify-start border-t border-[#5c3d1e]/24 font-serif font-semibold text-[#523115]/80"
+                  style={{ fontSize: scalePx(9.8), paddingTop: scalePx(4), gap: scalePx(8) }}
+                >
+                  <span>Kata: {analysis.totalWords}</span>
+                  <span>·</span>
+                  <span>EYD: {analysis.passedIndicatorsCount}/5</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Non-obstructing Call-to-Action Pill at Lower Book Center */}
+          {!isCalibrating && (
+            <div className="pointer-events-none fixed inset-x-0 bottom-16 z-30 flex justify-center sm:bottom-18">
+              <button
+                type="button"
+                onClick={() => handleEnterFocusBook()}
+                className="pointer-events-auto cursor-pointer rounded-full border border-[#f4d993]/85 bg-[#040917]/92 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#f4d993] shadow-[0_10px_28px_rgba(0,0,0,0.85)] backdrop-blur-md transition-transform duration-300 hover:scale-105 sm:px-5 sm:py-2 sm:text-xs"
+              >
+                Klik Buku di Meja untuk Menulis Cerita -&gt;
+              </button>
+            </div>
+          )}
+
+          {isCalibrating && (
+            <BookHomographyCalibrator
+              stageWidth={stageMetrics.width}
+              stageHeight={stageMetrics.height}
+              stageOffsetX={stageMetrics.offsetX}
+              stageOffsetY={stageMetrics.offsetY}
+              calibration={studioBookCalibration}
+              leftMatrixCss={studio3dProj.leftMatrixCss}
+              rightMatrixCss={studio3dProj.rightMatrixCss}
+              onChangeCalibration={setStudioBookCalibration}
+              onResetCalibration={() =>
+                setStudioBookCalibration(STUDIO_BOOK_DEFAULT_CALIBRATION)
+              }
+              onClose={() => setIsCalibrating(false)}
+            />
+          )}
+
+          {/* 3D Mode Floating Action Dock Bar (Bawah Meja — Tampil Hanya saat Mode 3D) */}
+          <div className="pointer-events-auto fixed inset-x-0 bottom-3 sm:bottom-4 z-30 flex flex-col items-center gap-2 px-4 sm:px-8">
+            {statusBanner && (
+              <div className="flex w-full max-w-[1180px] items-center justify-between gap-2 rounded-xl border border-emerald-400/55 bg-emerald-950/95 px-3.5 py-1.5 text-[11px] text-emerald-100 shadow-2xl">
+                <span>{statusBanner}</span>
+                <button
+                  type="button"
+                  onClick={() => setStatusBanner(null)}
+                  className="text-[10px] font-bold uppercase text-emerald-300 hover:text-white cursor-pointer shrink-0"
+                >
+                  Tutup
+                </button>
+              </div>
+            )}
+
+            <div className="flex w-full max-w-[1180px] flex-wrap items-center justify-between gap-2">
+              {/* Kiri: Indikator Status + Peta Belajar/LKS + Galeri Karya */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="hidden md:inline-block rounded-full bg-[#090d16]/75 border border-white/10 px-3 py-1 text-[11px] font-medium text-stone-200 shadow-md">
+                  Status:{" "}
+                  <strong
+                    className={
+                      state.sealStudioUnlocked
+                        ? "text-emerald-300"
+                        : "text-[#f4d993]"
+                    }
+                  >
+                    {state.sealStudioUnlocked
+                      ? "Siap Disimpan & Cetak (Segel IV Terbuka)"
+                      : analysis.isModelPresetReference
+                        ? "Mode Teks Model (Sunting Kalimatmu)"
+                        : "Siap Disimpan"}
+                  </strong>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    playChime();
+                    onOpenPetaModal();
+                  }}
+                  className="rounded-full border border-[#cda250]/55 bg-[#090d16]/90 hover:bg-[#090d16] px-3 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-lg"
+                >
+                  Peta Belajar &amp; LKS Cetak
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenBookAtTab("galeri_piagam")}
+                  className="rounded-full border border-[#cda250]/55 bg-[#090d16]/90 hover:bg-[#090d16] px-3 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-lg"
+                >
+                  Galeri Karya ({state.savedManuscripts.length})
+                </button>
+              </div>
+
+              {/* Kanan: Periksa Ejaan & Skor, Simpan Karya, Cetak Piagam & Naskah */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenBookAtTab("audit_revisi")}
+                  className="rounded-full border border-[#cda250]/60 bg-[#090d16]/90 hover:bg-[#090d16] px-3.5 py-1 text-xs font-bold text-[#f4d993] transition-colors cursor-pointer shadow-lg"
+                >
+                  Periksa Ejaan &amp; Skor ({analysis.passedIndicatorsCount}/5)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveManuscript}
+                  className="rounded-full border border-emerald-400/55 bg-emerald-950/90 hover:bg-emerald-900/95 px-3.5 py-1 text-xs font-bold text-emerald-200 transition-colors cursor-pointer shadow-lg"
+                >
+                  Simpan Karya
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintManuscriptAndCharter}
+                  className="rounded-full bg-[#f4d993] hover:bg-[#fbe6af] px-3.5 py-1 text-xs font-bold text-slate-950 transition-colors cursor-pointer shadow-lg"
+                >
+                  Cetak Piagam &amp; Naskah
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ===================================================================== */}
+      {/* STATE B: ZEN WRITING MODE 2D BOOK OVER BACKDROP BLUR (isBookFocused)  */}
+      {/* Bebas bar bawah & Navbar Global tersembunyi; kanvas buku terkunci     */}
+      {/* ketat ke aspek rasio asli gambar 946:603 agar 100% bebas distorsi.    */}
+      {/* ===================================================================== */}
+      {isBookFocused && (
+        <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-center gap-2 bg-black/10 px-3 pt-2.5 pb-2.5 backdrop-blur-[6px] transition-all duration-300 sm:px-6 sm:pt-3 sm:pb-3 lg:px-10">
+          <BookPageDisplacementDefs
+            prefix="studio-2d"
+            leftWidth={studio2dLeftBaseWidth}
+            rightWidth={studio2dRightBaseWidth}
+            pageHeight={studio2dBaseHeight}
+            leftDisp={studio2dProj.leftDisp}
+            rightDisp={studio2dProj.rightDisp}
+          />
+        {/* ================================================================= */}
+        {/* 1. SATU BARIS FLOATING HEADER TIPIS DI ATAS BUKU                  */}
+        {/* Kiri: Tab Lembar 1-3 + Tambah Lembar                              */}
+        {/* Kanan: Panduan & Ide, Skor & Kata, Kosongkan, [ X ] Kembali Meja  */}
+        {/* ================================================================= */}
+        <div className="relative z-40 flex w-full max-w-[1180px] items-center justify-between gap-2 flex-wrap shrink-0">
+          {/* Kiri: Tab Struktur Lembar Buku */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {CORE_SPREAD_LABELS.map((sp) => {
+              const isSpreadActive =
+                activeViewTab === "dual_book" && safeCurrentSpread === sp.index;
+              return (
+                <button
+                  key={sp.index}
+                  type="button"
+                  onClick={() => triggerSpreadTransition(sp.index)}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer shadow-md ${isSpreadActive
+                    ? "bg-[#f4d993] text-slate-950"
+                    : "border border-[#cda250]/45 bg-[#0d0a07]/85 text-[#f4d993] hover:bg-[#0d0a07]"
+                    }`}
+                >
+                  {sp.shortLabel}
+                </button>
+              );
+            })}
+
+            {extraSpreads.map((ex, idx) => {
+              const spIdx = 3 + idx;
+              const isSpreadActive =
+                activeViewTab === "dual_book" && safeCurrentSpread === spIdx;
+              return (
+                <button
+                  key={ex.id}
+                  type="button"
+                  onClick={() => triggerSpreadTransition(spIdx)}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer shadow-md ${isSpreadActive
+                    ? "bg-[#f4d993] text-slate-950"
+                    : "border border-emerald-400/45 bg-emerald-950/80 text-emerald-200 hover:bg-emerald-900/90"
+                    }`}
+                >
+                  Lembar {4 + idx}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={handleAddExtraSpread}
+              className="rounded-lg border border-emerald-400/55 bg-emerald-950/85 hover:bg-emerald-900/90 px-2.5 py-1 text-[11px] font-bold text-emerald-200 transition-colors cursor-pointer shadow-md"
+            >
+              + Tambah Lembar
+            </button>
+          </div>
+
+          {/* Kanan: Panduan & Ide, Skor | Kata, Kosongkan, & [ X ] Kembali ke Meja */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                playChime();
+                setIsGuideDrawerOpen((prev) => !prev);
+              }}
+              aria-expanded={isGuideDrawerOpen}
+              className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer shadow-md ${isGuideDrawerOpen
+                ? "border-[#f4d993] bg-[#cda250]/35 text-[#f4d993]"
+                : "border-[#cda250]/45 bg-[#0d0a07]/85 hover:bg-[#0d0a07] text-[#f4d993]"
+                }`}
+            >
+              {isGuideDrawerOpen
+                ? "Tutup Panduan"
+                : `Panduan (${metrics.unlockedSealsCount}/3) & Ide`}
+            </button>
+
+            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[#cda250]/40 bg-[#090d16]/85 px-2.5 py-1 text-[11px] text-stone-200 shadow-md">
+              <span className="font-brand uppercase tracking-wider text-[#f4d993]">
+                Skor:
+              </span>
+              <span className="font-bold text-white">{analysis.studioScore}%</span>
+              <span className="text-stone-500">|</span>
+              <span className="text-emerald-300 font-semibold">
+                {analysis.totalWords} Kata
+              </span>
+            </div>
+
+            {activeViewTab === "dual_book" ? (
+              <button
+                type="button"
+                onClick={handleResetDraft}
+                className="rounded-lg border border-white/20 bg-[#0d0a07]/85 hover:bg-[#0d0a07] px-2.5 py-1 text-[11px] text-stone-200 transition-colors cursor-pointer shadow-md"
+              >
+                Kosongkan
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => triggerTabFlip("dual_book")}
+                className="rounded-lg border border-[#cda250]/55 bg-[#090d16]/85 hover:bg-[#090d16] px-2.5 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-md"
+              >
+                Kembali ke Lembar Cerita
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleExitFocusBookToDesk}
+              className="rounded-lg border border-rose-400/45 bg-[#090d16]/90 hover:bg-rose-950/75 px-2.5 py-1 text-[11px] font-bold text-stone-100 hover:text-rose-200 transition-colors cursor-pointer shadow-md"
+            >
+              [ X ] Kembali ke Meja
+            </button>
+          </div>
+
+          {/* Popover Mengambang (Absolute Overlay — 0px Vertical Layout Shift) */}
+          {isGuideDrawerOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-2xl border border-[#cda250]/55 bg-[#070d1d]/96 p-3 shadow-2xl space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-brand text-[10px] tracking-[0.16em] uppercase text-[#f4d993]">
+                    BEKAL SEGEL MATERI (KLIK UNTUK BACA ULANG BABAK):
+                  </span>
+                  {SEAL_BADGES.map((sb) => {
+                    const unlocked = isSealUnlockedForId(sb.id);
+                    return (
+                      <button
+                        key={sb.id}
+                        type="button"
+                        onClick={() => {
+                          playChime();
+                          setActiveGrimoireChapter(sb.id);
+                          onJumpToKitabChapter(sb.id);
+                        }}
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold transition-colors cursor-pointer ${unlocked
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/45"
+                          : "bg-amber-500/15 text-amber-200 border border-amber-400/40 hover:bg-amber-500/25"
+                          }`}
+                      >
+                        {sb.label}: {unlocked ? "Terbuka" : "Pelajari di Kitab ->"}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsGuideDrawerOpen(false)}
+                  className="text-[10px] font-bold uppercase text-[#f4d993] hover:text-white cursor-pointer"
+                >
+                  [ X ] Tutup Drawer
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {STORY_SEED_PRESETS.map((seed, idx) => (
+                  <div
+                    key={seed.id}
+                    className="flex flex-col justify-between rounded-xl border border-[#cda250]/35 bg-black/60 p-2.5 space-y-2"
+                  >
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#f4d993]">
+                        Inspirasi {idx + 1}: {seed.title}
+                      </span>
+                      <p className="mt-0.5 text-[11px] text-stone-300 leading-snug">
+                        {seed.description}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleApplySeedOutline(seed.id, seed.title)}
+                        className="rounded-lg border border-emerald-400/50 bg-emerald-500/20 hover:bg-emerald-500/30 px-2 py-1 text-[10px] font-bold text-emerald-200 cursor-pointer"
+                      >
+                        Muat Kerangka Ide (Lembar 1)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplySeedFullModel(seed.id, seed.title)}
+                        className="rounded-lg border border-[#cda250]/40 bg-white/5 hover:bg-white/10 px-2 py-1 text-[10px] font-semibold text-[#f4d993] cursor-pointer"
+                      >
+                        Lihat Contoh Teks Model
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Floating Notification Toast (Absolute Overlay — 0px Vertical Layout Shift) */}
+          {statusBanner && !isGuideDrawerOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 flex items-center justify-between gap-2 rounded-xl border border-emerald-400/55 bg-emerald-950/95 px-3.5 py-1.5 text-[11px] text-emerald-100 shadow-2xl">
+              <span>{statusBanner}</span>
+              <button
+                type="button"
+                onClick={() => setStatusBanner(null)}
+                className="text-[10px] font-bold uppercase text-emerald-300 hover:text-white cursor-pointer shrink-0"
+              >
+                Tutup
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ================================================================= */}
+        {/* 2. KANVAS BUKU 2D MURNI (TERKUNCI ASPEK RASIO ASLI 946:603)       */}
+        {/* Width dihitung matematis lewat min(94vw, 1180px, height*946/603)  */}
+        {/* + aspectRatio 946/603 sehingga skala X & Y gambar identik 100% di */}
+        {/* segala ukuran layar (bebas gepeng/stretch selamanya).             */}
+        {/* ================================================================= */}
+        <div
+          style={{
+            perspective: "1800px",
+          }}
+          className="relative my-auto flex w-full flex-1 items-center justify-center overflow-visible"
+        >
+          <div
+            ref={studio2dContainerRef}
+            style={{
+              width: "min(94vw, 1180px, calc((100dvh - 4.4rem) * 946 / 603))",
+              aspectRatio: "946 / 603",
+            }}
+            className="relative drop-shadow-[0_28px_55px_rgba(0,0,0,0.9)]"
+          >
+            {/* ASSET 1: book-base.webp (Terkunci rasio asli 1376x768 -> crop 946x603) */}
+            <div
+              style={{
+                backgroundImage: "url('/assets/studio/book-base.webp')",
+                backgroundSize: "145.45% 127.36%",
+                backgroundPosition: "50% 55.15%",
+                backgroundRepeat: "no-repeat",
+              }}
+              className="pointer-events-none absolute inset-0"
+              aria-hidden="true"
+            />
+
+            {/* ASSET 2: single-page.webp (Terkunci 1:1 tepat di atas book-base.webp) */}
+            <div
+              style={{
+                backgroundImage: "url('/assets/studio/single-page.webp')",
+                backgroundSize: "145.45% 127.36%",
+                backgroundPosition: "50% 55.15%",
+                backgroundRepeat: "no-repeat",
+              }}
+              className="pointer-events-none absolute inset-0"
+              aria-hidden="true"
+            />
+
+            {/* ============================================================= */}
+            {/* LAYER 3: CALIBRATED HOMOGRAPHY PAGE SPREAD (2D ORTHOGRAPHIC)  */}
+            {/* Tanpa wrapper ber-transform/z-index agar .parchment-ink       */}
+            {/* menyatu langsung di atas serat kertas single-page.webp        */}
+            {/* ============================================================= */}
+            <div className="pointer-events-none absolute inset-0">
+              {/* =========================================================== */}
+              {/* HALAMAN KIRI BUKU                                           */}
+              {/* =========================================================== */}
+              <div
+                style={studio2dLeftPageStyle}
+                className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5"
+              >
+                <div
+                  key={`s2d-left-${activeViewTab}-${safeCurrentSpread}`}
+                  className="book-ink-sweep-left flex flex-1 min-h-0 flex-col justify-between"
+                >
+                  <div className="parchment-scroll flex flex-1 min-h-0 flex-col overflow-y-auto pr-1.5">
+                    {/* TAB 1, SPREAD 0 — HALAMAN 1: IDENTITAS, LANGKAH 1 & 2 */}
+                  {activeViewTab === "dual_book" && safeCurrentSpread === 0 && (
+                    <div className="space-y-2">
+                      <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
+                        <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                          Halaman 1
+                        </span>
+                        <span className="text-[10px] font-bold text-[#5c3d1e] whitespace-nowrap shrink-0">
+                          Peta Rancang Semesta
+                        </span>
+                      </div>
+
+                      {/* Baris 1: Identitas Penulis & Tema (Tanpa Kotak Background) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                        <div className="sm:col-span-4">
+                          <label
+                            htmlFor="studio-author-name"
+                            className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
+                          >
+                            Nama Penulis:
+                          </label>
+                          <input
+                            id="studio-author-name"
+                            type="text"
+                            value={draft.authorName}
+                            onChange={(e) =>
+                              updateStudioDraft({ authorName: e.target.value })
+                            }
+                            placeholder="Nama lengkapmu..."
+                            className={inkInputClass}
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label
+                            htmlFor="studio-author-class"
+                            className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
+                          >
+                            Kelas:
+                          </label>
+                          <input
+                            id="studio-author-class"
+                            type="text"
+                            value={draft.authorClass}
+                            onChange={(e) =>
+                              updateStudioDraft({ authorClass: e.target.value })
+                            }
+                            placeholder="VII-A"
+                            className={inkInputClass}
+                          />
+                        </div>
+                        <div className="sm:col-span-6">
+                          <label
+                            htmlFor="studio-theme-select"
+                            className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
+                          >
+                            Tema Fantasi:
+                          </label>
+                          <select
+                            id="studio-theme-select"
+                            value={draft.themeCategory}
+                            onChange={(e) =>
+                              updateStudioDraft({
+                                themeCategory: e.target.value as FantasyThemeCategory,
+                              })
+                            }
+                            className="parchment-pen-input w-full px-1 py-0.5 text-[11.5px] leading-tight font-semibold text-[#241407]/95"
+                          >
+                            {THEME_OPTIONS.map((theme) => (
+                              <option
+                                key={theme}
+                                value={theme}
+                                className="bg-[#f4e4c1] text-[#1e1106]"
+                              >
+                                {theme}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Baris 2: Aturan Dunia Fantasi (Tinta Langsung di Kertas) */}
+                      <div>
+                        <label
+                          htmlFor="studio-world-rule"
+                          className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
+                        >
+                          Aturan Logika Dunia Fantasi &amp; Konsekuensi Kekuatan:
+                        </label>
+                        <textarea
+                          id="studio-world-rule"
+                          rows={3}
+                          value={draft.worldRule}
+                          onChange={(e) =>
+                            updateStudioDraft({ worldRule: e.target.value })
+                          }
+                          placeholder="Contoh: Setiap kali jarum jam diputar mundur 15 menit, pemiliknya harus merelakan satu benda kesayangannya membeku menjadi batu."
+                          className={inkTextareaClass}
+                        />
+                      </div>
+
+                      {/* Baris 3: Langkah 2 Tokoh Protagonis & Antagonis (Tanpa Kotak Background) */}
+                      <div className="space-y-1.5 pt-0.5">
+                        <p className="font-brand text-[10px] font-bold uppercase tracking-[0.08em] text-[#3d250b] border-b border-[#5c3d1e]/35 pb-0.5 truncate">
+                          TOKOH CERITA &amp; BUKTI WATAK TINDAKAN
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
+                          <div className="order-1 sm:order-1 min-w-0">
+                            <label
+                              htmlFor="studio-protag-name"
+                              className="block truncate text-[10px] font-bold text-[#14532d]"
+                            >
+                              Tokoh Utama (Protagonis):
+                            </label>
+                            <input
+                              id="studio-protag-name"
+                              type="text"
+                              value={draft.protagonistName}
+                              onChange={(e) =>
+                                updateStudioDraft({ protagonistName: e.target.value })
+                              }
+                              placeholder="Misal: Damar"
+                              className={inkInputClass}
+                            />
+                          </div>
+
+                          <div className="order-3 sm:order-2 min-w-0">
+                            <label
+                              htmlFor="studio-antag-name"
+                              className="block truncate text-[10px] font-bold text-[#7f1d1d]"
+                            >
+                              Tokoh Lawan (Antagonis):
+                            </label>
+                            <input
+                              id="studio-antag-name"
+                              type="text"
+                              value={draft.antagonistName}
+                              onChange={(e) =>
+                                updateStudioDraft({ antagonistName: e.target.value })
+                              }
+                              placeholder="Misal: Bayang Waktu"
+                              className={inkInputClass}
+                            />
+                          </div>
+
+                          <div className="order-2 sm:order-3 min-w-0">
+                            <label
+                              htmlFor="studio-protag-trait"
+                              className="block truncate text-[10px] font-bold text-[#3d250b]"
+                            >
+                              Sifat &amp; Bukti Tindakan:
+                            </label>
+                            <textarea
+                              id="studio-protag-trait"
+                              rows={4}
+                              value={draft.protagonistTraitAction}
+                              onChange={(e) =>
+                                updateStudioDraft({
+                                  protagonistTraitAction: e.target.value,
+                                })
+                              }
+                              placeholder="Jujur & rela berkorban: memilih mengakui kesalahan daripada terus memutar waktu."
+                              className={inkTextareaClass}
+                            />
+                          </div>
+
+                          <div className="order-4 sm:order-4 min-w-0">
+                            <label
+                              htmlFor="studio-antag-conflict"
+                              className="block truncate text-[10px] font-bold text-[#3d250b]"
+                            >
+                              Pemicu Konflik / Masalah:
+                            </label>
+                            <textarea
+                              id="studio-antag-conflict"
+                              rows={4}
+                              value={draft.antagonistConflictTrigger}
+                              onChange={(e) =>
+                                updateStudioDraft({
+                                  antagonistConflictTrigger: e.target.value,
+                                })
+                              }
+                              placeholder="Membujuk tokoh utama terus memutar jam saku sampai seluruh kenangannya membatu."
+                              className={inkTextareaClass}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 1, SPREAD 1 — HALAMAN 3: JUDUL & PARAGRAF I ORIENTASI */}
+                  {activeViewTab === "dual_book" && safeCurrentSpread === 1 && (
+                    <div className="flex flex-1 min-h-0 flex-col justify-between space-y-2">
+                      <div className="space-y-1.5 flex-1 min-h-0 flex flex-col">
+                        <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
+                          <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                            Halaman 3 · Orientasi (TP 3)
+                          </span>
+                          <span
+                            className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.orientasiWords >= 12
+                              ? "text-[#14532d]"
+                              : "text-[#7c2d12]"
+                              }`}
+                          >
+                            {analysis.orientasiWords} / min. 12 kata
+                          </span>
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="studio-story-title"
+                            className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
+                          >
+                            Judul Cerita Fantasi:
+                          </label>
+                          <input
+                            id="studio-story-title"
+                            type="text"
+                            value={draft.storyTitle}
+                            onChange={(e) =>
+                              updateStudioDraft({ storyTitle: e.target.value })
+                            }
+                            placeholder="Tuliskan judul cerita fantasimu yang memikat..."
+                            className="parchment-contour-warp parchment-pen-input w-full px-1 py-0.5 font-serif text-[15px] sm:text-base font-bold text-[#241407]/95 placeholder:text-[#5c3d1e]/75"
+                          />
+                        </div>
+
+                        <div className="flex-1 min-h-0 flex flex-col pt-0.5">
+                          <label
+                            htmlFor="para-orientasi"
+                            className="block truncate text-[11px] font-bold text-[#3d250b] border-b border-[#5c3d1e]/30 pb-1"
+                          >
+                            Paragraf I · Orientasi (Tokoh, Latar 5 Indera &amp; Awal Keajaiban)
+                          </label>
+                          <textarea
+                            id="para-orientasi"
+                            rows={9}
+                            value={draft.paragraphOrientasi}
+                            onChange={(e) =>
+                              updateStudioDraft({
+                                paragraphOrientasi: e.target.value,
+                              })
+                            }
+                            placeholder="Goreskan paragraf pembuka di atas perkamen ini: perkenalkan tokoh utama di latar tempat dengan melibatkan pancaindra (cahaya, suara, aroma/suhu) serta awal mula ditemukannya keajaiban..."
+                            className={inkStoryTextareaClass}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 1, SPREAD 2 — HALAMAN 5: PARAGRAF III PUNCAK KLIMAKS */}
+                  {activeViewTab === "dual_book" && safeCurrentSpread === 2 && (
+                    <div className="flex flex-1 min-h-0 flex-col justify-between space-y-2">
+                      <div className="space-y-1.5 flex-1 min-h-0 flex flex-col">
+                        <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
+                          <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                            Halaman 5 · Puncak Klimaks (TP 4)
+                          </span>
+                          <span
+                            className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.klimaksWords >= 12
+                              ? "text-[#14532d]"
+                              : "text-[#7c2d12]"
+                              }`}
+                          >
+                            {analysis.klimaksWords} / min. 12 kata
+                          </span>
+                        </div>
+
+                        <div className="flex min-h-[26px] items-center justify-between gap-1.5 border-b border-[#5c3d1e]/30 pb-1">
+                          <span className="text-[10px] font-bold text-[#3d250b] whitespace-nowrap">
+                            Sisipan:
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={handleInsertMajasSnippet}
+                              className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer whitespace-nowrap"
+                            >
+                              + Majas Asosiasi
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleInsertDialogSnippet}
+                              className="rounded-full border border-[#1e3a8a]/75 bg-[#1e3a8a]/12 hover:bg-[#1e3a8a]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#1e3a8a] transition-colors cursor-pointer whitespace-nowrap"
+                            >
+                              + Dialog EYD V
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-h-0 flex flex-col">
+                          <label
+                            htmlFor="para-klimaks"
+                            className="block truncate text-[11px] font-bold text-[#3d250b] border-b border-[#5c3d1e]/30 pb-1"
+                          >
+                            Paragraf III · Puncak Klimaks (Ketegangan &amp; Dialog Tokoh)
+                          </label>
+                          <textarea
+                            id="para-klimaks"
+                            rows={9}
+                            value={draft.paragraphKlimaks}
+                            onChange={(e) =>
+                              updateStudioDraft({
+                                paragraphKlimaks: e.target.value,
+                              })
+                            }
+                            placeholder='Tuliskan puncak ketegangan saat bahaya mencapai titik tertinggi! Sertakan dialog langsung bertanda petik ("...") dan majas asosiasi (seperti/bagaikan/laksana)...'
+                            className={inkStoryTextareaClass}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 1, SPREAD 3+ — EXTRA SPREAD LEFT PAGE */}
+                  {activeViewTab === "dual_book" && activeExtraSpread && (
+                    <div className="flex flex-1 min-h-0 flex-col justify-between space-y-2">
+                      <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
+                        <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                          {activeExtraSpread.leftTitle}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExtraSpread(activeExtraSpread.id)}
+                          className="rounded-full border border-[#7f1d1d]/75 bg-[#7f1d1d]/12 px-2.5 py-0.5 text-[10px] font-bold text-[#7f1d1d] hover:bg-[#7f1d1d]/22 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                        >
+                          Hapus Lembar Ini
+                        </button>
+                      </div>
+                      <textarea
+                        aria-label={activeExtraSpread.leftTitle}
+                        rows={11}
+                        value={activeExtraSpread.leftText}
+                        onChange={(e) =>
+                          handleUpdateExtraSpread(activeExtraSpread.id, {
+                            leftText: e.target.value,
+                          })
+                        }
+                        placeholder="Lanjutkan kisah petualangan tokohmu langsung di atas halaman perkamen ini..."
+                        className={inkStoryTextareaClass}
+                      />
+                    </div>
+                  )}
+
+                  {/* TAB 2 — HALAMAN KIRI: PEMINDAIAN 5 INDIKATOR MENULIS NARATIF */}
+                  {activeViewTab === "audit_revisi" && (
+                    <div className="space-y-2">
+                      <div className="flex min-h-[26px] items-center border-b border-[#5c3d1e]/45 pb-1">
+                        <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                          Pemeriksa Naskah · 5 Indikator Kompetensi
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 divide-y divide-[#5c3d1e]/25">
+                        {analysis.indicators.map((ind) => (
+                          <div key={ind.id} className="pt-1.5 first:pt-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-[#1e1106]">
+                                {ind.title}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold shrink-0 ${ind.passed ? "text-[#14532d]" : "text-[#7c2d12]"
+                                  }`}
+                              >
+                                {ind.earnedScore}/{ind.scoreWeight} ({ind.tpCode})
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[11px] leading-snug text-[#2f1d0c]">
+                              {ind.summary}
+                            </p>
+                            {!ind.passed && (
+                              <p className="mt-0.5 text-[10px] font-semibold text-[#7c2d12]">
+                                Saran: {ind.improvementHint}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 3 — HALAMAN KIRI: DAFTAR KARYA TERSIMPAN */}
+                  {activeViewTab === "galeri_piagam" && (
+                    <div className="space-y-2">
+                      <div className="flex min-h-[26px] items-center border-b border-[#5c3d1e]/45 pb-1">
+                        <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                          Arsip Pustaka · Daftar Manuskrip ({state.savedManuscripts.length})
+                        </span>
+                      </div>
+
+                      {state.savedManuscripts.length === 0 ? (
+                        <div className="py-8 space-y-2">
+                          <p className="font-serif text-sm font-bold text-[#1e1106]">
+                            Belum Ada Karya yang Tersimpan di Galeri
+                          </p>
+                          <p className="text-xs text-[#3d250b] leading-relaxed">
+                            Tuliskan cerita fantasimu pada <strong>1. Buku Menulis Cerita</strong>, lalu tekan tombol <strong>Simpan Karya ke Galeri</strong> di bawah buku.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5 divide-y divide-[#5c3d1e]/30">
+                          {state.savedManuscripts.map((ms) => (
+                            <div key={ms.id} className="pt-2 first:pt-0 space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-bold uppercase text-[#5c3d1e]">
+                                  {ms.themeCategory}
+                                </span>
+                                <span className="text-[10px] font-bold text-[#14532d]">
+                                  Skor {ms.studioScore}% · {ms.wordCount} kata
+                                </span>
+                              </div>
+                              <h3 className="parchment-contour-warp font-serif text-sm font-bold text-[#1e1106]">
+                                {ms.storyTitle}
+                              </h3>
+                              <p className="text-[10px] text-[#4e3210]">
+                                Oleh: {ms.authorName} ({ms.authorClass})
+                              </p>
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playChime();
+                                    loadSavedManuscriptToEditor(ms.id);
+                                    triggerTabFlip("dual_book");
+                                    setCurrentSpread(1);
+                                    showTempBanner(
+                                      `Manuskrip "${ms.storyTitle}" dimuat kembali ke Buku Menulis Cerita.`
+                                    );
+                                  }}
+                                  className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-3 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer"
+                                >
+                                  Buka di Buku Cerita
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playErrorTone();
+                                    deleteSavedManuscriptFromPustaka(ms.id);
+                                  }}
+                                  className="rounded-full border border-[#7f1d1d]/75 bg-[#7f1d1d]/12 hover:bg-[#7f1d1d]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#7f1d1d] transition-colors cursor-pointer"
+                                >
+                                  Hapus
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Navigasi Sudut Kiri Bawah & Nomor Halaman Kiri di Dalam Margin Kertas */}
+                <div className="mt-1 flex shrink-0 items-center justify-between gap-2 border-t border-[#5c3d1e]/30 pt-1 text-[10px] font-bold text-[#4e3210]">
+                  {activeViewTab === "dual_book" ? (
+                    <button
+                      type="button"
+                      disabled={safeCurrentSpread === 0 || flipDirection !== null}
+                      onClick={() => triggerSpreadTransition(safeCurrentSpread - 1)}
+                      className="rounded border border-[#5c3d1e]/50 px-2 py-0.5 text-[10px] font-bold text-[#2b1706] hover:bg-[#5c3d1e]/15 disabled:opacity-35 cursor-pointer disabled:pointer-events-none transition-colors"
+                    >
+                      &lt;- Lembar Sebelumnya
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={flipDirection !== null}
+                      onClick={() => triggerTabFlip("dual_book")}
+                      className="rounded border border-[#5c3d1e]/50 px-2 py-0.5 text-[10px] font-bold text-[#2b1706] hover:bg-[#5c3d1e]/15 cursor-pointer transition-colors"
+                    >
+                      &lt;- Kembali ke Lembar Cerita
+                    </button>
+                  )}
+
+                    <span>
+                      {activeViewTab === "dual_book"
+                        ? `Halaman ${safeCurrentSpread * 2 + 1}`
+                        : activeViewTab === "audit_revisi"
+                          ? "Lembar Pemeriksa · Kiri"
+                          : "Lembar Galeri · Kiri"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* =========================================================== */}
+              {/* HALAMAN KANAN BUKU                                          */}
+              {/* =========================================================== */}
+              <div
+                style={studio2dRightPageStyle}
+                className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5"
+              >
+                <div
+                  key={`s2d-right-${activeViewTab}-${safeCurrentSpread}`}
+                  className="book-ink-sweep-right flex flex-1 min-h-0 flex-col justify-between"
+                >
+                  <div className="parchment-scroll flex flex-1 min-h-0 flex-col overflow-y-auto pr-1.5">
+                    {/* TAB 1, SPREAD 0 — HALAMAN 2: LANGKAH 3 (5 INDERA) & LANGKAH 4 (KERANGKA ALUR) */}
+                  {activeViewTab === "dual_book" && safeCurrentSpread === 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
+                        <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                          Halaman 2 · 5 Indera &amp; Alur
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleGenerateDraftFromOutline}
+                          className="rounded-full border border-[#14532d]/75 bg-[#14532d]/12 hover:bg-[#14532d]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#14532d] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                        >
+                          Rakit Draf Awal -&gt;
+                        </button>
+                      </div>
+
+                      {/* Langkah 3: Latar Tempat & Peta Lima Indera (Tanpa Kotak Background) */}
+                      <div className="space-y-1">
+                        <p className="font-brand text-[10px] font-bold uppercase tracking-[0.08em] text-[#3d250b] truncate">
+                          LANGKAH 3 · LATAR TEMPAT &amp; PANCAINDRA
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5">
+                          <div className="min-w-0">
+                            <label
+                              htmlFor="studio-setting-place"
+                              className="block truncate text-[10px] font-bold text-[#3d250b]"
+                            >
+                              Nama Latar Tempat:
+                            </label>
+                            <textarea
+                              id="studio-setting-place"
+                              rows={3}
+                              value={draft.settingPlace}
+                              onChange={(e) =>
+                                updateStudioDraft({ settingPlace: e.target.value })
+                              }
+                              placeholder="Contoh: Loteng Perpustakaan Tua di menara sekolah"
+                              className={inkTextareaClass}
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <label
+                              htmlFor="studio-sensory-sight"
+                              className="block truncate text-[10px] font-bold text-[#3d250b]"
+                            >
+                              1. Penglihatan (Cahaya):
+                            </label>
+                            <textarea
+                              id="studio-sensory-sight"
+                              rows={3}
+                              value={draft.sensorySight}
+                              onChange={(e) =>
+                                updateStudioDraft({ sensorySight: e.target.value })
+                              }
+                              placeholder="Cahaya keemasan berpendar dari roda gigi perunggu di sela debu."
+                              className={inkTextareaClass}
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <label
+                              htmlFor="studio-sensory-sound"
+                              className="block truncate text-[10px] font-bold text-[#3d250b]"
+                            >
+                              2. Pendengaran (Bunyi):
+                            </label>
+                            <textarea
+                              id="studio-sensory-sound"
+                              rows={3}
+                              value={draft.sensorySound}
+                              onChange={(e) =>
+                                updateStudioDraft({ sensorySound: e.target.value })
+                              }
+                              placeholder="Detak jarum jam menggema berat disusul derit papan kayu tua."
+                              className={inkTextareaClass}
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <label
+                              htmlFor="studio-sensory-smell"
+                              className="block truncate text-[10px] font-bold text-[#3d250b]"
+                            >
+                              3. Penciuman &amp; Peraba:
+                            </label>
+                            <textarea
+                              id="studio-sensory-smell"
+                              rows={3}
+                              value={draft.sensorySmellTouch}
+                              onChange={(e) =>
+                                updateStudioDraft({
+                                  sensorySmellTouch: e.target.value,
+                                })
+                              }
+                              placeholder="Aroma kertas kuno lembap berpadu dengan hawa dingin menusuk."
+                              className={inkTextareaClass}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Langkah 4: Kerangka Alur 3 Babak (Tanpa Kotak Background) */}
+                      <div className="space-y-1 pt-0.5">
+                        <p className="font-brand text-[10px] font-bold uppercase tracking-[0.08em] text-[#3d250b] border-b border-[#5c3d1e]/35 pb-0.5 truncate">
+                          LANGKAH 4 · KERANGKA ALUR (AWAL -&gt; AKHIR)
+                        </p>
+                        <div className="space-y-1">
+                          <div>
+                            <label
+                              htmlFor="outline-orientasi"
+                              className="block truncate text-[10px] font-bold text-[#3d250b]"
+                            >
+                              1. Kerangka Awal (Orientasi):
+                            </label>
+                            <textarea
+                              id="outline-orientasi"
+                              rows={2}
+                              value={draft.outlineOrientasi}
+                              onChange={(e) =>
+                                updateStudioDraft({ outlineOrientasi: e.target.value })
+                              }
+                              placeholder="Bagaimana tokoh utama menemukan keajaiban di latar tempat?"
+                              className={inkTextareaClass}
+                            />
+                          </div>
+                          <div>
+                            <label
+                              htmlFor="outline-klimaks"
+                              className="block truncate text-[10px] font-bold text-[#3d250b]"
+                            >
+                              2. Kerangka Tengah (Komplikasi &amp; Klimaks):
+                            </label>
+                            <textarea
+                              id="outline-klimaks"
+                              rows={2}
+                              value={draft.outlineKomplikasiKlimaks}
+                              onChange={(e) =>
+                                updateStudioDraft({
+                                  outlineKomplikasiKlimaks: e.target.value,
+                                })
+                              }
+                              placeholder="Bagaimana masalah muncul lalu memuncak hingga menuntut konsekuensi?"
+                              className={inkTextareaClass}
+                            />
+                          </div>
+                          <div>
+                            <label
+                              htmlFor="outline-resolusi"
+                              className="block truncate text-[10px] font-bold text-[#3d250b]"
+                            >
+                              3. Kerangka Akhir (Resolusi):
+                            </label>
+                            <textarea
+                              id="outline-resolusi"
+                              rows={2}
+                              value={draft.outlineResolusi}
+                              onChange={(e) =>
+                                updateStudioDraft({ outlineResolusi: e.target.value })
+                              }
+                              placeholder="Bagaimana tokoh menyelesaikan masalah secara logis dan memetik pelajaran?"
+                              className={inkTextareaClass}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 1, SPREAD 1 — HALAMAN 4: PARAGRAF II KOMPLIKASI */}
+                  {activeViewTab === "dual_book" && safeCurrentSpread === 1 && (
+                    <div className="flex flex-1 min-h-0 flex-col justify-between space-y-2">
+                      <div className="space-y-1.5 flex-1 min-h-0 flex flex-col">
+                        <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
+                          <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                            Halaman 4 · Komplikasi (TP 3 &amp; TP 4)
+                          </span>
+                          <span
+                            className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.komplikasiWords >= 10
+                              ? "text-[#14532d]"
+                              : "text-[#7c2d12]"
+                              }`}
+                          >
+                            {analysis.komplikasiWords} kata
+                          </span>
+                        </div>
+
+                        {/* Quick-Insert Time Conjunction + KBBI Reference Linker */}
+                        <div className="flex min-h-[26px] items-center justify-between gap-1.5 border-b border-[#5c3d1e]/30 pb-1">
+                          <button
+                            type="button"
+                            onClick={handleInsertTimeConjunctionSnippet}
+                            className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                          >
+                            + Konflik (&ldquo;Tiba-tiba...&rdquo;)
+                          </button>
+
+                          <div className="flex items-center gap-1 min-w-0">
+                            <input
+                              aria-label="Kata untuk dicek di KBBI VI Daring"
+                              type="text"
+                              value={kbbiLookupQuery}
+                              onChange={(e) => setKbbiLookupQuery(e.target.value)}
+                              placeholder="Cek kata baku..."
+                              className="parchment-pen-input w-24 sm:w-28 px-1 py-0.5 text-[10px] font-semibold text-[#241407]/95 placeholder:text-[#5c3d1e]/75"
+                            />
+                            <a
+                              href={buildKbbiReferenceUrl(kbbiLookupQuery || "imajinasi")}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] no-underline transition-colors shrink-0 whitespace-nowrap"
+                            >
+                              KBBI VI -&gt;
+                            </a>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-h-0 flex flex-col pt-0.5">
+                          <label
+                            htmlFor="para-komplikasi"
+                            className="block truncate text-[11px] font-bold text-[#3d250b] border-b border-[#5c3d1e]/30 pb-1"
+                          >
+                            Paragraf II · Komplikasi (Masalah, Rintangan &amp; Tokoh Lawan)
+                          </label>
+                          <textarea
+                            id="para-komplikasi"
+                            rows={9}
+                            value={draft.paragraphKomplikasi ?? ""}
+                            onChange={(e) =>
+                              updateStudioDraft({
+                                paragraphKomplikasi: e.target.value,
+                              })
+                            }
+                            placeholder="Ceritakan bagaimana masalah mulai muncul secara bertahap (misalnya kehadiran tokoh lawan, godaan menggunakan kekuatan ajaib, atau gangguan alam) sebelum mencapai puncak klimaks di Lembar 3..."
+                            className={inkStoryTextareaClass}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 1, SPREAD 2 — HALAMAN 6: PARAGRAF IV RESOLUSI & AMANAT */}
+                  {activeViewTab === "dual_book" && safeCurrentSpread === 2 && (
+                    <div className="flex flex-1 min-h-0 flex-col justify-between space-y-2">
+                      <div className="space-y-1.5 flex-1 min-h-0 flex flex-col">
+                        <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
+                          <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                            Halaman 6 · Resolusi &amp; Amanat (TP 5)
+                          </span>
+                          <span
+                            className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.resolusiWords >= 12
+                              ? "text-[#14532d]"
+                              : "text-[#7c2d12]"
+                              }`}
+                          >
+                            {analysis.resolusiWords} / min. 12 kata
+                          </span>
+                        </div>
+
+                        <div className="flex-1 min-h-0 flex flex-col">
+                          <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/30 pb-1">
+                            <label
+                              htmlFor="para-resolusi"
+                              className="block truncate text-[11px] font-bold text-[#3d250b]"
+                            >
+                              Paragraf IV · Resolusi / Penyelesaian
+                            </label>
+                            <button
+                              type="button"
+                              onClick={handleInsertIndirectSnippet}
+                              className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                            >
+                              + Kalimat Tak Langsung
+                            </button>
+                          </div>
+                          <textarea
+                            id="para-resolusi"
+                            rows={5}
+                            value={draft.paragraphResolusi}
+                            onChange={(e) =>
+                              updateStudioDraft({
+                                paragraphResolusi: e.target.value,
+                              })
+                            }
+                            placeholder="Tuliskan bagaimana tokoh menyelesaikan konflik sesuai aturan dunia fantasi dan mengalami perubahan sikap..."
+                            className={inkStoryTextareaClass}
+                          />
+                        </div>
+
+                        <div className="border-t border-[#5c3d1e]/35 pt-1.5 shrink-0">
+                          <label
+                            htmlFor="studio-amanat"
+                            className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
+                          >
+                            Langkah 6 · Amanat / Pesan Moral Cerita:
+                          </label>
+                          <textarea
+                            id="studio-amanat"
+                            rows={2}
+                            value={draft.amanat}
+                            onChange={(e) =>
+                              updateStudioDraft({ amanat: e.target.value })
+                            }
+                            placeholder="Pesan kebaikan apa yang ingin kamu sampaikan kepada pembaca lewat cerita ini?"
+                            className={inkTextareaClass}
+                          />
+                        </div>
+
+                        {/* Ringkasan Status 5 Indikator di Atas Kertas */}
+                        <div className="border-t border-[#5c3d1e]/35 pt-1.5 shrink-0 space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-brand text-[10px] font-bold uppercase tracking-wider text-[#3d250b] truncate">
+                              Detektor Sastra: {analysis.passedIndicatorsCount}/5 Terpenuhi
+                            </span>
+                            {analysis.eydAndLexiconIssues.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={handleApplyAllEydFixes}
+                                className="rounded-full border border-[#7f1d1d]/75 bg-[#7f1d1d]/12 hover:bg-[#7f1d1d]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#7f1d1d] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                              >
+                                Perbaiki {analysis.eydAndLexiconIssues.length} Ejaan Otomatis
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => triggerTabFlip("audit_revisi")}
+                                className="text-[10px] font-bold text-[#14532d] underline cursor-pointer shrink-0 whitespace-nowrap"
+                              >
+                                Lihat Rincian Pemeriksa -&gt;
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 1, SPREAD 3+ — EXTRA SPREAD RIGHT PAGE */}
+                  {activeViewTab === "dual_book" && activeExtraSpread && (
+                    <div className="flex flex-1 min-h-0 flex-col justify-between space-y-2">
+                      <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
+                        <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                          {activeExtraSpread.rightTitle}
+                        </span>
+                        <span className="text-[10px] font-bold text-[#5c3d1e] shrink-0 whitespace-nowrap">
+                          Total: {analysis.totalWords} Kata
+                        </span>
+                      </div>
+                      <textarea
+                        aria-label={activeExtraSpread.rightTitle}
+                        rows={11}
+                        value={activeExtraSpread.rightText}
+                        onChange={(e) =>
+                          handleUpdateExtraSpread(activeExtraSpread.id, {
+                            rightText: e.target.value,
+                          })
+                        }
+                        placeholder="Tuliskan lanjutan adegan, dialog tambahan, atau epilog ceritamu di halaman kanan ini..."
+                        className={inkStoryTextareaClass}
+                      />
+                    </div>
+                  )}
+
+                  {/* TAB 2 — HALAMAN KANAN: AUDIT EYD V & DAFTAR PERIKSA REVISI MANDIRI */}
+                  {activeViewTab === "audit_revisi" && (
+                    <div className="space-y-2.5">
+                      <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
+                        <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                          Audit Ejaan EYD V &amp; Periksa Revisi (TP 5)
+                        </span>
+                        {analysis.eydAndLexiconIssues.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleApplyAllEydFixes}
+                            className="rounded-full border border-[#7f1d1d]/75 bg-[#7f1d1d]/12 hover:bg-[#7f1d1d]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#7f1d1d] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                          >
+                            Perbaiki Semua Ejaan
+                          </button>
+                        )}
+                      </div>
+
+                      {analysis.eydAndLexiconIssues.length === 0 ? (
+                        <p className="text-[11px] font-semibold text-[#14532d]">
+                          Seluruh penulisan kata depan penunjuk tempat, tanda baca petik dialog, dan kata baku telah sesuai kaidah EYD Edisi V.
+                        </p>
+                      ) : (
+                        <div className="space-y-1.5 border-b border-[#5c3d1e]/30 pb-2">
+                          {analysis.eydAndLexiconIssues.map((issue) => (
+                            <div key={issue.id} className="text-[11px]">
+                              <div className="flex flex-wrap items-center justify-between gap-1">
+                                <span className="font-bold text-[#7f1d1d]">
+                                  Tertulis: &ldquo;{issue.foundText}&rdquo; -&gt; Baku:{" "}
+                                  <span className="text-[#14532d]">
+                                    &ldquo;{issue.suggestion}&rdquo;
+                                  </span>
+                                </span>
+                                <a
+                                  href={issue.referenceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[10px] font-bold text-[#3d250b] underline"
+                                >
+                                  {issue.ruleReference}
+                                </a>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Daftar Periksa Revisi Mandiri (Tinta di Atas Kertas + Checkbox SVG Asli) */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-brand text-[10px] font-bold uppercase tracking-wider text-[#3d250b]">
+                            Daftar Periksa Revisi Mandiri ({analysis.revisionCheckedCount}/{analysis.totalRevisionChecklistCount})
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5 divide-y divide-[#5c3d1e]/25">
+                          {SELF_REVISION_CHECKLIST.map((item) => {
+                            const checked = draft.selfRevisionChecks[item.id] === true;
+                            return (
+                              <label
+                                key={item.id}
+                                className="flex w-full items-start gap-2.5 pt-1.5 first:pt-0 text-left text-[11px] cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    playChime();
+                                    toggleStudioRevisionCheck(item.id);
+                                  }}
+                                  className="sr-only"
+                                />
+                                <span
+                                  aria-hidden="true"
+                                  className={`mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded border transition-colors ${checked
+                                    ? "border-[#14532d] bg-[#14532d]/18 text-[#14532d] font-bold"
+                                    : "border-[#5c3d1e] bg-transparent text-transparent"
+                                    }`}
+                                >
+                                  <svg
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                    className="h-3 w-3"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-[#5c3d1e]">
+                                    {item.category}
+                                  </span>
+                                  <p className="leading-snug text-[#1e1106] font-medium">
+                                    {item.label}
+                                  </p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 3 — HALAMAN KANAN: RINGKASAN PIAGAM PENJAGA AKSARA */}
+                  {activeViewTab === "galeri_piagam" && (
+                    <div className="space-y-3">
+                      <div className="flex min-h-[26px] items-center border-b border-[#5c3d1e]/45 pb-1">
+                        <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
+                          Ringkasan Piagam &amp; Rapor Naskah
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs text-[#1e1106]">
+                        <p>
+                          <strong>Judul Naskah Aktif:</strong>{" "}
+                          {draft.storyTitle.trim() || "(Belum diberi judul)"}
+                        </p>
+                        <p>
+                          <strong>Penulis Muda:</strong>{" "}
+                          {draft.authorName.trim() || "(Belum diisi)"} ({draft.authorClass})
+                        </p>
+                        <p>
+                          <strong>Tema Fantasi:</strong> {draft.themeCategory}
+                        </p>
+                        <p>
+                          <strong>Total Kata Manuskrip:</strong> {analysis.totalWords} kata
+                        </p>
+                        <p>
+                          <strong>Skor Analisis Naskah:</strong> {analysis.studioScore}% ({analysis.passedIndicatorsCount}/5 Indikator)
+                        </p>
+                        <p>
+                          <strong>Skor Holistik Aksaraloka:</strong> {metrics.holisticTotalPercentage}% ({metrics.kelayakanCategory})
+                        </p>
+                      </div>
+
+                      <div className="border-t border-[#5c3d1e]/35 pt-2.5 space-y-2">
+                        <p className="text-[11px] leading-relaxed text-[#2f1d0c]">
+                          Simpan naskahmu ke Galeri Pustaka atau cetak <strong>Piagam Penjaga Aksara &amp; Manuskrip Cerita Fantasi</strong> resmi dalam format siap cetak/PDF.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleSaveManuscript}
+                            className="rounded-full border border-[#14532d]/75 bg-[#14532d]/12 hover:bg-[#14532d]/22 px-3.5 py-1 text-xs font-bold text-[#14532d] transition-colors cursor-pointer"
+                          >
+                            + Simpan Naskah Saat Ini
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handlePrintManuscriptAndCharter}
+                            className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-3.5 py-1 text-xs font-bold text-[#3d250b] transition-colors cursor-pointer"
+                          >
+                            Cetak Piagam &amp; Manuskrip -&gt;
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Nomor Halaman Kanan & Navigasi Sudut Kanan Bawah di Dalam Margin Kertas */}
+                <div className="mt-1 flex shrink-0 items-center justify-between gap-2 border-t border-[#5c3d1e]/30 pt-1 text-[10px] font-bold text-[#4e3210]">
+                  <span>
+                    {activeViewTab === "dual_book"
+                      ? `Halaman ${safeCurrentSpread * 2 + 2}`
+                      : activeViewTab === "audit_revisi"
+                        ? "Lembar Pemeriksa · Kanan"
+                        : "Lembar Galeri · Kanan"}
+                  </span>
+
+                  {activeViewTab === "dual_book" ? (
+                    safeCurrentSpread < totalSpreads - 1 ? (
+                      <button
+                        type="button"
+                        disabled={flipDirection !== null}
+                        onClick={() => triggerSpreadTransition(safeCurrentSpread + 1)}
+                        className="rounded border border-[#5c3d1e]/50 px-2 py-0.5 text-[10px] font-bold text-[#2b1706] hover:bg-[#5c3d1e]/15 disabled:opacity-35 cursor-pointer disabled:pointer-events-none transition-colors"
+                      >
+                        Lembar Berikutnya -&gt;
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleAddExtraSpread}
+                        className="rounded border border-[#14532d]/55 px-2 py-0.5 text-[10px] font-bold text-[#14532d] hover:bg-[#14532d]/15 cursor-pointer transition-colors"
+                      >
+                        + Tambah Lembar -&gt;
+                      </button>
+                    )
+                  ) : activeViewTab === "audit_revisi" ? (
+                    <button
+                      type="button"
+                      disabled={flipDirection !== null}
+                      onClick={() => triggerTabFlip("galeri_piagam")}
+                      className="rounded border border-[#5c3d1e]/50 px-2 py-0.5 text-[10px] font-bold text-[#2b1706] hover:bg-[#5c3d1e]/15 cursor-pointer transition-colors"
+                    >
+                      Buka Galeri &amp; Piagam -&gt;
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={flipDirection !== null}
+                      onClick={() => triggerTabFlip("audit_revisi")}
+                      className="rounded border border-[#5c3d1e]/50 px-2 py-0.5 text-[10px] font-bold text-[#2b1706] hover:bg-[#5c3d1e]/15 cursor-pointer transition-colors"
+                    >
+                      Buka Pemeriksa Ejaan -&gt;
+                    </button>
+                  )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Layer 4: Spine Gutter Shadow & Outer Paper Edge Vignette Overlay */}
+            <ParchmentSpineShadowOverlay />
+
+            {/* 3D HINGE PAGE-FLIPPER OVERLAY (Terkunci 1:1 ke koordinat kertas 946:603) */}
+            {flipDirection !== null && (
+              <div
+                style={{
+                  left: flipDirection === "next" ? "49.05%" : "6.55%",
+                  top: "2.16%",
+                  width: flipDirection === "next" ? "44.40%" : "42.49%",
+                  height: "95.02%",
+                  backgroundImage: "url('/assets/studio/single-page.webp')",
+                  backgroundSize:
+                    flipDirection === "next"
+                      ? "327.62% 134.03%"
+                      : "342.29% 134.03%",
+                  backgroundPosition:
+                    flipDirection === "next" ? "71.03% 53.33%" : "28.44% 53.33%",
+                  backgroundRepeat: "no-repeat",
+                  transformOrigin:
+                    flipDirection === "next" ? "left center" : "right center",
+                  backfaceVisibility: "hidden",
+                }}
+                className={`pointer-events-none absolute z-30 drop-shadow-[0_0_35px_rgba(0,0,0,0.65)] ${flipDirection === "next"
+                  ? "animate-studio-flip-next"
+                  : "animate-studio-flip-prev"
+                  }`}
+                aria-hidden="true"
+              />
+            )}
+          </div>
+        </div>
+
+          {isCalibrating && (
+            <BookHomographyCalibrator
+              stageWidth={studio2dLayout.width}
+              stageHeight={studio2dLayout.height}
+              stageOffsetX={studio2dLayout.offsetX}
+              stageOffsetY={studio2dLayout.offsetY}
+              stageScale={studio2dScale}
+              calibration={studio2dCalibration}
+              leftMatrixCss={studio2dProj.leftMatrixCss}
+              rightMatrixCss={studio2dProj.rightMatrixCss}
+              onChangeCalibration={setStudio2dCalibration}
+              onResetCalibration={() =>
+                setStudio2dCalibration(READING_2D_DEFAULT_CALIBRATION)
+              }
+              onClose={() => setIsCalibrating(false)}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

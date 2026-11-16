@@ -1,0 +1,472 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: var(--font-playfair), Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-brand: var(--font-cinzel), serif;
+  --font-sans: var(--font-jakarta), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --color-forest-deep: #05140f;
+  --color-forest-base: #0b241b;
+  --color-forest-glow: #164e3c;
+  --color-midnight-deep: #030712;
+  --color-midnight-base: #071324;
+  --color-violet-glow: #241442;
+  --color-gold-base: #cda250;
+  --color-gold-light: #f4d993;
+  --color-gold-dark: #8c6826;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    scrollbar-gutter: stable;
+  }
+}
+
+/* Custom parchment scrollbars matching antique book ink */
+.parchment-scroll::-webkit-scrollbar {
+  width: 2px;
+  height: 2px;
+}
+
+.parchment-scroll::-webkit-scrollbar-track,
+.parchment-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.parchment-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(92, 61, 30, 0.24);
+  border-radius: 9999px;
+}
+
+.parchment-scroll:hover::-webkit-scrollbar-thumb,
+.parchment-scroll:focus::-webkit-scrollbar-thumb {
+  background-color: rgba(61, 37, 11, 0.55);
+}
+
+.parchment-scroll::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .parchment-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(92, 61, 30, 0.42) transparent;
+  }
+}
+
+.parchment-scroll-hidden::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.parchment-scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Ink blend utility for pure parchment typography and inputs */
+.parchment-ink {
+  mix-blend-mode: multiply;
+}
+
+/* 2D Open-Book Dihedral Page Columns (must sit inside non-isolated grid so multiply blends into single-page.webp) */
+.parchment-page-left {
+  transform-origin: right center;
+  transform: perspective(1800px) rotateY(2.2deg) rotateZ(-0.12deg);
+  mix-blend-mode: multiply;
+}
+
+.parchment-page-right {
+  transform-origin: left center;
+  transform: perspective(1800px) rotateY(-2.2deg) rotateZ(0.12deg);
+  mix-blend-mode: multiply;
+}
+
+/* Subtle ink-bleed onto warm parchment paper fibers */
+.parchment-ink-bleed {
+  color: rgba(34, 20, 9, 0.92);
+  text-shadow:
+    0 0 0.55px rgba(43, 26, 12, 0.3),
+    0 0.4px 0.9px rgba(92, 61, 30, 0.16);
+}
+
+/* Warmer walnut-sepia ink capillary bleed tuned for bright sunlit desk paper */
+.parchment-desk-ink-bleed {
+  color: rgba(66, 38, 15, 0.86);
+  text-shadow:
+    0 0 0.75px rgba(74, 41, 16, 0.36),
+    0 0.5px 1.2px rgba(112, 72, 34, 0.24);
+}
+
+/* Selective organic contour warp for display headings, SVG illustrations & dividers */
+.parchment-contour-warp {
+  filter: url(#parchment-contour-warp);
+}
+
+/* Handwritten uneven ink hairline divider */
+.parchment-ink-rule {
+  height: 1.5px;
+  border: 0;
+  background-image: linear-gradient(
+    90deg,
+    rgba(92, 61, 30, 0.06) 0%,
+    rgba(61, 37, 11, 0.48) 14%,
+    rgba(61, 37, 11, 0.48) 86%,
+    rgba(92, 61, 30, 0.05) 100%
+  );
+  filter: url(#parchment-contour-warp);
+}
+
+/* Pen-on-parchment styling for interactive <input> and <select> controls */
+.parchment-pen-input {
+  color: rgba(36, 20, 8, 0.95);
+  caret-color: #7f1d1d;
+  text-shadow: 0 0 0.45px rgba(43, 26, 12, 0.25);
+  background-color: transparent;
+  border: 0;
+  background-image: linear-gradient(
+    90deg,
+    rgba(92, 61, 30, 0.06) 0%,
+    rgba(58, 37, 18, 0.56) 12%,
+    rgba(58, 37, 18, 0.56) 88%,
+    rgba(92, 61, 30, 0.04) 100%
+  );
+  background-size: 100% 1.5px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+}
+
+.parchment-pen-input:focus {
+  background-color: rgba(92, 61, 30, 0.05);
+  background-image: linear-gradient(
+    90deg,
+    rgba(127, 29, 29, 0.14) 0%,
+    rgba(43, 26, 12, 0.85) 12%,
+    rgba(43, 26, 12, 0.85) 88%,
+    rgba(127, 29, 29, 0.1) 100%
+  );
+  outline: none;
+}
+
+/* Multi-line ruled ink area for handwritten story drafts on parchment */
+.parchment-pen-textarea {
+  color: rgba(34, 19, 8, 0.94);
+  caret-color: #7f1d1d;
+  text-shadow: 0 0 0.4px rgba(43, 26, 12, 0.2);
+  background-color: transparent;
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(1.625em - 1px),
+    rgba(92, 61, 30, 0.14) calc(1.625em - 1px),
+    rgba(92, 61, 30, 0.14) 1.625em
+  );
+  background-size: 100% 1.625em;
+  background-attachment: local;
+  line-height: 1.625em;
+}
+
+.parchment-pen-textarea:focus {
+  background-color: rgba(92, 61, 30, 0.035);
+  outline: none;
+}
+
+/* Custom subtle atmospheric shimmer and animations */
+@keyframes ambientGlow {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(1) translate(0, 0);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.08) translate(10px, -15px);
+  }
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-ambient-glow {
+  animation: ambientGlow 12s ease-in-out infinite;
+}
+
+.animate-float-gentle {
+  animation: floatGentle 6s ease-in-out infinite;
+}
+
+/* Aceternity UI — Spotlight Animation */
+@keyframes spotlight {
+  0% {
+    opacity: 0;
+    transform: translate(-72%, -62%) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -40%) scale(1);
+  }
+}
+
+.animate-spotlight {
+  animation: spotlight 2s ease 0.3s 1 forwards;
+}
+
+@keyframes theaterFollowspot {
+  0%, 100% {
+    opacity: 0.65;
+    transform: scaleX(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scaleX(1.05);
+  }
+}
+
+.animate-theater-spotlight {
+  animation: theaterFollowspot 4s ease-in-out infinite;
+}
+
+/* Portal transition animations for instant cross-scene returns */
+@keyframes portalSpinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes portalSpinReverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes portalSweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+@keyframes portalPulseRing {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.06);
+  }
+}
+
+.animate-portal-spin-slow {
+  animation: portalSpinSlow 14s linear infinite;
+}
+
+.animate-portal-spin-reverse {
+  animation: portalSpinReverse 9s linear infinite;
+}
+
+.animate-portal-sweep {
+  animation: portalSweep 1.15s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.animate-portal-pulse {
+  animation: portalPulseRing 2s ease-in-out infinite;
+}
+
+/* Studio Tulis 2D Book 3D Hinge Page-Flip Animations */
+@keyframes studioPageFlipNext {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(-180deg);
+  }
+}
+
+@keyframes studioPageFlipPrev {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(180deg);
+  }
+}
+
+.animate-studio-flip-next {
+  animation: studioPageFlipNext 460ms cubic-bezier(0.645, 0.045, 0.355, 1) forwards;
+}
+
+.animate-studio-flip-prev {
+  animation: studioPageFlipPrev 460ms cubic-bezier(0.645, 0.045, 0.355, 1) forwards;
+}
+
+/* Enchanted parchment ink-soak entrance shared by Kitab Materi & Studio Tulis (3D & 2D) */
+@keyframes bookInkSweepReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.992);
+    filter: blur(3.2px) sepia(0.45) brightness(1.22);
+    -webkit-mask-image: linear-gradient(
+      108deg,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 1) 38%,
+      rgba(0, 0, 0, 0) 56%,
+      rgba(0, 0, 0, 0) 100%
+    );
+    mask-image: linear-gradient(
+      108deg,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 1) 38%,
+      rgba(0, 0, 0, 0) 56%,
+      rgba(0, 0, 0, 0) 100%
+    );
+    -webkit-mask-size: 280% 100%;
+    mask-size: 280% 100%;
+    -webkit-mask-position: 100% 0%;
+    mask-position: 100% 0%;
+  }
+  48% {
+    opacity: 0.88;
+    transform: translateY(1px) scale(0.998);
+    filter: blur(0.9px) sepia(0.14) brightness(1.06);
+  }
+  94% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px) sepia(0) brightness(1);
+    -webkit-mask-image: linear-gradient(
+      108deg,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 1) 38%,
+      rgba(0, 0, 0, 0) 56%,
+      rgba(0, 0, 0, 0) 100%
+    );
+    mask-image: linear-gradient(
+      108deg,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 1) 38%,
+      rgba(0, 0, 0, 0) 56%,
+      rgba(0, 0, 0, 0) 100%
+    );
+    -webkit-mask-size: 280% 100%;
+    mask-size: 280% 100%;
+    -webkit-mask-position: 0% 0%;
+    mask-position: 0% 0%;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+@keyframes bookInkStrokeEmerge {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+    filter: blur(2.6px) sepia(0.28);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.book-ink-sweep-left {
+  animation: bookInkSweepReveal 780ms cubic-bezier(0.22, 1, 0.36, 1) 0ms both;
+}
+
+.book-ink-sweep-right {
+  animation: bookInkSweepReveal 780ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+}
+
+.book-ink-step-1 {
+  animation: bookInkStrokeEmerge 560ms cubic-bezier(0.22, 1, 0.36, 1) 40ms both;
+}
+
+.book-ink-step-2 {
+  animation: bookInkStrokeEmerge 600ms cubic-bezier(0.22, 1, 0.36, 1) 130ms both;
+}
+
+.book-ink-step-3 {
+  animation: bookInkStrokeEmerge 620ms cubic-bezier(0.22, 1, 0.36, 1) 220ms both;
+}
+
+.book-ink-step-4 {
+  animation: bookInkStrokeEmerge 620ms cubic-bezier(0.22, 1, 0.36, 1) 300ms both;
+}
+
+/* Respect user's reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-ambient-glow,
+  .animate-float-gentle {
+    animation: none !important;
+  }
+
+  .book-ink-sweep-left,
+  .book-ink-sweep-right,
+  .book-ink-step-1,
+  .book-ink-step-2,
+  .book-ink-step-3,
+  .book-ink-step-4 {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+  }
+}
+
+/* Lenis smooth scroll optimization */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
+
