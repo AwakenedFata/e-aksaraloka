@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
       {
         // Aggressive immutable caching for all image sequence frames & static visual assets
         source:
-          "/:dir(hero-frames|materi-frames|reading-frames|latihan-frames|hallway-frames|studio-tulis-frames|assets|peta-frame)/:file*",
+          "/:dir(hero-frames|materi-frames|reading-frames|latihan-frames|hallway-frames|studio-tulis-frames|seq-packs|assets|peta-frame)/:file*",
         headers: [
           {
             key: "Cache-Control",

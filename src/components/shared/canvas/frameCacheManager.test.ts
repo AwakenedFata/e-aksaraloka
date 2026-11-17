@@ -3,6 +3,7 @@ import {
   FrameCacheManager,
   detectAdaptiveCacheBudget,
   getFrameUrl,
+  parseAlp1ChunkBlob,
   TOTAL_LATIHAN_FRAMES_DEFAULT,
   type DecodeBackend,
 } from "./frameCacheManager";
@@ -368,6 +369,84 @@ describe("FrameCacheManager", () => {
     const exact = cache.getBestBitmapWithFrame("hero", 1, 1);
     expect(exact?.exact).toBe(true);
     expect(exact?.frame).toBe(1);
+
+    cache.destroy();
+  });
+
+  it("parses ALP1 binary chunks zero-copy and deduplicates chunk fetches across sibling frames", async () => {
+    // Build valid ALP1 pack containing frames 1..3
+    const payloads = [
+      Buffer.from("webp-frame-001"),
+      Buffer.from("webp-frame-002-extra"),
+      Buffer.from("webp-frame-003"),
+    ];
+    const headerSize = 8 + payloads.length * 8;
+    const totalLen = headerSize + payloads.reduce((s, b) => s + b.length, 0);
+    const buf = Buffer.alloc(totalLen);
+    buf.write("ALP1", 0, 4, "ascii");
+    buf.writeUInt32LE(payloads.length, 4);
+    let tbl = 8;
+    let dataOff = headerSize;
+    payloads.forEach((p, idx) => {
+      buf.writeUInt32LE(idx + 1, tbl);
+      buf.writeUInt32LE(p.length, tbl + 4);
+      tbl += 8;
+      p.copy(buf, dataOff);
+      dataOff += p.length;
+    });
+
+    const parsed = await parseAlp1ChunkBlob(new Blob([buf]));
+    expect(parsed).toHaveLength(3);
+    expect(parsed[0]!.frame).toBe(1);
+    expect(await parsed[1]!.blob.text()).toBe("webp-frame-002-extra");
+
+    let packFetches = 0;
+    let singleBlobFetches = 0;
+    const backend: DecodeBackend<MockBitmap> = {
+      async fetchBlob(url: string) {
+        singleBlobFetches++;
+        return new Blob([url], { type: "image/webp" });
+      },
+      async fetchPack() {
+        packFetches++;
+        await new Promise((r) => setTimeout(r, 10));
+        return parsed;
+      },
+      async decodeBitmap(blob: Blob) {
+        return { id: await blob.text(), closed: false };
+      },
+      closeBitmap(b: MockBitmap) {
+        b.closed = true;
+      },
+    };
+
+    const cache = new FrameCacheManager<MockBitmap>(
+      {
+        totalHeroFrames: 24,
+        totalMateriFrames: 24,
+        totalReadingFrames: 24,
+        packChunks: {
+          materi: [{ url: "/seq-packs/materi-c00.bin", startFrame: 1, endFrame: 3 }],
+        },
+        maxActiveBitmaps: 20,
+        maxCachedBlobs: 50,
+        maxConcurrentDecodes: 4,
+        maxConcurrentFetches: 6,
+      },
+      backend
+    );
+
+    const [b1, b2, b3] = await Promise.all([
+      cache.loadFrame("materi", 1, true),
+      cache.loadFrame("materi", 2, true),
+      cache.loadFrame("materi", 3, true),
+    ]);
+
+    expect(packFetches).toBe(1);
+    expect(singleBlobFetches).toBe(0);
+    expect(b1?.id).toBe("webp-frame-001");
+    expect(b2?.id).toBe("webp-frame-002-extra");
+    expect(b3?.id).toBe("webp-frame-003");
 
     cache.destroy();
   });

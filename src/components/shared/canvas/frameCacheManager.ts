@@ -1,4 +1,5 @@
 import type { SequenceType } from "./sequenceEasing";
+import type { SequencePackChunk } from "./sequencePacksManifest";
 
 export const LATIHAN_SEGMENT_COUNTS = {
   latihan: 185,
@@ -16,22 +17,30 @@ export interface FrameCacheConfig {
   readonly totalMateriFrames: number;
   readonly totalReadingFrames: number;
   readonly totalLatihanFrames?: number;
-  /** Maximum non-pinned decoded ImageBitmaps kept in GPU memory at once (~8.3MB each at 1080p). */
+  /** Optional binary ALP1 sequence pack chunks grouping ~24-30 frames per HTTP GET. */
+  readonly packChunks?: Partial<Record<SequenceType, readonly SequencePackChunk[]>>;
+  /** Maximum non-pinned decoded ImageBitmaps kept in GPU memory at once (~3.7MB each at 720p). */
   readonly maxActiveBitmaps?: number;
-  /** Maximum compressed WebP Blobs kept in JS memory (~115-182KB each) for instant zero-network re-decode. */
+  /** Maximum compressed WebP Blobs kept in JS memory for instant zero-network re-decode. */
   readonly maxCachedBlobs?: number;
   /** Maximum concurrent active decode jobs (lookahead/playback). */
   readonly maxConcurrentDecodes?: number;
-  /** Maximum concurrent HTTP blob fetches (urgent + background combined). */
+  /** Maximum concurrent HTTP blob/chunk fetches (urgent + background combined). */
   readonly maxConcurrentFetches?: number;
   /** Maximum concurrent background Blob-only pre-warm fetches. */
   readonly maxBackgroundWarms?: number;
+}
+
+export interface UnpackedFrameBlob {
+  readonly frame: number;
+  readonly blob: Blob;
 }
 
 export interface DecodeBackend<TBitmap> {
   fetchBlob: (url: string, priority: "high" | "low") => Promise<Blob>;
   decodeBitmap: (blob: Blob) => Promise<TBitmap>;
   closeBitmap: (bitmap: TBitmap) => void;
+  fetchPack?: (url: string, priority: "high" | "low") => Promise<readonly UnpackedFrameBlob[]>;
 }
 
 export interface PlaybackFocus {
@@ -45,6 +54,7 @@ interface PendingJob<TBitmap> {
   sequence: SequenceType;
   index: number;
   urgent: boolean;
+  preferDirectUrl: boolean;
   resolveList: Array<(bitmap: TBitmap | null) => void>;
 }
 
@@ -262,6 +272,53 @@ function computeFetchPriorityScore(
   return Math.abs(signedOffset) * 1.4 + 14;
 }
 
+/**
+ * Zero-copy browser parser for ALP1 binary frame packs:
+ * Header [4B "ALP1"][4B uint32 count] + N * [4B uint32 frameNo, 4B uint32 byteLen] + raw WebP payloads.
+ */
+export async function parseAlp1ChunkBlob(chunkBlob: Blob): Promise<UnpackedFrameBlob[]> {
+  if (chunkBlob.size < 8) {
+    throw new Error("Truncated ALP1 pack header");
+  }
+  const headerBuf = await chunkBlob.slice(0, 8).arrayBuffer();
+  const headerView = new DataView(headerBuf);
+  const magic = String.fromCharCode(
+    headerView.getUint8(0),
+    headerView.getUint8(1),
+    headerView.getUint8(2),
+    headerView.getUint8(3)
+  );
+  if (magic !== "ALP1") {
+    throw new Error(`Invalid ALP1 magic header: ${magic}`);
+  }
+
+  const count = headerView.getUint32(4, true);
+  const tableEnd = 8 + count * 8;
+  if (chunkBlob.size < tableEnd) {
+    throw new Error("Truncated ALP1 index table");
+  }
+
+  const tableBuf = await chunkBlob.slice(8, tableEnd).arrayBuffer();
+  const tableView = new DataView(tableBuf);
+  const unpacked: UnpackedFrameBlob[] = [];
+  let cursor = tableEnd;
+
+  for (let i = 0; i < count; i++) {
+    const frameNo = tableView.getUint32(i * 8, true);
+    const byteLen = tableView.getUint32(i * 8 + 4, true);
+    if (cursor + byteLen > chunkBlob.size) {
+      throw new Error(`Truncated ALP1 payload for frame ${frameNo}`);
+    }
+    unpacked.push({
+      frame: frameNo,
+      blob: chunkBlob.slice(cursor, cursor + byteLen, "image/webp"),
+    });
+    cursor += byteLen;
+  }
+
+  return unpacked;
+}
+
 function defaultDecodeBackend(): DecodeBackend<ImageBitmap> {
   return {
     async fetchBlob(url: string, priority: "high" | "low"): Promise<Blob> {
@@ -275,6 +332,19 @@ function defaultDecodeBackend(): DecodeBackend<ImageBitmap> {
         throw new Error(`HTTP ${res.status} loading ${url}`);
       }
       return res.blob();
+    },
+    async fetchPack(url: string, priority: "high" | "low"): Promise<readonly UnpackedFrameBlob[]> {
+      const init: RequestInit & { fetchPriority?: "high" | "low" } = {
+        priority,
+        fetchPriority: priority,
+        cache: "force-cache",
+      };
+      const res = await fetch(url, init);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} loading pack ${url}`);
+      }
+      const chunkBlob = await res.blob();
+      return parseAlp1ChunkBlob(chunkBlob);
     },
     decodeBitmap(blob: Blob): Promise<ImageBitmap> {
       // Use browser default premultiplied hardware WebP decode path (faster GPU texture upload than premultiplyAlpha: "none")
@@ -310,6 +380,8 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
   private readonly pendingJobs = new Map<string, PendingJob<TBitmap>>();
   private readonly inFlightKeys = new Set<string>();
   private readonly inFlightBlobFetches = new Map<string, Promise<Blob>>();
+  private readonly inFlightChunks = new Map<string, Promise<void>>();
+  private readonly packChunks: Partial<Record<SequenceType, readonly SequencePackChunk[]>>;
   private readonly bgWarmQueue: Array<{ sequence: SequenceType; index: number; key: string }> = [];
   private readonly bgQueuedKeys = new Set<string>();
   private readonly bgInFlight = new Set<string>();
@@ -321,6 +393,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
   private destroyed = false;
   private activeWorkers = 0;
   private activeHttpFetches = 0;
+  private activeChunkFetches = 0;
   private activeDemandHttpFetches = 0;
   private bgWorkers = 0;
   private bgPumpTimer: ReturnType<typeof setTimeout> | null = null;
@@ -333,11 +406,13 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
   ) {
     const maxConcurrentDecodes = config.maxConcurrentDecodes ?? DEFAULT_MAX_CONCURRENT_DECODES;
     const maxConcurrentFetches = config.maxConcurrentFetches ?? maxConcurrentDecodes;
+    this.packChunks = config.packChunks ?? {};
     this.config = {
       totalHeroFrames: config.totalHeroFrames,
       totalMateriFrames: config.totalMateriFrames,
       totalReadingFrames: config.totalReadingFrames,
       totalLatihanFrames: config.totalLatihanFrames ?? TOTAL_LATIHAN_FRAMES_DEFAULT,
+      packChunks: this.packChunks,
       maxActiveBitmaps: config.maxActiveBitmaps ?? DEFAULT_MAX_ACTIVE_BITMAPS,
       maxCachedBlobs: config.maxCachedBlobs ?? DEFAULT_MAX_CACHED_BLOBS,
       maxConcurrentDecodes,
@@ -523,7 +598,8 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
   public loadFrame(
     sequence: SequenceType,
     index: number,
-    urgent: boolean = false
+    urgent: boolean = false,
+    preferDirectUrl: boolean = false
   ): Promise<TBitmap | null> {
     if (this.destroyed) return Promise.resolve(null);
 
@@ -536,6 +612,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     const pending = this.pendingJobs.get(key);
     if (pending) {
       if (urgent) pending.urgent = true;
+      if (preferDirectUrl) pending.preferDirectUrl = true;
       return new Promise((resolve) => {
         pending.resolveList.push(resolve);
       });
@@ -547,6 +624,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
         sequence,
         index: clamped,
         urgent,
+        preferDirectUrl,
         resolveList: [resolve],
       });
       this.pumpWorkers();
@@ -612,10 +690,29 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     }
   }
 
+  private findPackChunk(sequence: SequenceType, index: number): SequencePackChunk | null {
+    const list = this.packChunks[sequence];
+    if (!list || list.length === 0) return null;
+    let lo = 0;
+    let hi = list.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >>> 1;
+      const c = list[mid]!;
+      if (index < c.startFrame) {
+        hi = mid - 1;
+      } else if (index > c.endFrame) {
+        lo = mid + 1;
+      } else {
+        return c;
+      }
+    }
+    return null;
+  }
+
   /**
    * Queues background Blob-only warming (zero VRAM impact until scrolled near).
-   * When step === 1 over a long span, enqueues in progressive interlaced waves (8 -> 4 -> 2 -> 1)
-   * so full-sequence keyframe coverage builds up rapidly on Vercel CDN even after short idle times.
+   * When sequence pack chunks are configured, warms 1 anchor frame per chunk (10-24 HTTP requests total)
+   * instead of 500+ individual files; otherwise falls back to interlaced stride waves (8 -> 4 -> 2 -> 1).
    */
   public queueBlobWarmup(sequence: SequenceType, startFrame: number, endFrame: number, step: number = 1): void {
     if (this.destroyed) return;
@@ -635,6 +732,16 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
         this.bgWarmQueue.push({ sequence, index: i, key });
       }
     };
+
+    const chunks = this.backend.fetchPack ? this.packChunks[sequence] : undefined;
+    if (chunks && chunks.length > 0) {
+      for (const chunk of chunks) {
+        if (chunk.endFrame < from || chunk.startFrame > to) continue;
+        enqueueFrame(chunk.startFrame);
+      }
+      this.scheduleBackgroundWarm();
+      return;
+    }
 
     if (step === 1 && to - from >= 8) {
       for (const stride of [8, 4, 2, 1]) {
@@ -714,6 +821,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     }
     this.pendingJobs.clear();
     this.inFlightBlobFetches.clear();
+    this.inFlightChunks.clear();
     this.prefetchedAttemptedKeys.clear();
     this.bgWarmQueue.length = 0;
     this.bgQueueCursor = 0;
@@ -830,6 +938,12 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     }
   }
 
+  private isChunkDownloadBusy(sequence: SequenceType, index: number, preferDirectUrl: boolean): boolean {
+    if (preferDirectUrl || !this.backend.fetchPack) return false;
+    const chunk = this.findPackChunk(sequence, index);
+    return Boolean(chunk && this.inFlightChunks.has(chunk.url));
+  }
+
   private pickNextJob(onlyReadyOrInFlight: boolean): PendingJob<TBitmap> | null {
     let bestJob: PendingJob<TBitmap> | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
@@ -838,7 +952,9 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
       if (this.inFlightKeys.has(job.key)) continue;
 
       const hasBlob = this.blobs.has(job.key);
-      const isDownloading = this.inFlightBlobFetches.has(job.key);
+      const isDownloading =
+        this.inFlightBlobFetches.has(job.key) ||
+        this.isChunkDownloadBusy(job.sequence, job.index, job.preferDirectUrl);
       if (onlyReadyOrInFlight && !hasBlob && !isDownloading) continue;
 
       let score = computeFetchPriorityScore(job.sequence, job.index, this.focus, this.prewarmHeads);
@@ -858,6 +974,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
   private pickNextPrefetchJob(): PendingJob<TBitmap> | null {
     let bestJob: PendingJob<TBitmap> | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
+    const maxChunkStreams = Math.min(this.config.maxConcurrentFetches, 6);
 
     for (const job of this.pendingJobs.values()) {
       if (
@@ -866,6 +983,16 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
         this.prefetchedAttemptedKeys.has(job.key)
       ) {
         continue;
+      }
+
+      const chunk =
+        !job.preferDirectUrl && this.backend.fetchPack
+          ? this.findPackChunk(job.sequence, job.index)
+          : null;
+      if (chunk) {
+        if (this.inFlightChunks.has(chunk.url) || this.activeChunkFetches >= maxChunkStreams) {
+          continue;
+        }
       }
 
       let score = computeFetchPriorityScore(job.sequence, job.index, this.focus, this.prewarmHeads);
@@ -892,7 +1019,8 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
         job.index,
         job.key,
         job.urgent ? "high" : "low",
-        true
+        true,
+        job.preferDirectUrl
       ).then(
         () => {
           if (!this.destroyed) {
@@ -927,36 +1055,34 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     }
   }
 
-  private fetchBlobShared(
+  private fetchPackChunkShared(
     sequence: SequenceType,
-    index: number,
-    key: string,
+    chunk: SequencePackChunk,
     priority: "high" | "low",
     trackAsDemand: boolean
-  ): Promise<Blob> {
-    const cached = this.getBlob(key);
-    if (cached) return Promise.resolve(cached);
+  ): Promise<void> {
+    const existing = this.inFlightChunks.get(chunk.url);
+    if (existing) return existing;
 
-    const existingFetch = this.inFlightBlobFetches.get(key);
-    if (existingFetch) return existingFetch;
-
-    const url = getFrameUrl(sequence, index, this.getMaxFrames(sequence));
     this.activeHttpFetches++;
+    this.activeChunkFetches++;
     if (trackAsDemand) {
       this.activeDemandHttpFetches++;
     }
 
-    const fetchPromise = this.backend
-      .fetchBlob(url, priority)
-      .then((blob) => {
+    const chunkPromise = this.backend
+      .fetchPack!(chunk.url, priority)
+      .then((items) => {
         if (!this.destroyed) {
-          this.storeBlob(key, blob);
+          for (const item of items) {
+            this.storeBlob(makeFrameKey(sequence, item.frame), item.blob);
+          }
         }
-        return blob;
       })
       .finally(() => {
-        this.inFlightBlobFetches.delete(key);
+        this.inFlightChunks.delete(chunk.url);
         this.activeHttpFetches = Math.max(0, this.activeHttpFetches - 1);
+        this.activeChunkFetches = Math.max(0, this.activeChunkFetches - 1);
         if (trackAsDemand) {
           this.activeDemandHttpFetches = Math.max(0, this.activeDemandHttpFetches - 1);
         }
@@ -972,6 +1098,83 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
         }
       });
 
+    this.inFlightChunks.set(chunk.url, chunkPromise);
+    return chunkPromise;
+  }
+
+  private fetchDirectBlob(
+    sequence: SequenceType,
+    index: number,
+    key: string,
+    priority: "high" | "low",
+    trackAsDemand: boolean
+  ): Promise<Blob> {
+    const url = getFrameUrl(sequence, index, this.getMaxFrames(sequence));
+    this.activeHttpFetches++;
+    if (trackAsDemand) {
+      this.activeDemandHttpFetches++;
+    }
+
+    return this.backend
+      .fetchBlob(url, priority)
+      .then((blob) => {
+        if (!this.destroyed) {
+          this.storeBlob(key, blob);
+        }
+        return blob;
+      })
+      .finally(() => {
+        this.activeHttpFetches = Math.max(0, this.activeHttpFetches - 1);
+        if (trackAsDemand) {
+          this.activeDemandHttpFetches = Math.max(0, this.activeDemandHttpFetches - 1);
+        }
+        if (!this.destroyed) {
+          if (this.pendingJobs.size > 0) {
+            this.pumpWorkers();
+          } else {
+            this.pumpHttpPrefetch();
+            if (this.canRunBackgroundWarm()) {
+              this.scheduleBackgroundWarm();
+            }
+          }
+        }
+      });
+  }
+
+  private fetchBlobShared(
+    sequence: SequenceType,
+    index: number,
+    key: string,
+    priority: "high" | "low",
+    trackAsDemand: boolean,
+    preferDirectUrl: boolean = false
+  ): Promise<Blob> {
+    const cached = this.getBlob(key);
+    if (cached) return Promise.resolve(cached);
+
+    const existingFetch = this.inFlightBlobFetches.get(key);
+    if (existingFetch) return existingFetch;
+
+    const chunk =
+      !preferDirectUrl && this.backend.fetchPack
+        ? this.findPackChunk(sequence, index)
+        : null;
+
+    const fetchPromise = (async () => {
+      if (chunk) {
+        try {
+          await this.fetchPackChunkShared(sequence, chunk, priority, trackAsDemand);
+          const unpacked = this.getBlob(key);
+          if (unpacked) return unpacked;
+        } catch {
+          // Graceful fallback to individual frame URL when pack fetch fails
+        }
+      }
+      return this.fetchDirectBlob(sequence, index, key, priority, trackAsDemand);
+    })().finally(() => {
+      this.inFlightBlobFetches.delete(key);
+    });
+
     this.inFlightBlobFetches.set(key, fetchPromise);
     return fetchPromise;
   }
@@ -985,7 +1188,8 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
         job.index,
         job.key,
         job.urgent ? "high" : "low",
-        true
+        true,
+        job.preferDirectUrl
       );
 
       if (!this.destroyed) {

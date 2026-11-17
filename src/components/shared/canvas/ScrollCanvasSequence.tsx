@@ -21,6 +21,7 @@ import {
   detectAdaptiveCacheBudget,
   type AdaptiveCacheBudget,
 } from "./frameCacheManager";
+import { SEQUENCE_PACK_CHUNKS } from "./sequencePacksManifest";
 
 export type { SequenceType };
 
@@ -712,7 +713,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
         if (!cache) return false;
         const maxFrames = getMaxFrames(sequence);
         const clamped = Math.max(1, Math.min(maxFrames, Math.round(rawFrame)));
-        const bitmap = await cache.loadFrame(sequence, clamped, true);
+        const bitmap = await cache.loadFrame(sequence, clamped, true, true);
         if (bitmap && activeSequenceRef.current === sequence) {
           drawFrame(sequence, clamped);
         }
@@ -913,6 +914,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
         totalMateriFrames,
         totalReadingFrames,
         totalLatihanFrames,
+        packChunks: SEQUENCE_PACK_CHUNKS,
         maxActiveBitmaps: budget.maxActiveBitmaps,
         maxCachedBlobs: budget.maxCachedBlobs,
         maxConcurrentDecodes: budget.maxConcurrentDecodes,
@@ -1106,8 +1108,8 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     currentFramesRef.current[startSeq] = initialFrame;
     targetFramesRef.current[startSeq] = initialFrame;
 
-    // Prioritize initial hero window + boundary bridges only (no 1000-frame stampede)
-    void cache.loadFrame(startSeq, initialFrame, true).then((bitmap) => {
+    // Direct single-frame fast-path for instant frame 1 paint, while window/chunk packs stream ahead
+    void cache.loadFrame(startSeq, initialFrame, true, true).then((bitmap) => {
       if (bitmap) {
         setIsFirstFrameReady(true);
         drawFrame(startSeq, initialFrame);
@@ -1121,9 +1123,9 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       budget.lookahead,
       Math.max(6, budget.lookbehind - 4)
     );
-    void cache.loadFrame("hero", totalHeroFrames, false);
-    void cache.loadFrame("materi", 1, false);
-    void cache.loadFrame("latihan", 1, false);
+    void cache.loadFrame("hero", totalHeroFrames, false, true);
+    void cache.loadFrame("materi", 1, false, true);
+    void cache.loadFrame("latihan", 1, false, true);
     cache.queueBlobWarmup("hero", 1, totalHeroFrames, 1);
     if (budget.tier !== "low" && !budget.isConstrainedNetwork) {
       cache.queueBlobWarmup("materi", 1, totalMateriFrames, 4);
