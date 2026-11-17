@@ -16,7 +16,7 @@ export function ReadingStage({ containerRef }: ReadingStageProps) {
       ref={containerRef}
       id="reading"
       aria-label="Eksplorasi Membaca Buku Pembelajaran"
-      className="relative min-h-[350vh] w-full bg-transparent pointer-events-none"
+      className="relative min-h-[440vh] w-full bg-transparent pointer-events-none"
     />
   );
 }

@@ -266,7 +266,7 @@ export default function Home() {
           controller.snapTo("reading", TOTAL_READING_FRAMES, true);
           const scrollTarget =
             controller.getScrollableHeight("reading") ||
-            Math.round(window.innerHeight * 2.5);
+            Math.round(window.innerHeight * 3.4);
           controller.releaseScrollSync(scrollTarget);
           setIsBookPageFlipping(false);
         },
@@ -307,7 +307,7 @@ export default function Home() {
             ? Math.max(1, materiRef.current.offsetHeight - window.innerHeight)
             : materiScrollHeightRef.current > 0
               ? materiScrollHeightRef.current
-              : Math.round(window.innerHeight * 1.5);
+              : Math.round(window.innerHeight * 2.2);
 
           controller?.releaseScrollSync(materiScrollable);
         });
@@ -465,7 +465,7 @@ export default function Home() {
         meta: {
           speed: "fast",
           eyebrow: "LOMPATAN PUSTAKA",
-          title: "Kitab Aksaraloka",
+          title: "Pustaka Aksaraloka",
           subtitle: "Membuka lembaran babak materi naratif...",
         },
         applyStageState: () => {
@@ -600,7 +600,7 @@ export default function Home() {
         meta: {
           speed: "fast",
           eyebrow: "LOMPATAN PUSTAKA",
-          title: "Kitab Aksaraloka",
+          title: "Pustaka Aksaraloka",
           subtitle: "Membuka halaman materi bacaan...",
         },
         applyStageState: () => {
@@ -725,7 +725,7 @@ export default function Home() {
             ? Math.max(1, heroRef.current.offsetHeight - window.innerHeight)
             : heroScrollHeightRef.current > 0
               ? heroScrollHeightRef.current
-              : Math.round(window.innerHeight * 1.5);
+              : Math.round(window.innerHeight * 2.0);
 
           controller?.releaseScrollSync(heroScrollable);
         });

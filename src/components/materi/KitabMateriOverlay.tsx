@@ -508,7 +508,7 @@ export function KitabMateriOverlay({
         setMobilePageSide("left");
         showToast(
           "emerald",
-          "Kitab terbuka! Selesaikan setiap tantangan untuk membuka 3 Segel Rahasia."
+          "Pustaka terbuka! Selesaikan setiap tantangan untuk membuka 3 Segel Rahasia."
         );
       } else {
         trigger2DHingeFlip("next", () => {
@@ -517,7 +517,7 @@ export function KitabMateriOverlay({
           setActiveGrimoireChapter("alur");
           showToast(
             "emerald",
-            "Kitab terbuka! Selesaikan setiap tantangan untuk membuka 3 Segel Rahasia."
+            "Pustaka terbuka! Selesaikan setiap tantangan untuk membuka 3 Segel Rahasia."
           );
         });
       }
@@ -529,7 +529,7 @@ export function KitabMateriOverlay({
       playPageFlip();
       showToast(
         "emerald",
-        "Kitab terbuka! Selesaikan setiap tantangan untuk membuka 3 Segel Rahasia."
+        "Pustaka terbuka! Selesaikan setiap tantangan untuk membuka 3 Segel Rahasia."
       );
     }
   }, [isBookFocused, isMobileBook, showToast, trigger2DHingeFlip]);
@@ -1197,7 +1197,7 @@ export function KitabMateriOverlay({
                 >
                   <span>
                     {isShowingIntroSpread
-                      ? "PEMBUKA KITAB"
+                      ? "PEMBUKA PUSTAKA"
                       : activeChapterMeta.shortLabel}
                   </span>
                   <span>
@@ -1213,7 +1213,7 @@ export function KitabMateriOverlay({
                       className="font-serif font-bold text-[#241306]/92"
                       style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
                     >
-                      Kitab Aksaraloka: Rahasia Cerita Fantasi
+                      Pustaka Aksaraloka: Rahasia Cerita Fantasi
                     </p>
                     <p
                       className="font-serif text-[#2f1a09]/92"
@@ -1315,7 +1315,7 @@ export function KitabMateriOverlay({
                 className="book-ink-step-4 border-t border-[#5c3d1e]/30 font-semibold text-[#5a3918]/85"
                 style={{ fontSize: scalePx(12.2), paddingTop: scalePx(5) }}
               >
-                Kitab Aksaraloka · Bahasa Indonesia SMP Kelas VII
+                Pustaka Aksaraloka · Bahasa Indonesia SMP Kelas VII
               </div>
               </div>
             </div>
@@ -1481,7 +1481,7 @@ export function KitabMateriOverlay({
                   }}
                   className="pointer-events-auto cursor-pointer min-h-[44px] sm:min-h-0 rounded-full border border-[#f3d89b]/85 bg-slate-950/92 px-5 py-2 text-xs font-bold tracking-wider text-[#ffe8b6] shadow-[0_12px_30px_rgba(0,0,0,0.85)] backdrop-blur-md transition-transform duration-300 hover:scale-105 hover:bg-slate-900"
                 >
-                  Buka Kitab &amp; Mulai Misi Cerita! -&gt;
+                  Buka Pustaka &amp; Mulai Misi Cerita! -&gt;
                 </button>
               </div>
 
@@ -1707,7 +1707,7 @@ export function KitabMateriOverlay({
                 }`}
               >
                 <span className="md:hidden">Pembuka</span>
-                <span className="hidden md:inline">Pembuka Kitab</span>
+                <span className="hidden md:inline">Pembuka Pustaka</span>
               </button>
 
               {CHAPTER_ORDER.map((chap, idx) => {
@@ -1826,7 +1826,7 @@ export function KitabMateriOverlay({
                     <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                       <div className="mb-2 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
                         <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
-                          PEMBUKA KITAB · MULAI DARI SINI
+                          PEMBUKA PUSTAKA · MULAI DARI SINI
                         </span>
                         <span className="font-serif text-[10px] font-semibold text-[#6b4826] italic">
                           Panduan Awal
@@ -1838,7 +1838,7 @@ export function KitabMateriOverlay({
                           Apa Rahasia Cerita Fantasi yang Seru?
                         </h2>
                         <p className="text-[11px] leading-relaxed text-[#3a2512] sm:text-xs">
-                          Selamat datang di <strong>Kitab Aksaraloka</strong>!
+                          Selamat datang di <strong>Pustaka Aksaraloka</strong>!
                           Sebelum mengarang ceritamu sendiri di{" "}
                           <strong>Studio Tulis</strong>, yuk kumpulkan{" "}
                           <strong>3 Segel Rahasia</strong> lewat tiga kisah seru:{" "}
@@ -1885,7 +1885,7 @@ export function KitabMateriOverlay({
                     </div>
 
                     <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
-                      <span>Pembuka Kitab Aksaraloka</span>
+                      <span>Pembuka Pustaka Aksaraloka</span>
                       <span className="font-semibold">Halaman Pengantar I</span>
                     </div>
                   </div>
@@ -2091,7 +2091,7 @@ export function KitabMateriOverlay({
                         onClick={handleOpenIntroSpread}
                         className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
                       >
-                        &lt;- Pembuka Kitab
+                        &lt;- Pembuka Pustaka
                       </button>
                       <span className="font-semibold">Halaman 1</span>
                     </div>

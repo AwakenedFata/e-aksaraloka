@@ -18,7 +18,7 @@ export function LatihanStage({ containerRef }: LatihanStageProps) {
       ref={containerRef}
       id="studio"
       aria-label="Eksplorasi Menu Latihan Menuju Studio Tulis"
-      className="relative min-h-[380vh] w-full bg-transparent pointer-events-none"
+      className="relative min-h-[460vh] w-full bg-transparent pointer-events-none"
     />
   );
 }

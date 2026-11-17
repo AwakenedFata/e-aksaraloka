@@ -3,6 +3,8 @@
 import { useEffect, useRef, useMemo, createContext, useContext } from "react";
 import Lenis from "lenis";
 
+export type LenisScrollListener = (scroll: number, velocity: number) => void;
+
 export interface LenisContextValue {
   scrollTo: (
     target: HTMLElement | string | number,
@@ -11,6 +13,8 @@ export interface LenisContextValue {
   resize: () => void;
   stop: () => void;
   start: () => void;
+  getAnimatedScroll: () => number;
+  subscribeScroll: (listener: LenisScrollListener) => () => void;
   getInstance: () => Lenis | null;
 }
 
@@ -19,6 +23,8 @@ const LenisContext = createContext<LenisContextValue>({
   resize: () => {},
   stop: () => {},
   start: () => {},
+  getAnimatedScroll: () => (typeof window !== "undefined" ? window.scrollY : 0),
+  subscribeScroll: () => () => {},
   getInstance: () => null,
 });
 
@@ -41,6 +47,7 @@ interface SmoothScrollProviderProps {
  */
 export function SmoothScrollProvider({ children }: SmoothScrollProviderProps) {
   const lenisRef = useRef<Lenis | null>(null);
+  const scrollListenersRef = useRef<Set<LenisScrollListener>>(new Set());
 
   const contextValue = useMemo<LenisContextValue>(
     () => ({
@@ -55,6 +62,18 @@ export function SmoothScrollProvider({ children }: SmoothScrollProviderProps) {
       },
       start: () => {
         lenisRef.current?.start();
+      },
+      getAnimatedScroll: () => {
+        if (lenisRef.current) {
+          return lenisRef.current.animatedScroll;
+        }
+        return typeof window !== "undefined" ? window.scrollY : 0;
+      },
+      subscribeScroll: (listener) => {
+        scrollListenersRef.current.add(listener);
+        return () => {
+          scrollListenersRef.current.delete(listener);
+        };
       },
       getInstance: () => lenisRef.current,
     }),
@@ -72,16 +91,22 @@ export function SmoothScrollProvider({ children }: SmoothScrollProviderProps) {
     if (prefersReducedMotion) return;
 
     const lenis = new Lenis({
-      duration: 1.15,
-      easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      lerp: 0.12,
       orientation: "vertical",
       gestureOrientation: "vertical",
       smoothWheel: true,
-      wheelMultiplier: 0.95,
-      touchMultiplier: 1.2,
+      wheelMultiplier: 0.92,
+      touchMultiplier: 1.0,
     });
 
     lenisRef.current = lenis;
+    const listeners = scrollListenersRef.current;
+
+    const unsubscribeLenisScroll = lenis.on("scroll", (instance) => {
+      for (const cb of listeners) {
+        cb(instance.animatedScroll, instance.velocity);
+      }
+    });
 
     let animationFrameId: number;
 
@@ -140,6 +165,7 @@ export function SmoothScrollProvider({ children }: SmoothScrollProviderProps) {
     document.addEventListener("click", handleAnchorClick);
 
     return () => {
+      unsubscribeLenisScroll();
       document.removeEventListener("click", handleAnchorClick);
       cancelAnimationFrame(animationFrameId);
       lenis.destroy();

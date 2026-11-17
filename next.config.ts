@@ -22,9 +22,9 @@ const nextConfig: NextConfig = {
     return [
       { source: "/:path*", headers: securityHeaders },
       {
-        // Aggressive immutable caching for image sequence frames (never change after build)
+        // Aggressive immutable caching for all image sequence frames & static visual assets
         source:
-          "/:dir(hero-frames|materi-frames|reading-frames|latihan-frames|hallway-frames|studio-tulis-frames)/:file*",
+          "/:dir(hero-frames|materi-frames|reading-frames|latihan-frames|hallway-frames|studio-tulis-frames|assets|peta-frame)/:file*",
         headers: [
           {
             key: "Cache-Control",

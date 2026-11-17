@@ -294,8 +294,81 @@ describe("FrameCacheManager", () => {
     expect(highDesktop.tier).toBe("high");
     expect(highDesktop.maxActiveBitmaps).toBe(96);
     expect(highDesktop.maxCachedBlobs).toBe(1100);
+    expect(highDesktop.maxConcurrentFetches).toBe(14);
     expect(highDesktop.lookahead + highDesktop.lookbehind).toBeLessThan(
       highDesktop.maxActiveBitmaps
     );
+
+    const constrainedNetBudget = detectAdaptiveCacheBudget({
+      deviceMemory: 8,
+      hardwareConcurrency: 8,
+      viewportWidth: 1440,
+      isCoarsePointer: false,
+      saveData: true,
+      effectiveType: "3g",
+    });
+    expect(constrainedNetBudget.isConstrainedNetwork).toBe(true);
+    expect(constrainedNetBudget.maxConcurrentFetches).toBe(6);
+
+    const desktopSafari4Core = detectAdaptiveCacheBudget({
+      deviceMemory: undefined,
+      hardwareConcurrency: 4,
+      viewportWidth: 1280,
+      isCoarsePointer: false,
+    });
+    expect(desktopSafari4Core.tier).toBe("balanced");
+  });
+
+  it("decouples high-concurrency HTTP prefetch from bounded GPU decode slots and tracks monotonic source frames", async () => {
+    let activeHttp = 0;
+    let peakHttp = 0;
+    let activeDecode = 0;
+    let peakDecode = 0;
+
+    const backend: DecodeBackend<MockBitmap> = {
+      async fetchBlob(url: string) {
+        activeHttp++;
+        if (activeHttp > peakHttp) peakHttp = activeHttp;
+        await new Promise((r) => setTimeout(r, 15));
+        activeHttp--;
+        return new Blob([url], { type: "image/webp" });
+      },
+      async decodeBitmap(blob: Blob) {
+        activeDecode++;
+        if (activeDecode > peakDecode) peakDecode = activeDecode;
+        await new Promise((r) => setTimeout(r, 8));
+        activeDecode--;
+        return { id: await blob.text(), closed: false };
+      },
+      closeBitmap(b: MockBitmap) {
+        b.closed = true;
+      },
+    };
+
+    const cache = new FrameCacheManager<MockBitmap>(
+      {
+        totalHeroFrames: 60,
+        totalMateriFrames: 60,
+        totalReadingFrames: 60,
+        maxActiveBitmaps: 40,
+        maxCachedBlobs: 120,
+        maxConcurrentDecodes: 2,
+        maxConcurrentFetches: 8,
+      },
+      backend
+    );
+
+    cache.requestWindow("hero", 1, 1, 20, 0);
+    await new Promise((r) => setTimeout(r, 120));
+
+    expect(peakHttp).toBeGreaterThanOrEqual(5);
+    expect(peakHttp).toBeLessThanOrEqual(8);
+    expect(peakDecode).toBeLessThanOrEqual(2);
+
+    const exact = cache.getBestBitmapWithFrame("hero", 1, 1);
+    expect(exact?.exact).toBe(true);
+    expect(exact?.frame).toBe(1);
+
+    cache.destroy();
   });
 });

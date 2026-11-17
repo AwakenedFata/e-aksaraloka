@@ -499,7 +499,7 @@ export const FANTASY_LEXICON_BANK: readonly FantasyLexiconCategory[] = [
         word: "Berpendar",
         type: "Denotatif",
         meaning: "Memancarkan cahaya lembut yang berkilau di tempat gelap.",
-        example: "Huruf emas di sampul kitab itu berpendar saat disentuh.",
+        example: "Huruf emas di sampul pustaka itu berpendar saat disentuh.",
       },
       {
         word: "Temaram",

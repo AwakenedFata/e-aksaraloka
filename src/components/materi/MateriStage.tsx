@@ -19,7 +19,7 @@ export function MateriStage({
       ref={containerRef}
       id="materi"
       aria-label="Modul Pembelajaran Teks Narasi"
-      className="relative min-h-[250vh] w-full bg-transparent pointer-events-none"
+      className="relative min-h-[320vh] w-full bg-transparent pointer-events-none"
     />
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { memo, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useLenis } from "@/components/shared/providers/SmoothScrollProvider";
 import {
   computeCoverStageMetrics,
@@ -115,13 +115,14 @@ const TOTAL_HERO_FRAMES_DEFAULT = 240;
 const TOTAL_MATERI_FRAMES_DEFAULT = 299;
 const TOTAL_READING_FRAMES_DEFAULT = 537;
 
-// Frame-rate normalized smoothing factor for manual Lenis wheel scrubbing (~60fps baseline)
-const MANUAL_LERP_60HZ = 0.42;
+// Frame-rate normalized smoothing factors: crisp Lenis lock for small deltas, fluid glide on scrollbar jumps
+const MANUAL_LERP_LENIS_LOCK_60HZ = 0.78;
+const MANUAL_LERP_SCRUB_JUMP_60HZ = 0.48;
 const HERO_EXIT_START_FRAME = 20;
 const SOURCE_WIDTH = 1920;
 const SOURCE_HEIGHT = 1080;
 
-export function ScrollCanvasSequence({
+export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
   isMateriUnlocked = false,
   isReadingUnlocked = false,
   isLatihanUnlocked = false,
@@ -222,6 +223,8 @@ export function ScrollCanvasSequence({
   const lastDrawnFrameRef = useRef<number>(-1);
   const lastDrawnBitmapRef = useRef<ImageBitmap | null>(null);
   const lastDrawWasExactRef = useRef<boolean>(false);
+  const lastDisplayedSourceSeqRef = useRef<SequenceType | null>(null);
+  const lastDisplayedSourceFrameRef = useRef<number>(-1);
   const lastWindowCenterRef = useRef<number>(-1);
   const lastWindowSeqRef = useRef<SequenceType | null>(null);
   const scrollDirectionRef = useRef<1 | -1>(1);
@@ -288,7 +291,6 @@ export function ScrollCanvasSequence({
     if (!backdropCtxRef.current) {
       backdropCtxRef.current = backdropCanvas.getContext("2d", {
         alpha: false,
-        desynchronized: true,
       });
     }
     const backdropCtx = backdropCtxRef.current;
@@ -306,22 +308,34 @@ export function ScrollCanvasSequence({
       if (!cache || !ctx) return;
 
       const frame = Math.max(1, Math.min(cache.getMaxFrames(seq), Math.round(rawFrame)));
-      const exactBitmap = cache.getBitmap(seq, frame);
-      const bitmap = exactBitmap ?? cache.getBestBitmap(seq, frame, scrollDirectionRef.current);
-      if (!bitmap) return;
+      const best = cache.getBestBitmapWithFrame(seq, frame, scrollDirectionRef.current);
+      if (!best) return;
 
-      if (bitmap !== lastDrawnBitmapRef.current) {
-        const bounds = drawBoundsRef.current;
-        ctx.drawImage(bitmap, bounds.x, bounds.y, bounds.width, bounds.height);
-        lastDrawnBitmapRef.current = bitmap;
+      const sameSequence = lastDisplayedSourceSeqRef.current === seq;
+      const dir = scrollDirectionRef.current;
+      const isMonotonicRegression =
+        !best.exact &&
+        sameSequence &&
+        lastDrawnBitmapRef.current !== null &&
+        lastDisplayedSourceFrameRef.current > 0 &&
+        ((dir >= 0 && best.frame < lastDisplayedSourceFrameRef.current) ||
+          (dir < 0 && best.frame > lastDisplayedSourceFrameRef.current));
+
+      if (!isMonotonicRegression) {
+        if (best.bitmap !== lastDrawnBitmapRef.current) {
+          const bounds = drawBoundsRef.current;
+          ctx.drawImage(best.bitmap, bounds.x, bounds.y, bounds.width, bounds.height);
+          lastDrawnBitmapRef.current = best.bitmap;
+        }
+        drawBackdropBitmap(best.bitmap);
+        lastDisplayedSourceSeqRef.current = seq;
+        lastDisplayedSourceFrameRef.current = best.frame;
       }
-
-      drawBackdropBitmap(bitmap);
 
       cache.setLastDrawn(seq, frame);
       lastDrawnSeqRef.current = seq;
       lastDrawnFrameRef.current = frame;
-      lastDrawWasExactRef.current = Boolean(exactBitmap);
+      lastDrawWasExactRef.current = best.exact;
     },
     [drawBackdropBitmap]
   );
@@ -436,9 +450,11 @@ export function ScrollCanvasSequence({
       lastDiscreteRef.current = nextState;
       onDiscreteStateChangeRef.current?.(nextState);
 
-      // Idle cross-stage lookahead warmup sized to current device hardware tier
+      // Idle cross-stage lookahead warmup sized to current device hardware tier & network condition
       const cache = cacheManagerRef.current;
-      const headBudget = cacheBudgetRef.current.warmHeadCount;
+      const budget = cacheBudgetRef.current;
+      const headBudget = budget.warmHeadCount;
+      const warmStride = budget.isConstrainedNetwork ? 4 : 1;
       if (cache && seq === "hero" && isHeroAtEnd && !warmupTriggeredRef.current.heroToMateri) {
         warmupTriggeredRef.current.heroToMateri = true;
         cache.warmSequenceHead("materi", headBudget, false);
@@ -448,13 +464,16 @@ export function ScrollCanvasSequence({
         void cache.loadFrame("latihan", LATIHAN_SEGMENT_COUNTS.latihan, false);
         void cache.loadFrame("latihan", LATIHAN_SEGMENT_COUNTS.latihan + 1, false);
         void cache.loadFrame("latihan", totalLatihanFrames, false);
-        cache.queueBlobWarmup("materi", 1, totalMateriFrames, 1);
-        cache.queueBlobWarmup("latihan", 1, totalLatihanFrames, 1);
+        cache.queueBlobWarmup("materi", 1, totalMateriFrames, warmStride);
+        cache.queueBlobWarmup("latihan", 1, totalLatihanFrames, warmStride);
       } else if (cache && seq === "materi" && isMateriAtEnd && !warmupTriggeredRef.current.materiToReading) {
         warmupTriggeredRef.current.materiToReading = true;
-        cache.warmSequenceHead("reading", Math.min(42, Math.max(headBudget, Math.round(cacheBudgetRef.current.maxActiveBitmaps * 0.4))));
+        cache.warmSequenceHead(
+          "reading",
+          Math.min(42, Math.max(headBudget, Math.round(budget.maxActiveBitmaps * 0.4)))
+        );
         void cache.loadFrame("reading", totalReadingFrames, false);
-        cache.queueBlobWarmup("reading", 1, totalReadingFrames, 1);
+        cache.queueBlobWarmup("reading", 1, totalReadingFrames, warmStride);
       }
     },
     [heroMaxFrame, totalHeroFrames, totalMateriFrames, totalReadingFrames, totalLatihanFrames]
@@ -558,10 +577,10 @@ export function ScrollCanvasSequence({
       : "hero";
     activeSequenceRef.current = seq;
 
-    const scrollY = window.scrollY;
-    if (scrollY > lastScrollYRef.current) {
+    const scrollY = lenisRef.current.getAnimatedScroll();
+    if (scrollY > lastScrollYRef.current + 0.05) {
       scrollDirectionRef.current = 1;
-    } else if (scrollY < lastScrollYRef.current) {
+    } else if (scrollY < lastScrollYRef.current - 0.05) {
       scrollDirectionRef.current = -1;
     }
     lastScrollYRef.current = scrollY;
@@ -586,6 +605,10 @@ export function ScrollCanvasSequence({
         const maxFrames = getMaxFrames(sequence);
         const clampedTarget = Math.max(1, Math.min(maxFrames, rawTargetFrame));
 
+        if (options.startFrame !== undefined || activeSequenceRef.current !== sequence) {
+          lastDisplayedSourceSeqRef.current = null;
+          lastDisplayedSourceFrameRef.current = -1;
+        }
         activeSequenceRef.current = sequence;
         if (options.startFrame !== undefined) {
           const clampedStart = Math.max(1, Math.min(maxFrames, options.startFrame));
@@ -606,7 +629,7 @@ export function ScrollCanvasSequence({
 
         const now = performance.now();
         const spanFrames = Math.ceil(Math.abs(clampedTarget - startFrame));
-        const primeTargetCount = Math.min(28, Math.max(1, spanFrames));
+        const primeTargetCount = Math.min(8, Math.max(1, spanFrames));
         const readyAhead = cache
           ? cache.countContiguousReady(sequence, Math.round(startFrame), direction, primeTargetCount)
           : primeTargetCount;
@@ -619,7 +642,7 @@ export function ScrollCanvasSequence({
           durationMs: Math.max(16, options.durationMs),
           primingStartTime: readyAhead >= primeTargetCount ? null : now,
           primeTargetCount,
-          maxPrimeWaitMs: 550,
+          maxPrimeWaitMs: 180,
           lastClockTime: now,
           stalledFrame: -1,
           currentFrameStallMs: 0,
@@ -655,6 +678,8 @@ export function ScrollCanvasSequence({
       snapTo(sequence, rawFrame, suppressScrollSync = false) {
         autoplayRef.current = null;
         suppressScrollReadRef.current = suppressScrollSync;
+        lastDisplayedSourceSeqRef.current = sequence;
+        lastDisplayedSourceFrameRef.current = -1;
 
         const maxFrames = getMaxFrames(sequence);
         const frame = Math.max(1, Math.min(maxFrames, rawFrame));
@@ -764,7 +789,6 @@ export function ScrollCanvasSequence({
     if (!backdropCtxRef.current) {
       backdropCtxRef.current = backdropCanvas.getContext("2d", {
         alpha: false,
-        desynchronized: true,
       });
     }
     if (backdropCtxRef.current) {
@@ -788,7 +812,6 @@ export function ScrollCanvasSequence({
     if (!ctxRef.current) {
       ctxRef.current = canvas.getContext("2d", {
         alpha: false,
-        desynchronized: true,
       });
     }
 
@@ -893,8 +916,8 @@ export function ScrollCanvasSequence({
         maxActiveBitmaps: budget.maxActiveBitmaps,
         maxCachedBlobs: budget.maxCachedBlobs,
         maxConcurrentDecodes: budget.maxConcurrentDecodes,
-        maxConcurrentFetches: budget.tier === "low" ? 4 : 6,
-        maxBackgroundWarms: budget.tier === "low" ? 2 : 4,
+        maxConcurrentFetches: budget.maxConcurrentFetches,
+        maxBackgroundWarms: budget.isConstrainedNetwork ? 2 : 4,
       },
       undefined,
       (decodedSeq, decodedIndex) => {
@@ -963,18 +986,18 @@ export function ScrollCanvasSequence({
             autoplay.currentFrameStallMs = 0;
           }
 
-          // Decode-Starvation Clock Guard: hold clock momentarily instead of skipping undecoded frames
+          // Fluid Buffer Pacing: gently dilate timeline progression while urgent frame decodes instead of hard 0-fps freezing
           const needsDecodeWait =
             autoplay.primingStartTime === null &&
             rawT < 1 &&
             (!lastDrawWasExactRef.current || candidateRounded !== lastDrawnFrameRef.current) &&
             !cache.hasBitmap(seq, candidateRounded) &&
             cache.isFrameBusy(seq, candidateRounded) &&
-            autoplay.currentFrameStallMs < 160 &&
-            autoplay.totalStallMs < 2500;
+            autoplay.currentFrameStallMs < 110 &&
+            autoplay.totalStallMs < 2400;
 
           if (needsDecodeWait) {
-            autoplay.startTime += stepDt;
+            autoplay.startTime += stepDt * 0.78;
             autoplay.currentFrameStallMs += stepDt;
             autoplay.totalStallMs += stepDt;
             rawT = Math.min(1, (now - autoplay.startTime) / autoplay.durationMs);
@@ -1001,12 +1024,16 @@ export function ScrollCanvasSequence({
         const cur = currentFramesRef.current[seq];
         const tgt = targetFramesRef.current[seq];
         const diff = tgt - cur;
+        const absDiff = Math.abs(diff);
 
-        if (Math.abs(diff) > 0.015) {
+        if (absDiff > 0.015) {
           isMoving = true;
-          const alpha = prefersReducedMotionRef.current
+          const baseRate = prefersReducedMotionRef.current
             ? 1
-            : 1 - Math.pow(1 - MANUAL_LERP_60HZ, dt * 60);
+            : absDiff < 8
+              ? MANUAL_LERP_LENIS_LOCK_60HZ
+              : MANUAL_LERP_SCRUB_JUMP_60HZ;
+          const alpha = baseRate === 1 ? 1 : 1 - Math.pow(1 - baseRate, dt * 60);
           currentFramesRef.current[seq] = cur + diff * alpha;
         } else if (cur !== tgt) {
           currentFramesRef.current[seq] = tgt;
@@ -1031,7 +1058,7 @@ export function ScrollCanvasSequence({
 
         if (
           lastWindowSeqRef.current !== activeSeq ||
-          Math.abs(roundedFrame - lastWindowCenterRef.current) >= 3
+          Math.abs(roundedFrame - lastWindowCenterRef.current) >= 2
         ) {
           const budget = cacheBudgetRef.current;
           lastWindowSeqRef.current = activeSeq;
@@ -1098,9 +1125,9 @@ export function ScrollCanvasSequence({
     void cache.loadFrame("materi", 1, false);
     void cache.loadFrame("latihan", 1, false);
     cache.queueBlobWarmup("hero", 1, totalHeroFrames, 1);
-    if (budget.tier !== "low") {
-      cache.queueBlobWarmup("materi", 1, totalMateriFrames, 1);
-      cache.queueBlobWarmup("latihan", 1, totalLatihanFrames, 1);
+    if (budget.tier !== "low" && !budget.isConstrainedNetwork) {
+      cache.queueBlobWarmup("materi", 1, totalMateriFrames, 4);
+      cache.queueBlobWarmup("latihan", 1, totalLatihanFrames, 4);
     }
 
     syncHeroCssVar(startSeq, initialFrame);
@@ -1112,6 +1139,10 @@ export function ScrollCanvasSequence({
       cache.setPlaybackActive(true);
       ensureLoopActive();
     };
+
+    const unsubscribeLenisScroll = lenisRef.current.subscribeScroll(() => {
+      handleNativeScroll();
+    });
 
     const handleManualInterrupt = () => {
       const activeAuto = autoplayRef.current;
@@ -1126,7 +1157,50 @@ export function ScrollCanvasSequence({
       ensureLoopActive();
     };
 
+    let touchStartPos: { x: number; y: number } | null = null;
+
+    const handleTouchStartCapture = (e: TouchEvent) => {
+      const activeAuto = autoplayRef.current;
+      if (!activeAuto || !activeAuto.interruptible || e.touches.length !== 1) {
+        touchStartPos = null;
+        return;
+      }
+      const t = e.touches[0]!;
+      touchStartPos = { x: t.clientX, y: t.clientY };
+    };
+
+    const handleTouchMoveInterrupt = (e: TouchEvent) => {
+      if (!touchStartPos || e.touches.length !== 1) return;
+      const t = e.touches[0]!;
+      const moved = Math.hypot(t.clientX - touchStartPos.x, t.clientY - touchStartPos.y);
+      if (moved > 10) {
+        touchStartPos = null;
+        handleManualInterrupt();
+      }
+    };
+
+    const handleTouchEndReset = () => {
+      touchStartPos = null;
+    };
+
+    const handleWheelInterrupt = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) >= 4 || Math.abs(e.deltaX) >= 4) {
+        handleManualInterrupt();
+      }
+    };
+
     const handleKeyInterrupt = (e: KeyboardEvent) => {
+      if (e.key === " ") {
+        const activeEl = document.activeElement;
+        if (
+          activeEl instanceof HTMLButtonElement ||
+          activeEl instanceof HTMLInputElement ||
+          activeEl instanceof HTMLTextAreaElement ||
+          activeEl instanceof HTMLAnchorElement
+        ) {
+          return;
+        }
+      }
       if (
         e.key === "ArrowDown" ||
         e.key === "ArrowUp" ||
@@ -1149,19 +1223,26 @@ export function ScrollCanvasSequence({
     };
 
     window.addEventListener("scroll", handleNativeScroll, { passive: true });
-    window.addEventListener("wheel", handleManualInterrupt, { passive: true, capture: true });
-    window.addEventListener("touchstart", handleManualInterrupt, { passive: true, capture: true });
+    window.addEventListener("wheel", handleWheelInterrupt, { passive: true, capture: true });
+    window.addEventListener("touchstart", handleTouchStartCapture, { passive: true, capture: true });
+    window.addEventListener("touchmove", handleTouchMoveInterrupt, { passive: true, capture: true });
+    window.addEventListener("touchend", handleTouchEndReset, { passive: true, capture: true });
+    window.addEventListener("touchcancel", handleTouchEndReset, { passive: true, capture: true });
     window.addEventListener("keydown", handleKeyInterrupt, { passive: true, capture: true });
     window.addEventListener("resize", onResize, { passive: true });
 
     return () => {
+      unsubscribeLenisScroll();
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
       window.removeEventListener("scroll", handleNativeScroll);
-      window.removeEventListener("wheel", handleManualInterrupt, { capture: true });
-      window.removeEventListener("touchstart", handleManualInterrupt, { capture: true });
+      window.removeEventListener("wheel", handleWheelInterrupt, { capture: true });
+      window.removeEventListener("touchstart", handleTouchStartCapture, { capture: true });
+      window.removeEventListener("touchmove", handleTouchMoveInterrupt, { capture: true });
+      window.removeEventListener("touchend", handleTouchEndReset, { capture: true });
+      window.removeEventListener("touchcancel", handleTouchEndReset, { capture: true });
       window.removeEventListener("keydown", handleKeyInterrupt, { capture: true });
       window.removeEventListener("resize", onResize);
       cache.destroy();
@@ -1293,4 +1374,4 @@ export function ScrollCanvasSequence({
       />
     </div>
   );
-}
+});

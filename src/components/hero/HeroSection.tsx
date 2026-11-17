@@ -27,7 +27,7 @@ export function HeroSection({
     <section
       ref={containerRef}
       aria-labelledby="hero-heading"
-      className="relative h-[250vh] w-full bg-transparent"
+      className="relative h-[300vh] w-full bg-transparent"
     >
       {/* Pinned Viewport (Stays sticky during the hero scroll distance) */}
       <div

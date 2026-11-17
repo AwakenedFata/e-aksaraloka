@@ -1434,7 +1434,7 @@ export function StudioTulisStageOverlay({
                           : "bg-amber-500/15 text-amber-200 border border-amber-400/40 hover:bg-amber-500/25"
                           }`}
                       >
-                        {sb.label}: {unlocked ? "Selesai ✓" : "Buka di Kitab ->"}
+                        {sb.label}: {unlocked ? "Selesai ✓" : "Buka di Pustaka ->"}
                       </button>
                     );
                   })}

@@ -60,6 +60,8 @@ export interface HardwareProbeInput {
   readonly hardwareConcurrency?: number;
   readonly viewportWidth?: number;
   readonly isCoarsePointer?: boolean;
+  readonly saveData?: boolean;
+  readonly effectiveType?: string;
 }
 
 export interface AdaptiveCacheBudget {
@@ -70,16 +72,24 @@ export interface AdaptiveCacheBudget {
   readonly lookbehind: number;
   readonly warmHeadCount: number;
   readonly maxConcurrentDecodes: number;
+  readonly maxConcurrentFetches: number;
+  readonly isConstrainedNetwork: boolean;
 }
 
-type NavigatorWithMemory = Navigator & { readonly deviceMemory?: number };
+type NavigatorWithMemoryAndNet = Navigator & {
+  readonly deviceMemory?: number;
+  readonly connection?: {
+    readonly saveData?: boolean;
+    readonly effectiveType?: string;
+  };
+};
 
 /**
- * Classifies client GPU/RAM capacity to size sliding-window ImageBitmap and
- * compressed Blob caches safely without triggering mobile/4GB RAM OOM pressure.
+ * Classifies client GPU/RAM/Network capacity to size sliding-window ImageBitmap and
+ * compressed Blob caches safely without triggering mobile/4GB RAM OOM pressure or stalling HTTP/2 streams.
  */
 export function detectAdaptiveCacheBudget(probe?: HardwareProbeInput): AdaptiveCacheBudget {
-  const nav = typeof navigator !== "undefined" ? (navigator as NavigatorWithMemory) : undefined;
+  const nav = typeof navigator !== "undefined" ? (navigator as NavigatorWithMemoryAndNet) : undefined;
   const win = typeof window !== "undefined" ? window : undefined;
 
   const deviceMemory =
@@ -92,12 +102,19 @@ export function detectAdaptiveCacheBudget(probe?: HardwareProbeInput): AdaptiveC
   const isCoarsePointer =
     probe?.isCoarsePointer ??
     (typeof win?.matchMedia === "function" ? win.matchMedia("(pointer: coarse)").matches : false);
+  const saveData = probe?.saveData ?? Boolean(nav?.connection?.saveData);
+  const effectiveType = probe?.effectiveType ?? nav?.connection?.effectiveType;
+  const isConstrainedNetwork =
+    saveData ||
+    effectiveType === "slow-2g" ||
+    effectiveType === "2g" ||
+    effectiveType === "3g";
 
   const isLowRamOrMobile =
     (typeof deviceMemory === "number" && deviceMemory <= 4) ||
     isCoarsePointer ||
     (typeof viewportWidth === "number" && viewportWidth < 768) ||
-    (deviceMemory === undefined && typeof hardwareConcurrency === "number" && hardwareConcurrency <= 4);
+    (deviceMemory === undefined && typeof hardwareConcurrency === "number" && hardwareConcurrency <= 2);
 
   if (isLowRamOrMobile) {
     return {
@@ -108,6 +125,8 @@ export function detectAdaptiveCacheBudget(probe?: HardwareProbeInput): AdaptiveC
       lookbehind: 8,
       warmHeadCount: 16,
       maxConcurrentDecodes: 4,
+      maxConcurrentFetches: isConstrainedNetwork ? 4 : 8,
+      isConstrainedNetwork,
     };
   }
 
@@ -125,6 +144,8 @@ export function detectAdaptiveCacheBudget(probe?: HardwareProbeInput): AdaptiveC
       lookbehind: 16,
       warmHeadCount: 24,
       maxConcurrentDecodes: Math.min(8, Math.max(6, hardwareConcurrency ?? 6)),
+      maxConcurrentFetches: isConstrainedNetwork ? 6 : 14,
+      isConstrainedNetwork,
     };
   }
 
@@ -136,6 +157,8 @@ export function detectAdaptiveCacheBudget(probe?: HardwareProbeInput): AdaptiveC
     lookbehind: 12,
     warmHeadCount: 20,
     maxConcurrentDecodes: 6,
+    maxConcurrentFetches: isConstrainedNetwork ? 5 : 10,
+    isConstrainedNetwork,
   };
 }
 
@@ -205,12 +228,47 @@ export function computeEvictionPenalty(
   return Math.abs(signedOffset) * 1.4 + 8;
 }
 
+/**
+ * Temporal-pyramid priority score for scheduling fetches and decodes.
+ * Keeps immediate [+0..+12] frames dense for 60fps smoothness while rushing
+ * strided keyframes (+16..+lookahead) ahead across the runway so fast scrubs never hit empty gaps.
+ */
+function computeFetchPriorityScore(
+  candidateSeq: SequenceType,
+  candidateIndex: number,
+  focus: PlaybackFocus,
+  prewarmHead?: PrewarmHeadTarget | ReadonlyArray<PrewarmHeadTarget> | null
+): number {
+  if (candidateSeq !== focus.sequence) {
+    if (prewarmHead) {
+      const targets = Array.isArray(prewarmHead) ? prewarmHead : [prewarmHead];
+      for (const target of targets) {
+        if (candidateSeq === target.sequence && candidateIndex <= target.count) {
+          return 14 + candidateIndex;
+        }
+      }
+    }
+    return 10000 + candidateIndex;
+  }
+
+  const signedOffset = (candidateIndex - focus.centerFrame) * focus.direction;
+  if (signedOffset >= 0) {
+    if (signedOffset <= 12) return signedOffset;
+    if (signedOffset % 8 === 0) return 12 + signedOffset * 0.25;
+    if (signedOffset % 4 === 0) return 22 + signedOffset * 0.4;
+    if (signedOffset % 2 === 0) return 42 + signedOffset * 0.65;
+    return 72 + signedOffset;
+  }
+  return Math.abs(signedOffset) * 1.4 + 14;
+}
+
 function defaultDecodeBackend(): DecodeBackend<ImageBitmap> {
   return {
     async fetchBlob(url: string, priority: "high" | "low"): Promise<Blob> {
       const init: RequestInit & { fetchPriority?: "high" | "low" } = {
         priority,
         fetchPriority: priority,
+        cache: "force-cache",
       };
       const res = await fetch(url, init);
       if (!res.ok) {
@@ -219,7 +277,8 @@ function defaultDecodeBackend(): DecodeBackend<ImageBitmap> {
       return res.blob();
     },
     decodeBitmap(blob: Blob): Promise<ImageBitmap> {
-      return createImageBitmap(blob, { premultiplyAlpha: "none" });
+      // Use browser default premultiplied hardware WebP decode path (faster GPU texture upload than premultiplyAlpha: "none")
+      return createImageBitmap(blob);
     },
     closeBitmap(bitmap: ImageBitmap): void {
       if (typeof bitmap.close === "function") {
@@ -245,6 +304,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
   private readonly pinnedKeys = new Set<string>();
   private readonly pinnedBitmaps = new Map<string, TBitmap>();
   private readonly bitmaps = new Map<string, TBitmap>();
+  private readonly bitmapMeta = new Map<string, { sequence: SequenceType; index: number }>();
   private readonly blobs = new Map<string, Blob>();
 
   private readonly pendingJobs = new Map<string, PendingJob<TBitmap>>();
@@ -261,6 +321,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
   private destroyed = false;
   private activeWorkers = 0;
   private activeHttpFetches = 0;
+  private activeDemandHttpFetches = 0;
   private bgWorkers = 0;
   private bgPumpTimer: ReturnType<typeof setTimeout> | null = null;
   private onFrameDecoded?: (sequence: SequenceType, index: number) => void;
@@ -314,9 +375,12 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     return this.config.totalReadingFrames;
   }
 
+  private readonly prefetchedAttemptedKeys = new Set<string>();
+  private bgQueueCursor = 0;
+
   public setPlaybackActive(active: boolean): void {
     this.isPlaybackActive = active;
-    if (!active || this.activeHttpFetches === 0) {
+    if (!active || this.activeDemandHttpFetches === 0) {
       this.scheduleBackgroundWarm();
     }
   }
@@ -389,34 +453,34 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
   }
 
   /**
-   * Finds the best ready bitmap with cross-sequence bridge continuity and direction-aware fallback
-   * so out-of-order parallel decodes never flash future frames ahead of the playhead.
+   * Finds the best ready bitmap plus its source frame index & exactness flag,
+   * supporting cross-sequence bridge continuity and direction-aware fallback.
    */
-  public getBestBitmap(
+  public getBestBitmapWithFrame(
     sequence: SequenceType,
     targetIndex: number,
     direction: 1 | -1 = 1
-  ): TBitmap | null {
+  ): { readonly bitmap: TBitmap; readonly frame: number; readonly exact: boolean } | null {
     const clamped = Math.max(1, Math.min(this.getMaxFrames(sequence), Math.round(targetIndex)));
     const direct = this.getBitmap(sequence, clamped);
-    if (direct) return direct;
+    if (direct) return { bitmap: direct, frame: clamped, exact: true };
 
     // Seamless cross-stage bridge fallbacks
     if (sequence === "reading" && clamped <= 5) {
       const bridge = this.getBitmap("materi", this.config.totalMateriFrames);
-      if (bridge) return bridge;
+      if (bridge) return { bitmap: bridge, frame: clamped, exact: false };
     }
     if ((sequence === "materi" || sequence === "latihan") && clamped <= 5) {
       const bridge = this.getBitmap("hero", this.config.totalHeroFrames);
-      if (bridge) return bridge;
+      if (bridge) return { bitmap: bridge, frame: clamped, exact: false };
     }
     if (sequence === "materi" && clamped >= this.config.totalMateriFrames - 5) {
       const bridge = this.getBitmap("reading", 1);
-      if (bridge) return bridge;
+      if (bridge) return { bitmap: bridge, frame: clamped, exact: false };
     }
     if (sequence === "hero" && clamped >= this.config.totalHeroFrames - 5) {
       const bridge = this.getBitmap("materi", 1) ?? this.getBitmap("latihan", 1);
-      if (bridge) return bridge;
+      if (bridge) return { bitmap: bridge, frame: clamped, exact: false };
     }
 
     const maxFrames = this.getMaxFrames(sequence);
@@ -428,7 +492,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
       const trailingIdx = clamped + offset * trailingStep;
       if (trailingIdx >= 1 && trailingIdx <= maxFrames) {
         const b = this.getBitmap(sequence, trailingIdx);
-        if (b) return b;
+        if (b) return { bitmap: b, frame: trailingIdx, exact: false };
       }
     }
 
@@ -437,11 +501,20 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
       const aheadIdx = clamped - offset * trailingStep;
       if (aheadIdx >= 1 && aheadIdx <= maxFrames) {
         const b = this.getBitmap(sequence, aheadIdx);
-        if (b) return b;
+        if (b) return { bitmap: b, frame: aheadIdx, exact: false };
       }
     }
 
-    return this.getBitmap(sequence, 1);
+    const first = this.getBitmap(sequence, 1);
+    return first ? { bitmap: first, frame: 1, exact: false } : null;
+  }
+
+  public getBestBitmap(
+    sequence: SequenceType,
+    targetIndex: number,
+    direction: 1 | -1 = 1
+  ): TBitmap | null {
+    return this.getBestBitmapWithFrame(sequence, targetIndex, direction)?.bitmap ?? null;
   }
 
   /**
@@ -541,6 +614,8 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
 
   /**
    * Queues background Blob-only warming (zero VRAM impact until scrolled near).
+   * When step === 1 over a long span, enqueues in progressive interlaced waves (8 -> 4 -> 2 -> 1)
+   * so full-sequence keyframe coverage builds up rapidly on Vercel CDN even after short idle times.
    */
   public queueBlobWarmup(sequence: SequenceType, startFrame: number, endFrame: number, step: number = 1): void {
     if (this.destroyed) return;
@@ -548,11 +623,28 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     const from = Math.max(1, startFrame);
     const to = Math.min(maxFrames, endFrame);
 
-    for (let i = from; i <= to; i += Math.max(1, step)) {
+    const enqueueFrame = (i: number) => {
       const key = makeFrameKey(sequence, i);
-      if (!this.blobs.has(key) && !this.hasBitmap(sequence, i) && !this.bgQueuedKeys.has(key) && !this.bgInFlight.has(key)) {
+      if (
+        !this.blobs.has(key) &&
+        !this.hasBitmap(sequence, i) &&
+        !this.bgQueuedKeys.has(key) &&
+        !this.bgInFlight.has(key)
+      ) {
         this.bgQueuedKeys.add(key);
         this.bgWarmQueue.push({ sequence, index: i, key });
+      }
+    };
+
+    if (step === 1 && to - from >= 8) {
+      for (const stride of [8, 4, 2, 1]) {
+        for (let i = from; i <= to; i += stride) {
+          enqueueFrame(i);
+        }
+      }
+    } else {
+      for (let i = from; i <= to; i += Math.max(1, step)) {
+        enqueueFrame(i);
       }
     }
 
@@ -563,10 +655,12 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
    * Moves any pending background Blob warmup items for `sequence` to the front of the queue.
    */
   public reprioritizeBlobWarmup(sequence: SequenceType): void {
-    if (this.destroyed || this.bgWarmQueue.length <= 1) return;
+    const remaining = this.bgWarmQueue.length - this.bgQueueCursor;
+    if (this.destroyed || remaining <= 1) return;
     const prioritized: Array<{ sequence: SequenceType; index: number; key: string }> = [];
     const others: Array<{ sequence: SequenceType; index: number; key: string }> = [];
-    for (const item of this.bgWarmQueue) {
+    for (let idx = this.bgQueueCursor; idx < this.bgWarmQueue.length; idx++) {
+      const item = this.bgWarmQueue[idx]!;
       if (item.sequence === sequence) {
         prioritized.push(item);
       } else {
@@ -575,6 +669,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     }
     if (prioritized.length === 0) return;
     this.bgWarmQueue.length = 0;
+    this.bgQueueCursor = 0;
     this.bgWarmQueue.push(...prioritized, ...others);
     this.scheduleBackgroundWarm();
   }
@@ -619,7 +714,9 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     }
     this.pendingJobs.clear();
     this.inFlightBlobFetches.clear();
+    this.prefetchedAttemptedKeys.clear();
     this.bgWarmQueue.length = 0;
+    this.bgQueueCursor = 0;
     this.bgQueuedKeys.clear();
 
     for (const bitmap of this.pinnedBitmaps.values()) {
@@ -631,6 +728,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
       this.safeClose(bitmap);
     }
     this.bitmaps.clear();
+    this.bitmapMeta.clear();
     this.blobs.clear();
   }
 
@@ -692,6 +790,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
       this.safeClose(existing);
     }
     this.bitmaps.set(key, bitmap);
+    this.bitmapMeta.set(key, { sequence, index });
 
     this.evictExcessBitmaps();
     return this.bitmaps.has(key);
@@ -706,8 +805,15 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
         if (candidateKey === this.lastDrawnKey || this.pinnedKeys.has(candidateKey)) {
           continue;
         }
-        const parsed = parseFrameKey(candidateKey);
-        const penalty = computeEvictionPenalty(parsed.sequence, parsed.index, this.focus, this.prewarmHeads);
+        const meta = this.bitmapMeta.get(candidateKey);
+        const penalty = meta
+          ? computeEvictionPenalty(meta.sequence, meta.index, this.focus, this.prewarmHeads)
+          : computeEvictionPenalty(
+              parseFrameKey(candidateKey).sequence,
+              parseFrameKey(candidateKey).index,
+              this.focus,
+              this.prewarmHeads
+            );
         if (penalty > worstPenalty) {
           worstPenalty = penalty;
           worstKey = candidateKey;
@@ -717,21 +823,53 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
       if (!worstKey) break;
       const victim = this.bitmaps.get(worstKey);
       this.bitmaps.delete(worstKey);
+      this.bitmapMeta.delete(worstKey);
       if (victim) {
         this.safeClose(victim);
       }
     }
   }
 
-  private pickNextJob(): PendingJob<TBitmap> | null {
+  private pickNextJob(onlyReadyOrInFlight: boolean): PendingJob<TBitmap> | null {
     let bestJob: PendingJob<TBitmap> | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
 
     for (const job of this.pendingJobs.values()) {
       if (this.inFlightKeys.has(job.key)) continue;
 
-      let score = computeEvictionPenalty(job.sequence, job.index, this.focus, this.prewarmHeads);
-      if (job.urgent) score -= 500;
+      const hasBlob = this.blobs.has(job.key);
+      const isDownloading = this.inFlightBlobFetches.has(job.key);
+      if (onlyReadyOrInFlight && !hasBlob && !isDownloading) continue;
+
+      let score = computeFetchPriorityScore(job.sequence, job.index, this.focus, this.prewarmHeads);
+      if (job.urgent) score -= 2000;
+      if (this.pinnedKeys.has(job.key)) score -= 250;
+      if (hasBlob) score -= 40;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestJob = job;
+      }
+    }
+
+    return bestJob;
+  }
+
+  private pickNextPrefetchJob(): PendingJob<TBitmap> | null {
+    let bestJob: PendingJob<TBitmap> | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (const job of this.pendingJobs.values()) {
+      if (
+        this.blobs.has(job.key) ||
+        this.inFlightBlobFetches.has(job.key) ||
+        this.prefetchedAttemptedKeys.has(job.key)
+      ) {
+        continue;
+      }
+
+      let score = computeFetchPriorityScore(job.sequence, job.index, this.focus, this.prewarmHeads);
+      if (job.urgent) score -= 2000;
       if (this.pinnedKeys.has(job.key)) score -= 250;
 
       if (score < bestScore) {
@@ -743,15 +881,46 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     return bestJob;
   }
 
+  private pumpHttpPrefetch(): void {
+    while (!this.destroyed && this.activeHttpFetches < this.config.maxConcurrentFetches) {
+      const job = this.pickNextPrefetchJob();
+      if (!job) break;
+
+      this.prefetchedAttemptedKeys.add(job.key);
+      void this.fetchBlobShared(
+        job.sequence,
+        job.index,
+        job.key,
+        job.urgent ? "high" : "low",
+        true
+      ).then(
+        () => {
+          if (!this.destroyed) {
+            this.pumpWorkers();
+          }
+        },
+        () => {
+          if (!this.destroyed) {
+            this.pumpWorkers();
+          }
+        }
+      );
+    }
+  }
+
   private pumpWorkers(): void {
     while (!this.destroyed && this.activeWorkers < this.config.maxConcurrentDecodes) {
-      const job = this.pickNextJob();
+      const requireReadyOrInFlight =
+        this.activeHttpFetches >= this.config.maxConcurrentFetches;
+      const job = this.pickNextJob(requireReadyOrInFlight);
       if (!job) break;
 
       this.inFlightKeys.add(job.key);
       this.activeWorkers++;
       void this.runJob(job);
     }
+
+    this.pumpHttpPrefetch();
 
     if (this.canRunBackgroundWarm()) {
       this.scheduleBackgroundWarm();
@@ -763,7 +932,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     index: number,
     key: string,
     priority: "high" | "low",
-    trackAsActiveHttp: boolean
+    trackAsDemand: boolean
   ): Promise<Blob> {
     const cached = this.getBlob(key);
     if (cached) return Promise.resolve(cached);
@@ -772,8 +941,9 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     if (existingFetch) return existingFetch;
 
     const url = getFrameUrl(sequence, index, this.getMaxFrames(sequence));
-    if (trackAsActiveHttp) {
-      this.activeHttpFetches++;
+    this.activeHttpFetches++;
+    if (trackAsDemand) {
+      this.activeDemandHttpFetches++;
     }
 
     const fetchPromise = this.backend
@@ -786,10 +956,18 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
       })
       .finally(() => {
         this.inFlightBlobFetches.delete(key);
-        if (trackAsActiveHttp) {
-          this.activeHttpFetches = Math.max(0, this.activeHttpFetches - 1);
-          if (this.canRunBackgroundWarm()) {
-            this.scheduleBackgroundWarm();
+        this.activeHttpFetches = Math.max(0, this.activeHttpFetches - 1);
+        if (trackAsDemand) {
+          this.activeDemandHttpFetches = Math.max(0, this.activeDemandHttpFetches - 1);
+        }
+        if (!this.destroyed) {
+          if (this.pendingJobs.size > 0) {
+            this.pumpWorkers();
+          } else {
+            this.pumpHttpPrefetch();
+            if (this.canRunBackgroundWarm()) {
+              this.scheduleBackgroundWarm();
+            }
           }
         }
       });
@@ -827,6 +1005,7 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     } finally {
       this.inFlightKeys.delete(job.key);
       this.pendingJobs.delete(job.key);
+      this.prefetchedAttemptedKeys.delete(job.key);
       this.activeWorkers = Math.max(0, this.activeWorkers - 1);
 
       for (const resolve of job.resolveList) {
@@ -845,7 +1024,12 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
   }
 
   private canRunBackgroundWarm(): boolean {
-    if (this.destroyed || this.activeHttpFetches > 0 || this.bgWarmQueue.length === 0) {
+    if (
+      this.destroyed ||
+      this.activeDemandHttpFetches > 0 ||
+      this.activeHttpFetches >= this.config.maxConcurrentFetches ||
+      this.bgQueueCursor >= this.bgWarmQueue.length
+    ) {
       return false;
     }
     return this.bgWorkers < this.getActiveBgLimit();
@@ -864,12 +1048,16 @@ export class FrameCacheManager<TBitmap = ImageBitmap> {
     const bgLimit = this.getActiveBgLimit();
     while (
       !this.destroyed &&
-      this.activeHttpFetches === 0 &&
+      this.activeDemandHttpFetches === 0 &&
+      this.activeHttpFetches < this.config.maxConcurrentFetches &&
       this.bgWorkers < bgLimit &&
-      this.bgWarmQueue.length > 0
+      this.bgQueueCursor < this.bgWarmQueue.length
     ) {
-      const next = this.bgWarmQueue.shift();
-      if (!next) break;
+      const next = this.bgWarmQueue[this.bgQueueCursor++]!;
+      if (this.bgQueueCursor >= this.bgWarmQueue.length) {
+        this.bgWarmQueue.length = 0;
+        this.bgQueueCursor = 0;
+      }
       this.bgQueuedKeys.delete(next.key);
       if (this.blobs.has(next.key) || this.inFlightBlobFetches.has(next.key) || this.bgInFlight.has(next.key)) {
         continue;

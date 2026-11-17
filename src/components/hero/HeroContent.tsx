@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { memo, useSyncExternalStore } from "react";
 import Image from "next/image";
 
 interface HeroContentProps {
@@ -33,7 +33,7 @@ function usePrefersReducedMotion() {
   );
 }
 
-export function HeroContent({
+export const HeroContent = memo(function HeroContent({
   currentStep = 1,
   isHeroInteractive = true,
   onNavigateToHub,
@@ -336,4 +336,4 @@ export function HeroContent({
       </div>
     </div>
   );
-}
+});
