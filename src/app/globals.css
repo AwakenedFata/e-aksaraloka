@@ -26,6 +26,15 @@
 }
 
 /* Custom parchment scrollbars matching antique book ink */
+.parchment-scroll {
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.parchment-scroll-hidden {
+  overscroll-behavior: contain;
+}
+
 .parchment-scroll::-webkit-scrollbar {
   width: 2px;
   height: 2px;
@@ -56,6 +65,24 @@
   .parchment-scroll {
     scrollbar-width: thin;
     scrollbar-color: rgba(92, 61, 30, 0.42) transparent;
+  }
+}
+
+@media (max-width: 767px) {
+  .mobile-parchment-sheet {
+    font-size: 13.5px;
+  }
+  .mobile-parchment-sheet p {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+  }
+  .mobile-parchment-sheet label {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+  .mobile-parchment-sheet input,
+  .mobile-parchment-sheet textarea {
+    font-size: 16px !important;
   }
 }
 

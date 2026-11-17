@@ -27,6 +27,7 @@ import { PetaHubButton } from "@/components/peta/PetaHubButton";
 import { PetaPembelajaranModal } from "@/components/peta/PetaPembelajaranModal";
 import { TOTAL_LATIHAN_FRAMES_DEFAULT } from "@/components/shared/canvas/frameCacheManager";
 import { useLenis } from "@/components/shared/providers/SmoothScrollProvider";
+import type { Mobile3dCameraTarget } from "@/lib/ui/bookHomography";
 import type { GrimoireChapterId } from "@/lib/learning/narrativeCurriculumData";
 import { setActiveGrimoireChapter } from "@/lib/learning/learningStore";
 import { stopSpeechNarration } from "@/lib/learning/audioEngine";
@@ -96,6 +97,7 @@ export default function Home() {
   const [isReverseScrolling, setIsReverseScrolling] = useState<boolean>(false);
   const [isBookPageFlipping, setIsBookPageFlipping] = useState<boolean>(false);
   const [isKitabBookFocused, setIsKitabBookFocused] = useState<boolean>(false);
+  const [kitab3dMobileSide, setKitab3dMobileSide] = useState<"left" | "right">("left");
   const [isStudioBookFocused, setIsStudioBookFocused] = useState<boolean>(false);
   const [isPetaModalOpen, setIsPetaModalOpen] = useState<boolean>(false);
   const [portalPhase, setPortalPhase] = useState<PortalTransitionPhase>("idle");
@@ -817,6 +819,15 @@ export default function Home() {
     isKitabOverlayVisible && isKitabBookFocused && !isBookPageFlipping;
   const isAnyBookZenFocusActive = isStudioZenFocusActive || isKitabZenFocusActive;
 
+  const mobile3dCameraTarget: Mobile3dCameraTarget =
+    isKitabOverlayVisible && !isKitabBookFocused
+      ? kitab3dMobileSide === "left"
+        ? "kitab-left"
+        : "kitab-right"
+      : isStudioOverlayVisible && !isStudioBookFocused
+        ? "studio"
+        : "none";
+
   const showBackButton =
     (isMateriUnlocked || isReadingUnlocked || isLatihanUnlocked) &&
     !isAnyBookZenFocusActive &&
@@ -847,6 +858,8 @@ export default function Home() {
         isLatihanUnlocked={isLatihanUnlocked}
         isReverseScrolling={isReverseScrolling}
         isStudioBookFocused={isAnyBookZenFocusActive}
+        isScrollLocked={isAnyBookZenFocusActive || isPetaModalOpen}
+        mobile3dCameraTarget={mobile3dCameraTarget}
         containerRef={heroRef}
         materiContainerRef={materiRef}
         readingContainerRef={readingRef}
@@ -918,7 +931,7 @@ export default function Home() {
 
       {/* Contextual Back Button placed directly beneath the Navbar Brand Logo */}
       <div
-        className={`fixed top-18 sm:top-20 lg:top-22 left-6 sm:left-8 lg:left-12 2xl:left-16 z-50 transition-all duration-500 ${
+        className={`fixed top-16 sm:top-20 lg:top-22 left-4 sm:left-8 lg:left-12 2xl:left-16 z-50 transition-all duration-500 ${
           showBackButton
             ? "opacity-100 translate-x-0 pointer-events-auto"
             : "opacity-0 -translate-x-3 pointer-events-none"
@@ -954,7 +967,7 @@ export default function Home() {
 
       {/* Fast Skip Capsule ("Lewati Animasi ->") shown gracefully during forward autoplay */}
       <div
-        className={`fixed bottom-6 right-6 sm:bottom-8 sm:right-8 lg:bottom-10 lg:right-12 z-40 transition-all duration-300 ${
+        className={`fixed bottom-4 right-4 sm:bottom-8 sm:right-8 lg:bottom-10 lg:right-12 z-40 transition-all duration-300 ${
           showSkipAutoplayButton
             ? "opacity-100 translate-y-0 pointer-events-auto"
             : "opacity-0 translate-y-2 pointer-events-none"
@@ -1029,6 +1042,8 @@ export default function Home() {
         onSetBookFocused={setIsKitabBookFocused}
         isPageFlipping={isBookPageFlipping}
         onTriggerPageFlip={handleTriggerBookPageFlip}
+        mobile3dSide={kitab3dMobileSide}
+        onChangeMobile3dSide={setKitab3dMobileSide}
         onOpenPetaModal={() => setIsPetaModalOpen(true)}
         onNavigateToStudioTulis={handleNavigateToStudioTulis}
       />

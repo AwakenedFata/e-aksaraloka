@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useLenis } from "@/components/shared/providers/SmoothScrollProvider";
+import {
+  computeCoverStageMetrics,
+  computeMobile3dCameraTransform,
+  type Mobile3dCameraTarget,
+} from "@/lib/ui/bookHomography";
 import {
   type SequenceType,
   easeSmoothCruise,
@@ -50,12 +55,30 @@ export interface ScrollCanvasController {
   getScrollableHeight: (sequence: SequenceType) => number;
 }
 
+function hasScrollableAncestor(target: EventTarget | null): boolean {
+  let node = target instanceof Element ? target : null;
+  while (node && node !== document.documentElement && node !== document.body) {
+    const style = window.getComputedStyle(node);
+    const canScrollY =
+      (style.overflowY === "auto" || style.overflowY === "scroll") &&
+      node.scrollHeight > node.clientHeight;
+    const canScrollX =
+      (style.overflowX === "auto" || style.overflowX === "scroll") &&
+      node.scrollWidth > node.clientWidth;
+    if (canScrollY || canScrollX) return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+
 interface ScrollCanvasSequenceProps {
   readonly isMateriUnlocked?: boolean;
   readonly isReadingUnlocked?: boolean;
   readonly isLatihanUnlocked?: boolean;
   readonly isReverseScrolling?: boolean;
   readonly isStudioBookFocused?: boolean;
+  readonly isScrollLocked?: boolean;
+  readonly mobile3dCameraTarget?: Mobile3dCameraTarget;
   readonly containerRef: React.RefObject<HTMLElement | null>;
   readonly materiContainerRef?: React.RefObject<HTMLElement | null>;
   readonly readingContainerRef?: React.RefObject<HTMLElement | null>;
@@ -104,6 +127,8 @@ export function ScrollCanvasSequence({
   isLatihanUnlocked = false,
   isReverseScrolling = false,
   isStudioBookFocused = false,
+  isScrollLocked = isStudioBookFocused,
+  mobile3dCameraTarget = "none",
   containerRef,
   materiContainerRef,
   readingContainerRef,
@@ -125,6 +150,12 @@ export function ScrollCanvasSequence({
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const backdropCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const backdropCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const [viewportSize, setViewportSize] = useState<{
+    readonly width: number;
+    readonly height: number;
+  }>({ width: 1280, height: 800 });
   const onDiscreteStateChangeRef = useRef(onDiscreteStateChange);
   useEffect(() => {
     onDiscreteStateChangeRef.current = onDiscreteStateChange;
@@ -140,12 +171,15 @@ export function ScrollCanvasSequence({
   const isReadingUnlockedRef = useRef(isReadingUnlocked);
   const isLatihanUnlockedRef = useRef(isLatihanUnlocked);
   const isReverseScrollingRef = useRef(isReverseScrolling);
+  const isScrollLockedRef = useRef(isScrollLocked);
+  const wasScrollLockedRef = useRef(false);
   useEffect(() => {
     isMateriUnlockedRef.current = isMateriUnlocked;
     isReadingUnlockedRef.current = isReadingUnlocked;
     isLatihanUnlockedRef.current = isLatihanUnlocked;
     isReverseScrollingRef.current = isReverseScrolling;
-  }, [isMateriUnlocked, isReadingUnlocked, isLatihanUnlocked, isReverseScrolling]);
+    isScrollLockedRef.current = isScrollLocked;
+  }, [isMateriUnlocked, isReadingUnlocked, isLatihanUnlocked, isReverseScrolling, isScrollLocked]);
 
   const currentFramesRef = useRef<Record<SequenceType, number>>({
     hero: 1,
@@ -175,6 +209,14 @@ export function ScrollCanvasSequence({
     width: SOURCE_WIDTH,
     height: SOURCE_HEIGHT,
   });
+  const backdropDrawBoundsRef = useRef<{ x: number; y: number; width: number; height: number }>({
+    x: 0,
+    y: 0,
+    width: 192,
+    height: 108,
+  });
+  const lastBackdropBitmapRef = useRef<ImageBitmap | null>(null);
+  const hasMobileAmbientBackdropRef = useRef<boolean>(false);
 
   const lastDrawnSeqRef = useRef<SequenceType | null>(null);
   const lastDrawnFrameRef = useRef<number>(-1);
@@ -237,27 +279,52 @@ export function ScrollCanvasSequence({
       : Math.round(vh * 2.8);
   }, [containerRef, materiContainerRef, readingContainerRef, latihanContainerRef]);
 
-  const drawFrame = useCallback((seq: SequenceType, rawFrame: number) => {
-    const cache = cacheManagerRef.current;
-    const ctx = ctxRef.current;
-    if (!cache || !ctx) return;
+  const drawBackdropBitmap = useCallback((bitmap: ImageBitmap | null) => {
+    if (!bitmap || !hasMobileAmbientBackdropRef.current) return;
+    if (bitmap === lastBackdropBitmapRef.current) return;
 
-    const frame = Math.max(1, Math.min(cache.getMaxFrames(seq), Math.round(rawFrame)));
-    const exactBitmap = cache.getBitmap(seq, frame);
-    const bitmap = exactBitmap ?? cache.getBestBitmap(seq, frame, scrollDirectionRef.current);
-    if (!bitmap) return;
-
-    if (bitmap !== lastDrawnBitmapRef.current) {
-      const bounds = drawBoundsRef.current;
-      ctx.drawImage(bitmap, bounds.x, bounds.y, bounds.width, bounds.height);
-      lastDrawnBitmapRef.current = bitmap;
+    const backdropCanvas = backdropCanvasRef.current;
+    if (!backdropCanvas) return;
+    if (!backdropCtxRef.current) {
+      backdropCtxRef.current = backdropCanvas.getContext("2d", {
+        alpha: false,
+        desynchronized: true,
+      });
     }
+    const backdropCtx = backdropCtxRef.current;
+    if (!backdropCtx) return;
 
-    cache.setLastDrawn(seq, frame);
-    lastDrawnSeqRef.current = seq;
-    lastDrawnFrameRef.current = frame;
-    lastDrawWasExactRef.current = Boolean(exactBitmap);
+    const bBounds = backdropDrawBoundsRef.current;
+    backdropCtx.drawImage(bitmap, bBounds.x, bBounds.y, bBounds.width, bBounds.height);
+    lastBackdropBitmapRef.current = bitmap;
   }, []);
+
+  const drawFrame = useCallback(
+    (seq: SequenceType, rawFrame: number) => {
+      const cache = cacheManagerRef.current;
+      const ctx = ctxRef.current;
+      if (!cache || !ctx) return;
+
+      const frame = Math.max(1, Math.min(cache.getMaxFrames(seq), Math.round(rawFrame)));
+      const exactBitmap = cache.getBitmap(seq, frame);
+      const bitmap = exactBitmap ?? cache.getBestBitmap(seq, frame, scrollDirectionRef.current);
+      if (!bitmap) return;
+
+      if (bitmap !== lastDrawnBitmapRef.current) {
+        const bounds = drawBoundsRef.current;
+        ctx.drawImage(bitmap, bounds.x, bounds.y, bounds.width, bounds.height);
+        lastDrawnBitmapRef.current = bitmap;
+      }
+
+      drawBackdropBitmap(bitmap);
+
+      cache.setLastDrawn(seq, frame);
+      lastDrawnSeqRef.current = seq;
+      lastDrawnFrameRef.current = frame;
+      lastDrawWasExactRef.current = Boolean(exactBitmap);
+    },
+    [drawBackdropBitmap]
+  );
 
   const syncHeroCssVar = useCallback(
     (seq: SequenceType, heroFrame: number) => {
@@ -415,6 +482,62 @@ export function ScrollCanvasSequence({
     [measureScrollableHeights, getMaxFrames, heroMaxFrame]
   );
 
+  // Hard scroll-lock while 2D reading/writing books or fullscreen modals are active
+  useEffect(() => {
+    isScrollLockedRef.current = isScrollLocked;
+
+    if (isScrollLocked) {
+      wasScrollLockedRef.current = true;
+      lenisRef.current.stop();
+
+      const htmlEl = document.documentElement;
+      const bodyEl = document.body;
+      const prevHtmlOverflow = htmlEl.style.overflow;
+      const prevHtmlOverscroll = htmlEl.style.overscrollBehavior;
+      const prevBodyOverflow = bodyEl.style.overflow;
+      const prevBodyOverscroll = bodyEl.style.overscrollBehavior;
+
+      htmlEl.style.overflow = "hidden";
+      htmlEl.style.overscrollBehavior = "none";
+      bodyEl.style.overflow = "hidden";
+      bodyEl.style.overscrollBehavior = "none";
+
+      const handleLockedTouchMove = (e: TouchEvent) => {
+        if (e.touches.length > 1) return;
+        if (hasScrollableAncestor(e.target)) return;
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+      };
+
+      window.addEventListener("touchmove", handleLockedTouchMove, { passive: false });
+
+      return () => {
+        window.removeEventListener("touchmove", handleLockedTouchMove);
+        htmlEl.style.overflow = prevHtmlOverflow;
+        htmlEl.style.overscrollBehavior = prevHtmlOverscroll;
+        bodyEl.style.overflow = prevBodyOverflow;
+        bodyEl.style.overscrollBehavior = prevBodyOverscroll;
+      };
+    }
+
+    if (wasScrollLockedRef.current) {
+      wasScrollLockedRef.current = false;
+      const activeAuto = autoplayRef.current;
+      if (activeAuto) {
+        if (activeAuto.interruptible) {
+          lenisRef.current.start();
+        }
+        return;
+      }
+
+      suppressScrollReadRef.current = true;
+      lenisRef.current.start();
+      const activeSeq = activeSequenceRef.current;
+      syncDomScrollInstant(activeSeq, currentFramesRef.current[activeSeq]);
+    }
+  }, [isScrollLocked, syncDomScrollInstant]);
+
   const renderLoopRef = useRef<(now: number) => void>(() => {});
 
   const ensureLoopActive = useCallback(() => {
@@ -424,7 +547,7 @@ export function ScrollCanvasSequence({
   }, []);
 
   const syncTargetFromWindowScroll = useCallback(() => {
-    if (autoplayRef.current || suppressScrollReadRef.current) return;
+    if (autoplayRef.current || suppressScrollReadRef.current || isScrollLockedRef.current) return;
 
     const seq = isLatihanUnlockedRef.current
       ? "latihan"
@@ -579,7 +702,9 @@ export function ScrollCanvasSequence({
           lenisRef.current.resize();
           lenisRef.current.scrollTo(syncScrollY, { immediate: true, force: true });
         }
-        lenisRef.current.start();
+        if (!isScrollLockedRef.current) {
+          lenisRef.current.start();
+        }
         requestAnimationFrame(() => {
           suppressScrollReadRef.current = false;
         });
@@ -589,7 +714,7 @@ export function ScrollCanvasSequence({
         autoplayRef.current = null;
         cacheManagerRef.current?.setPlaybackActive(false);
         emitDiscreteStateIfChanged(false);
-        if (keepScrollLocked) {
+        if (keepScrollLocked || isScrollLockedRef.current) {
           lenisRef.current.stop();
         } else {
           lenisRef.current.start();
@@ -620,6 +745,42 @@ export function ScrollCanvasSequence({
     measureScrollableHeights,
   ]);
 
+  const syncBackdropCanvasSize = useCallback((displayWidth: number, displayHeight: number) => {
+    const backdropCanvas = backdropCanvasRef.current;
+    if (!backdropCanvas) return;
+
+    const bgHeight = 160;
+    const bgWidth = Math.max(
+      64,
+      Math.min(288, Math.round((bgHeight * displayWidth) / Math.max(1, displayHeight)))
+    );
+
+    if (backdropCanvas.width !== bgWidth || backdropCanvas.height !== bgHeight) {
+      backdropCanvas.width = bgWidth;
+      backdropCanvas.height = bgHeight;
+      lastBackdropBitmapRef.current = null;
+    }
+
+    if (!backdropCtxRef.current) {
+      backdropCtxRef.current = backdropCanvas.getContext("2d", {
+        alpha: false,
+        desynchronized: true,
+      });
+    }
+    if (backdropCtxRef.current) {
+      backdropCtxRef.current.imageSmoothingEnabled = true;
+      backdropCtxRef.current.imageSmoothingQuality = "medium";
+    }
+
+    const bgCover = computeCoverStageMetrics(bgWidth, bgHeight, SOURCE_WIDTH, SOURCE_HEIGHT);
+    backdropDrawBoundsRef.current = {
+      x: bgCover.offsetX,
+      y: bgCover.offsetY,
+      width: bgCover.width,
+      height: bgCover.height,
+    };
+  }, []);
+
   const handleResize = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -633,26 +794,33 @@ export function ScrollCanvasSequence({
 
     const displayWidth = Math.max(1, window.innerWidth);
     const displayHeight = Math.max(1, window.innerHeight);
+    setViewportSize((prev) =>
+      prev.width === displayWidth && prev.height === displayHeight
+        ? prev
+        : { width: displayWidth, height: displayHeight }
+    );
     const rawDpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    // Clamp physical canvas pixels to source WebP resolution (1920x1080) to eliminate 4x GPU fillrate waste
-    const rawPhysicalW = displayWidth * rawDpr;
-    const rawPhysicalH = displayHeight * rawDpr;
-    const capRatio = Math.min(
-      1,
-      SOURCE_WIDTH / Math.max(1, rawPhysicalW),
-      SOURCE_HEIGHT / Math.max(1, rawPhysicalH)
+    // Size canvas to the full unclipped 16:9 cover stage (capped at 1920x1080) so CSS camera
+    // pan/zoom reveals off-screen artwork smoothly instead of exposing black letterbox voids.
+    const baseStage = computeCoverStageMetrics(
+      displayWidth,
+      displayHeight,
+      SOURCE_WIDTH,
+      SOURCE_HEIGHT
     );
-    const effectiveDpr = rawDpr * capRatio;
+    const physicalScale = Math.min(
+      rawDpr,
+      SOURCE_WIDTH / Math.max(1, baseStage.width),
+      SOURCE_HEIGHT / Math.max(1, baseStage.height)
+    );
 
-    const physicalWidth = Math.max(1, Math.round(displayWidth * effectiveDpr));
-    const physicalHeight = Math.max(1, Math.round(displayHeight * effectiveDpr));
+    const physicalWidth = Math.max(1, Math.round(baseStage.width * physicalScale));
+    const physicalHeight = Math.max(1, Math.round(baseStage.height * physicalScale));
 
     if (canvas.width !== physicalWidth || canvas.height !== physicalHeight) {
       canvas.width = physicalWidth;
       canvas.height = physicalHeight;
-      canvas.style.width = `${displayWidth}px`;
-      canvas.style.height = `${displayHeight}px`;
       lastDrawnFrameRef.current = -1;
       lastDrawnBitmapRef.current = null;
     }
@@ -663,24 +831,20 @@ export function ScrollCanvasSequence({
       ctx.imageSmoothingQuality = "low";
     }
 
-    const hRatio = physicalWidth / SOURCE_WIDTH;
-    const vRatio = physicalHeight / SOURCE_HEIGHT;
-    const ratio = Math.max(hRatio, vRatio);
-
-    const drawWidth = SOURCE_WIDTH * ratio;
-    const drawHeight = SOURCE_HEIGHT * ratio;
     drawBoundsRef.current = {
-      x: (physicalWidth - drawWidth) / 2,
-      y: (physicalHeight - drawHeight) / 2,
-      width: drawWidth,
-      height: drawHeight,
+      x: 0,
+      y: 0,
+      width: physicalWidth,
+      height: physicalHeight,
     };
+
+    syncBackdropCanvasSize(displayWidth, displayHeight);
 
     measureScrollableHeights();
 
     const seq = activeSequenceRef.current;
     drawFrame(seq, Math.round(currentFramesRef.current[seq]));
-  }, [drawFrame, measureScrollableHeights]);
+  }, [drawFrame, measureScrollableHeights, syncBackdropCanvasSize]);
 
   // Keep scrollable track dimensions synced whenever stage components mount/unmount
   useEffect(() => {
@@ -943,7 +1107,7 @@ export function ScrollCanvasSequence({
     emitDiscreteStateIfChanged(false);
 
     const handleNativeScroll = () => {
-      if (suppressScrollReadRef.current || autoplayRef.current) return;
+      if (suppressScrollReadRef.current || autoplayRef.current || isScrollLockedRef.current) return;
       syncTargetFromWindowScroll();
       cache.setPlaybackActive(true);
       ensureLoopActive();
@@ -978,7 +1142,7 @@ export function ScrollCanvasSequence({
 
     const onResize = () => {
       handleResize();
-      if (!autoplayRef.current) {
+      if (!autoplayRef.current && !isScrollLockedRef.current) {
         syncTargetFromWindowScroll();
       }
       ensureLoopActive();
@@ -1018,21 +1182,109 @@ export function ScrollCanvasSequence({
     ensureLoopActive,
   ]);
 
+  const baseStage = useMemo(
+    () =>
+      computeCoverStageMetrics(
+        viewportSize.width,
+        viewportSize.height,
+        SOURCE_WIDTH,
+        SOURCE_HEIGHT
+      ),
+    [viewportSize.height, viewportSize.width]
+  );
+
+  const mobileCamera = useMemo(
+    () =>
+      isStudioBookFocused
+        ? null
+        : computeMobile3dCameraTransform(
+            viewportSize.width,
+            viewportSize.height,
+            mobile3dCameraTarget
+          ),
+    [isStudioBookFocused, mobile3dCameraTarget, viewportSize.height, viewportSize.width]
+  );
+
+  const isMobilePortrait =
+    viewportSize.width < 768 && viewportSize.width < viewportSize.height;
+  const hasMobileAmbientBackdrop = Boolean(mobileCamera?.active && mobileCamera.zoom < 0.99);
+
+  useEffect(() => {
+    hasMobileAmbientBackdropRef.current = hasMobileAmbientBackdrop;
+    if (hasMobileAmbientBackdrop) {
+      syncBackdropCanvasSize(viewportSize.width, viewportSize.height);
+      drawBackdropBitmap(lastDrawnBitmapRef.current);
+    }
+  }, [
+    drawBackdropBitmap,
+    hasMobileAmbientBackdrop,
+    syncBackdropCanvasSize,
+    viewportSize.height,
+    viewportSize.width,
+  ]);
+
+  const studioFocusStyle: React.CSSProperties = isStudioBookFocused
+    ? {
+        transformOrigin: "50% 68%",
+        transform: "translate3d(0px, -4%, 0px) scale(1.36)",
+      }
+    : {
+        transformOrigin: "50% 50%",
+        transform: "translate3d(0px, 0px, 0px) scale(1)",
+      };
+
+  const verticalFadeMask = hasMobileAmbientBackdrop
+    ? "linear-gradient(to bottom, transparent 0%, black 9%, black 88%, transparent 100%)"
+    : undefined;
+
+  const canvasCameraStyle: React.CSSProperties = {
+    left: `${baseStage.offsetX}px`,
+    top: `${baseStage.offsetY}px`,
+    width: `${baseStage.width}px`,
+    height: `${baseStage.height}px`,
+    transformOrigin: mobileCamera?.active ? mobileCamera.transformOrigin : "50% 50%",
+    transform: mobileCamera?.active
+      ? mobileCamera.transformCss
+      : "translate3d(0px, 0px, 0px) scale(1)",
+    maskImage: verticalFadeMask,
+    WebkitMaskImage: verticalFadeMask,
+  };
+
   return (
     <div
-      className="fixed inset-0 z-0 h-screen w-screen overflow-hidden select-none bg-black pointer-events-none"
+      className="fixed inset-0 z-0 h-screen w-screen overflow-hidden select-none bg-[#030712] pointer-events-none"
       aria-hidden="true"
     >
-      {/* Pinned HTML5 Canvas — Bounded Sliding-Window ImageBitmap Renderer */}
-      <canvas
-        ref={canvasRef}
-        role="img"
-        aria-label="Animasi sinematik sekuens gerbang perpustakaan fantasi Aksaraloka"
-        style={{ transformOrigin: "50% 68%" }}
-        className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          isFirstFrameReady ? "opacity-100" : "opacity-0"
-        } ${isStudioBookFocused ? "scale-[1.36] -translate-y-[4%]" : "scale-100 translate-y-0"}`}
-      />
+      {isMobilePortrait && (
+        <div
+          className={`absolute inset-0 overflow-hidden transition-opacity duration-500 ease-out ${
+            hasMobileAmbientBackdrop && isFirstFrameReady ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          {/* Downsampled full-bleed ambient scene extension behind letterboxed 16:9 3D stages */}
+          <canvas
+            ref={backdropCanvasRef}
+            className="h-full w-full scale-[1.14]"
+            style={{ filter: "blur(26px) brightness(0.52) saturate(1.18)" }}
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(3,7,18,0.62)_0%,rgba(3,7,18,0.16)_24%,rgba(3,7,18,0.12)_72%,rgba(3,7,18,0.68)_100%)]" />
+        </div>
+      )}
+      <div
+        className="relative h-full w-full transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        style={studioFocusStyle}
+      >
+        {/* Pinned HTML5 Canvas — Unclipped 16:9 Cover Stage ImageBitmap Renderer */}
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label="Animasi sinematik sekuens gerbang perpustakaan fantasi Aksaraloka"
+          style={canvasCameraStyle}
+          className={`absolute block max-w-none transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            isFirstFrameReady ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </div>
       {/* Subtle edge vignette during 2D Book Focus Mode without darkening the book */}
       <div
         className={`absolute inset-0 bg-[radial-gradient(circle_at_50%_58%,rgba(3,7,18,0.02)_0%,rgba(3,7,18,0.26)_100%)] transition-opacity duration-700 ease-out ${

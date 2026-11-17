@@ -147,12 +147,12 @@ export function Navbar({
           : "bg-gradient-to-b from-black/45 via-black/15 to-transparent"
       }`}
     >
-      <div className="mx-auto flex max-w-7xl 2xl:max-w-[1536px] items-center justify-between px-6 sm:px-8 lg:px-12 2xl:px-16">
+      <div className="mx-auto flex max-w-7xl 2xl:max-w-[1536px] items-center justify-between px-4 sm:px-8 lg:px-12 2xl:px-16">
         {/* Brand Logo with 4-Point Compass Star */}
         <Link
           href="/"
           onClick={handleBrandClick}
-          className="group flex items-center gap-3 no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          className="group flex items-center gap-2 sm:gap-3 no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           aria-label="Aksaraloka Beranda"
         >
           {/* Compass Star Glyph matching the reference AURORA logo */}
@@ -174,7 +174,7 @@ export function Navbar({
             </svg>
           </div>
 
-          <span className="font-brand text-lg tracking-[0.3em] font-semibold text-white uppercase no-underline transition-colors group-hover:text-[#f4d993]">
+          <span className="font-brand text-base sm:text-lg tracking-[0.2em] sm:tracking-[0.3em] font-semibold text-white uppercase no-underline transition-colors group-hover:text-[#f4d993]">
             AKSARALOKA
           </span>
         </Link>
@@ -284,23 +284,48 @@ export function Navbar({
           )}
         </div>
 
-        {/* Mobile Hamburger Toggle */}
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/5 text-stone-200 hover:text-white hover:border-white/40 focus-visible:outline-2 focus-visible:outline-white"
-          aria-expanded={mobileMenuOpen}
-          aria-controls="mobile-menu"
-          aria-label={mobileMenuOpen ? "Tutup menu navigasi" : "Buka menu navigasi"}
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            {mobileMenuOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
-        </button>
+        {/* Mobile Utility Controls: Audio Toggle + Hamburger Menu */}
+        <div className="md:hidden flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleToggleAudio}
+            aria-label={muted ? "Aktifkan Suara" : "Matikan Suara"}
+            aria-pressed={!muted}
+            className={`flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-300 cursor-pointer ${
+              muted
+                ? "border-rose-400/40 bg-rose-950/50 text-rose-200"
+                : "border-white/20 bg-white/5 text-stone-200"
+            }`}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-4.5 w-4.5" aria-hidden="true">
+              {muted ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+              ) : (
+                <>
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                </>
+              )}
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/5 text-stone-200 hover:text-white hover:border-white/40 focus-visible:outline-2 focus-visible:outline-white cursor-pointer"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-menu"
+            aria-label={mobileMenuOpen ? "Tutup menu navigasi" : "Buka menu navigasi"}
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {mobileMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Mobile Dropdown Menu */}

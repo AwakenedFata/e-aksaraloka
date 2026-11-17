@@ -30,7 +30,7 @@ export function MateriBookshelfButton({
   return (
     <CinematicDiscoveryButton
       isReady={isHeroAtEnd}
-      positionClassName="left-[10%] top-[38.5%]"
+      positionClassName="left-[18%] top-[40%] md:left-[10%] md:top-[38.5%]"
       label="Materi"
       ariaLabel="Buka Modul Materi Pembelajaran Teks Narasi"
       onSelect={onEnterMateri}

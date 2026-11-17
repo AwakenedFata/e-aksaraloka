@@ -31,7 +31,7 @@ export function PetaHubButton({
   return (
     <CinematicDiscoveryButton
       isReady={isHeroAtEnd}
-      positionClassName="left-[69.7%] top-[46%]"
+      positionClassName="left-[82%] top-[40%] md:left-[69.7%] md:top-[46%]"
       label="Peta"
       ariaLabel="Buka Peta Pembelajaran dan Progres Quest"
       fadeOutOnClick={false}

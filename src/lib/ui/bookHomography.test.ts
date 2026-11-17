@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildPageDisplacementSpec,
   computeCoverStageMetrics,
+  computeEffectiveCoverStageMetrics,
   computeHomographyMatrix3d,
+  computeMobile3dCameraTransform,
   computeSpreadQuadProjection,
   evaluatePageArchOffsetPx,
   hasSignificantPageCurve,
@@ -151,5 +153,61 @@ describe("page arch curvature & SVG displacement spec", () => {
     expect(proj3d.rightMatrixCss.startsWith("matrix3d(")).toBe(true);
     expect(proj3d.hasLeftCurve).toBe(true);
     expect(proj3d.hasRightCurve).toBe(true);
+  });
+});
+
+describe("mobile 3D portrait-first camera framing", () => {
+  it("keeps desktop, tablet, and landscape viewports untouched at identity transform", () => {
+    expect(computeMobile3dCameraTransform(1280, 720, "kitab-left").active).toBe(false);
+    expect(computeMobile3dCameraTransform(844, 390, "studio").active).toBe(false);
+    expect(computeMobile3dCameraTransform(768, 1024, "kitab-right").active).toBe(false);
+    expect(computeMobile3dCameraTransform(390, 844, "none").active).toBe(false);
+  });
+
+  it("frames both pages of Studio Tulis 3D and single pages of Kitab 3D fully inside mobile portrait without clipping", () => {
+    const viewports: readonly [number, number][] = [
+      [390, 844],
+      [375, 667],
+      [360, 780],
+    ];
+
+    for (const [vw, vh] of viewports) {
+      const studioCam = computeMobile3dCameraTransform(vw, vh, "studio");
+      expect(studioCam.active).toBe(true);
+      const studioStage = computeEffectiveCoverStageMetrics(vw, vh, studioCam);
+      const studioLeftX =
+        studioStage.offsetX + STUDIO_BOOK_DEFAULT_CALIBRATION.leftQuadNorm[3][0] * studioStage.width;
+      const studioRightX =
+        studioStage.offsetX + STUDIO_BOOK_DEFAULT_CALIBRATION.rightQuadNorm[2][0] * studioStage.width;
+      const studioTopY =
+        studioStage.offsetY + STUDIO_BOOK_DEFAULT_CALIBRATION.rightQuadNorm[1][1] * studioStage.height;
+      const studioBottomY =
+        studioStage.offsetY + STUDIO_BOOK_DEFAULT_CALIBRATION.leftQuadNorm[3][1] * studioStage.height;
+
+      expect(studioLeftX).toBeGreaterThanOrEqual(0);
+      expect(studioRightX).toBeLessThanOrEqual(vw);
+      expect(studioTopY).toBeGreaterThanOrEqual(90);
+      expect(studioBottomY).toBeLessThanOrEqual(vh - 150);
+
+      const kitabLeftCam = computeMobile3dCameraTransform(vw, vh, "kitab-left");
+      const kitabRightCam = computeMobile3dCameraTransform(vw, vh, "kitab-right");
+      expect(kitabLeftCam.zoom).toBeCloseTo(kitabRightCam.zoom, 6);
+
+      const leftStage = computeEffectiveCoverStageMetrics(vw, vh, kitabLeftCam);
+      expect(
+        leftStage.offsetX + READING_BOOK_DEFAULT_CALIBRATION.leftQuadNorm[3][0] * leftStage.width
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        leftStage.offsetX + READING_BOOK_DEFAULT_CALIBRATION.leftQuadNorm[1][0] * leftStage.width
+      ).toBeLessThanOrEqual(vw);
+
+      const rightStage = computeEffectiveCoverStageMetrics(vw, vh, kitabRightCam);
+      expect(
+        rightStage.offsetX + READING_BOOK_DEFAULT_CALIBRATION.rightQuadNorm[3][0] * rightStage.width
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        rightStage.offsetX + READING_BOOK_DEFAULT_CALIBRATION.rightQuadNorm[2][0] * rightStage.width
+      ).toBeLessThanOrEqual(vw);
+    }
   });
 });

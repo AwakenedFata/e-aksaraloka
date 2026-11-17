@@ -23,8 +23,8 @@ export function LatihanHubButton({
   return (
     <CinematicDiscoveryButton
       isReady={isHeroAtEnd}
-      positionClassName="left-[32.7%] top-[41.8%]"
-      label="Latihan"
+      positionClassName="left-[50%] top-[53%] md:left-[32.7%] md:top-[41.8%]"
+      label="Studio Tulis"
       ariaLabel="Buka Menu Latihan dan Eksperimen Menulis"
       onSelect={onSelect}
     >

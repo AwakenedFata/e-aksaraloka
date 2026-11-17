@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import {
   type GrimoireChapterId,
-  TUJUAN_PEMBELAJARAN_LIST,
   ASTROLABE_SIDE_QUESTS,
   FANTASY_LEXICON_BANK,
 } from "@/lib/learning/narrativeCurriculumData";
@@ -13,10 +12,19 @@ import {
   resetLearningState,
 } from "@/lib/learning/learningStore";
 import {
+  buildProgressionMapModel,
+  type ProgressionMapNode,
+  type ProgressionNodeId,
+} from "@/lib/learning/progressionMap";
+import {
   playChime,
   playSealUnlock,
   playErrorTone,
 } from "@/lib/learning/audioEngine";
+import {
+  AstrolabProgressionMap,
+  PETA_WALKTHROUGH_STEPS,
+} from "@/components/peta/AstrolabProgressionMap";
 
 interface PetaPembelajaranModalProps {
   readonly isOpen: boolean;
@@ -27,6 +35,8 @@ interface PetaPembelajaranModalProps {
 
 type ModalTab = "peta" | "quest" | "luring";
 
+const TOUR_STORAGE_KEY = "aksaraloka:peta-tour-seen:v1";
+
 export function PetaPembelajaranModal({
   isOpen,
   onClose,
@@ -35,6 +45,16 @@ export function PetaPembelajaranModal({
 }: PetaPembelajaranModalProps) {
   const { state, metrics } = useAksaralokaLearning();
   const [activeTab, setActiveTab] = useState<ModalTab>("peta");
+  const [userSelectedNodeId, setUserSelectedNodeId] =
+    useState<ProgressionNodeId | null>(null);
+  const [walkthroughStep, setWalkthroughStep] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return window.localStorage.getItem(TOUR_STORAGE_KEY) === "1" ? null : 0;
+    } catch {
+      return null;
+    }
+  });
   const [studentName, setStudentName] = useState<string>("");
   const [studentClass, setStudentClass] = useState<string>("VII-A");
 
@@ -49,7 +69,69 @@ export function PetaPembelajaranModal({
 
   if (!isOpen) return null;
 
-  const handleQuestSelect = (questId: string, optionId: string, isCorrect: boolean) => {
+  const mapModel = buildProgressionMapModel(state, metrics);
+  const tourFocusNodeId =
+    walkthroughStep !== null
+      ? PETA_WALKTHROUGH_STEPS[walkthroughStep]?.focusNodeId ?? null
+      : null;
+  const activeMapNodeId =
+    tourFocusNodeId ?? userSelectedNodeId ?? mapModel.recommendedNodeId;
+
+  const handleSelectMapNode = (nodeId: ProgressionNodeId) => {
+    playChime();
+    setUserSelectedNodeId(nodeId);
+  };
+
+  const handleNavigateMapNode = (node: ProgressionMapNode) => {
+    playChime();
+    if (node.destination.kind === "chapter") {
+      onClose();
+      onJumpToGrimoireChapter(node.destination.chapter);
+      return;
+    }
+    if (node.destination.kind === "studio") {
+      onClose();
+      onJumpToStudio();
+      return;
+    }
+    setActiveTab("quest");
+  };
+
+  const handleDismissWalkthrough = () => {
+    playChime();
+    setWalkthroughStep(null);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(TOUR_STORAGE_KEY, "1");
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  };
+
+  const handleNextWalkthrough = () => {
+    playChime();
+    if (
+      walkthroughStep === null ||
+      walkthroughStep >= PETA_WALKTHROUGH_STEPS.length - 1
+    ) {
+      handleDismissWalkthrough();
+    } else {
+      setWalkthroughStep(walkthroughStep + 1);
+    }
+  };
+
+  const handleStartWalkthrough = () => {
+    playChime();
+    setActiveTab("peta");
+    setWalkthroughStep(0);
+  };
+
+  const handleQuestSelect = (
+    questId: string,
+    optionId: string,
+    isCorrect: boolean
+  ) => {
     if (isCorrect) {
       playSealUnlock();
     } else {
@@ -69,7 +151,8 @@ export function PetaPembelajaranModal({
     const win = window.open("", "_blank", "width=920,height=860");
     if (!win) return;
 
-    const safeName = studentName.trim() || "................................................";
+    const safeName =
+      studentName.trim() || "................................................";
     const safeClass = studentClass.trim() || "VII-....";
 
     const html = `<!DOCTYPE html>
@@ -186,11 +269,11 @@ export function PetaPembelajaranModal({
 <body>
   <div class="header">
     <div>
-      <div class="brand">PUSTAKA AKSARALOKA · BAHASA INDONESIA KELAS VII SMP (FASE D)</div>
-      <h1>Lembar Kerja Terbimbing & Rapor Menulis Teks Cerita Fantasi</h1>
+      <div class="brand">PUSTAKA AKSARALOKA · LEMBAR KERJA CERITA FANTASI KELAS VII SMP</div>
+      <h1>Lembar Kerja Terbimbing & Rapor Menulis Cerita Fantasi</h1>
     </div>
     <div style="font-size: 12px; text-align: right;">
-      Kurikulum Merdeka · Bab II (Hlm. 52–70)
+      Belajar Membaca &amp; Menulis Cerita Fantasi
     </div>
   </div>
 
@@ -214,90 +297,90 @@ export function PetaPembelajaranModal({
       <div class="score-val">${metrics.babak3Score}/100</div>
     </div>
     <div class="score-box">
-      <div>Quest Tantangan Logika</div>
+      <div>Kuis Tantangan Logika</div>
       <div class="score-val">${metrics.questScore}/100</div>
     </div>
   </div>
 
-  <h2>Bagian 1 · Bank Kata Fantasi & Penanda Majas Asosiasi (Referensi Cepat)</h2>
+  <h2>Bagian 1 · Kamus Kata Fantasi & Contoh Perumpamaan (Majas Asosiasi)</h2>
   <table>
     <thead>
       <tr>
-        <th style="width: 24%;">Kategori Unsur</th>
-        <th style="width: 38%;">Pilihan Kosakata & Frasa Sensori</th>
-        <th style="width: 38%;">Contoh Majas Asosiasi & Kaidah Dialog EYD V</th>
+        <th style="width: 24%;">Bagian Cerita</th>
+        <th style="width: 38%;">Contoh Kata Panca Indera</th>
+        <th style="width: 38%;">Contoh Perumpamaan &amp; Dialog yang Rapi</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td><strong>Peta Lima Indera (Latar & Suasana)</strong></td>
+        <td><strong>Suasana &amp; Panca Indera</strong></td>
         <td>
           • <em>Penglihatan:</em> berpendar merah delima, kabut keperakan, temaram lentera<br/>
           • <em>Pendengaran:</em> dentuman langkah, desir angin magis, gemerincing kristal<br/>
-          • <em>Penciuman/Perabaan:</em> harum kayu manis, hawa dingin menusuk tulang
+          • <em>Penciuman/Peraba:</em> harum kayu manis, hawa dingin menusuk tulang
         </td>
         <td>
-          <strong>Penanda Majas Asosiasi (Hlm. 63):</strong><br/>
+          <strong>Kata Perumpamaan (Majas Asosiasi):</strong><br/>
           <em>seperti, bagai, bagaikan, laksana, bak, seumpama</em><br/>
           Contoh: "Bagaikan minyak dan air", "Laksana oase di padang pasir", "Melesat seperti anak panah".
         </td>
       </tr>
       <tr>
-        <td><strong>Aturan Dunia & Konflik</strong></td>
+        <td><strong>Aturan Keajaiban &amp; Konflik</strong></td>
         <td>
-          Setiap benda/kekuatan ajaib wajib memiliki <strong>syarat atau batas aturan</strong> agar penyelesaian di Klimaks tetap logis dan tidak melompat-lompat.
+          Setiap benda/kekuatan ajaib wajib memiliki <strong>syarat atau batas aturan</strong> agar penyelesaian di puncak masalah tetap masuk akal.
         </td>
         <td>
-          <strong>Kalimat Langsung ke Tak Langsung (Hlm. 69):</strong><br/>
+          <strong>Mengubah Dialog Langsung ke Kalimat Cerita:</strong><br/>
           Lepas tanda petik ("...") dan ubah kata ganti <em>aku/kau</em> menjadi <em>ia/nama tokoh</em>.
         </td>
       </tr>
     </tbody>
   </table>
 
-  <h2>Bagian 2 · Kerangka Bertahap 6 Langkah Menulis Cerita Fantasi (Hlm. 70)</h2>
+  <h2>Bagian 2 · Rencana Cerita 6 Langkah</h2>
   <table>
     <tbody>
       <tr>
-        <th style="width: 28%;">1. Ide & Aturan Dunia Fantasi</th>
+        <th style="width: 28%;">1. Ide & Aturan Keajaiban</th>
         <td>Tokoh biasa + benda/kejadian ajaib + batas aturan kekuatan: ........................................................................................................</td>
       </tr>
       <tr>
-        <th>2. Tokoh Protagonis & Antagonis</th>
-        <td>Nama & bukti sifat melalui tindakan (bukan sekadar disebut baik/jahat): ....................................................................................</td>
+        <th>2. Tokoh Utama & Lawan</th>
+        <td>Nama & bukti sifat lewat perbuatan (bukan cuma disebut baik/jahat): ....................................................................................</td>
       </tr>
       <tr>
-        <th>3. Latar Tempat, Waktu, & 3 Indera</th>
-        <td>Penglihatan, pendengaran, dan suasana latar: ..................................................................................................................................</td>
+        <th>3. Tempat & 3 Panca Indera</th>
+        <td>Apa yang terlihat, terdengar, dan terasa di tempat itu: ..................................................................................................................</td>
       </tr>
       <tr>
-        <th>4. Diagram Alur (Awal–Tengah–Akhir)</th>
+        <th>4. Rencana Jalan Cerita</th>
         <td>
-          • <strong>Orientasi (Awal):</strong> ...........................................................................................................................................................................<br/>
-          • <strong>Komplikasi & Klimaks (Puncak):</strong> ..................................................................................................................................................<br/>
-          • <strong>Resolusi (Akhir):</strong> ............................................................................................................................................................................
+          • <strong>Awal Cerita (Orientasi):</strong> .............................................................................................................................................................<br/>
+          • <strong>Masalah & Puncak (Klimaks):</strong> ..............................................................................................................................................<br/>
+          • <strong>Akhir Cerita (Resolusi):</strong> .........................................................................................................................................................
         </td>
       </tr>
       <tr>
-        <th>5. Rumusan Amanat Cerita</th>
-        <td>${state.customAmanatReflection.trim() || "Pesan moral yang dipetik dari perubahan tokoh utama: ......................................................................................"}</td>
+        <th>5. Pesan Kebaikan (Amanat)</th>
+        <td>${state.customAmanatReflection.trim() || "Pelajaran kebaikan yang dipetik dari perubahan tokoh utama: ......................................................................................"}</td>
       </tr>
     </tbody>
   </table>
 
-  <h2>Bagian 3 · Area Penulisan Naskah Cerita Fantasi (3 Paragraf Terstruktur)</h2>
-  <div class="write-box"><strong>Judul Cerita Fantasi:</strong> ........................................................................................................................<br/><br/><strong>Paragraf 1 (Orientasi — Pengenalan Tokoh & Latar Sensori):</strong><br/><br/><br/></div>
-  <div class="write-box"><strong>Paragraf 2 (Komplikasi & Klimaks — Munculnya Masalah, Dialog Langsung, & Puncak Ketegangan):</strong><br/><br/><br/></div>
-  <div class="write-box"><strong>Paragraf 3 (Resolusi & Amanat — Penyelesaian Masalah & Perubahan Sikap Tokoh):</strong><br/><br/><br/></div>
+  <h2>Bagian 3 · Lembar Menulis Cerita Fantasi</h2>
+  <div class="write-box"><strong>Judul Cerita Fantasi:</strong> ........................................................................................................................<br/><br/><strong>Paragraf 1 (Awal Cerita / Orientasi — Kenalkan Tokoh, Tempat, & Awal Keajaiban):</strong><br/><br/><br/></div>
+  <div class="write-box"><strong>Paragraf 2 (Masalah & Puncak / Klimaks — Muncul Masalah, Dialog "...", & Perumpamaan):</strong><br/><br/><br/></div>
+  <div class="write-box"><strong>Paragraf 3 (Akhir Cerita / Resolusi — Penyelesaian Masalah & Pesan Kebaikan):</strong><br/><br/><br/></div>
 
-  <h2>Bagian 4 · Daftar Periksa Revisi Mandiri (TP 5 · Isi, Logika Alur, & Bahasa EYD V)</h2>
+  <h2>Bagian 4 · 6 Ceklis Sebelum Dikumpulkan</h2>
   <div class="checklist">
-    <div>[ ] Struktur Orientasi, Komplikasi-Klimaks, dan Resolusi sudah lengkap.</div>
-    <div>[ ] Alur logis dan konsisten dengan aturan dunia fantasi yang dibuat.</div>
-    <div>[ ] Menggunakan minimal 2 detail panca indera pada deskripsi latar/tokoh.</div>
-    <div>[ ] Menyisipkan minimal 1 Majas Asosiasi (bagai/bagaikan/laksana/bak/seperti).</div>
-    <div>[ ] Menyisipkan Kalimat Langsung bertanda petik ("...") dan Kalimat Tak Langsung.</div>
-    <div>[ ] Kata depan penunjuk tempat (di atas, di dalam, di sekolah) ditulis terpisah.</div>
+    <div>[ ] Ada bagian Awal, Puncak Masalah, dan Akhir yang urut.</div>
+    <div>[ ] Penyelesaian masalah sesuai dengan aturan keajaiban cerita.</div>
+    <div>[ ] Ada minimal 2 kata panca indera (cahaya, suara, atau aroma/suhu).</div>
+    <div>[ ] Ada minimal 1 perumpamaan (seperti/bagaikan/laksana/bak).</div>
+    <div>[ ] Ada kalimat langsung bertanda petik ("...") dan kalimat tak langsung.</div>
+    <div>[ ] Kata depan tempat (di atas, di dalam, di sekolah) ditulis dipisah.</div>
   </div>
 
   <script>
@@ -313,482 +396,394 @@ export function PetaPembelajaranModal({
 
   return (
     <div
-      className="fixed inset-0 z-[65] flex items-center justify-center bg-black/75 px-3 py-4 sm:px-6 backdrop-blur-md"
-      onClick={onClose}
+      data-lenis-prevent
+      className="fixed inset-0 z-[65] select-none overflow-hidden overscroll-none bg-[#030712]"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="peta-modal-heading"
+      aria-label="Peta Petualangan Aksaraloka"
     >
-      <div
-        className="relative flex max-h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[#cda250]/55 bg-gradient-to-b from-[#071324]/98 via-[#040b18]/98 to-[#030712]/98 text-stone-100 shadow-[0_24px_80px_rgba(0,0,0,0.9)] ring-1 ring-white/10"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Top Modal Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#cda250]/30 bg-[#030712]/80 px-5 py-4 sm:px-7">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <span className="h-2 w-2 rounded-full bg-[#f4d993] shadow-[0_0_8px_#f4d993]" />
-              <span className="font-brand text-[10px] sm:text-xs font-semibold tracking-[0.25em] text-[#f4d993] uppercase">
-                ASTROLAB PUSTAKA · KOMPAS KOMPETENSI KELAS VII
-              </span>
-            </div>
-            <h2
-              id="peta-modal-heading"
-              className="mt-1 font-serif text-xl sm:text-2xl font-medium text-white"
-            >
-              Peta Pembelajaran, Quest Logika, & Perangkat Luring
-            </h2>
-          </div>
+      {/* 1. FULL-SCREEN MAP DISPLAY (NO CONTAINER BOX) */}
+      <AstrolabProgressionMap
+        nodes={mapModel.nodes}
+        segments={mapModel.segments}
+        selectedNodeId={activeMapNodeId}
+        walkthroughStep={walkthroughStep}
+        showInteractivePins={activeTab === "peta"}
+        onSelectNode={handleSelectMapNode}
+        onNavigateNode={handleNavigateMapNode}
+        onNextWalkthrough={handleNextWalkthrough}
+        onDismissWalkthrough={handleDismissWalkthrough}
+      />
 
-          {/* Live Competency Summary Badges */}
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl border border-[#cda250]/40 bg-[#071324]/90 px-3.5 py-1.5 text-right">
-              <div className="text-[10px] uppercase tracking-wider text-stone-400">
-                Segel Terbuka
-              </div>
-              <div className="font-brand text-sm font-semibold text-[#f4d993]">
-                {metrics.unlockedSealsCount} / 3 Segel
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-[#cda250]/40 bg-[#071324]/90 px-3.5 py-1.5 text-right">
-              <div className="text-[10px] uppercase tracking-wider text-stone-400">
-                Capaian Kompetensi
-              </div>
-              <div className="font-brand text-sm font-semibold text-emerald-300">
-                {metrics.overallPercentage}% · {metrics.kelayakanCategory.split(" ")[0]}
-              </div>
-            </div>
-
+      {/* 2. TOP FLOATING PILLS OVER FULL-SCREEN MAP */}
+      <div className="pointer-events-none fixed inset-x-0 top-2.5 z-40 flex justify-center px-3 sm:top-4 sm:px-6">
+        <div className="flex w-full max-w-[1280px] flex-col gap-1.5 md:flex-row md:items-center md:justify-between md:gap-2">
+          {/* Mobile Compact Top Row (Back + Progress + Help/Close) | Desktop Left Pill Group */}
+          <div className="pointer-events-auto flex items-center justify-between gap-1.5 md:hidden">
             <button
               type="button"
               onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/5 text-stone-300 transition-colors hover:border-[#f4d993] hover:text-white cursor-pointer"
-              aria-label="Tutup Peta Pembelajaran"
+              className="inline-flex min-h-[38px] items-center gap-1 rounded-full border border-[#d6b26f]/45 bg-slate-950/90 px-3 py-1 text-[11px] font-bold tracking-wide text-white shadow-lg backdrop-blur-md cursor-pointer"
             >
-              <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <span>&lt;- Kembali</span>
             </button>
-          </div>
-        </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#050d1a] px-5 py-2.5 sm:px-7">
-          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[#d6b26f]/40 bg-slate-950/88 px-2.5 py-1 text-[11px] font-bold text-[#ffe8b6] shadow-md">
+              Segel {metrics.unlockedSealsCount}/3 ·{" "}
+              <span className="text-emerald-300">{metrics.overallPercentage}%</span>
+            </span>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleStartWalkthrough}
+                aria-label="Buka panduan cara main"
+                className="min-h-[38px] rounded-full border border-[#f3d89b]/60 bg-slate-950/90 px-2.5 text-[11px] font-bold text-[#ffe8b6] shadow-md cursor-pointer"
+              >
+                ?
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playChime();
+                  setUserSelectedNodeId(null);
+                  resetLearningState();
+                }}
+                className="min-h-[38px] rounded-full border border-white/15 bg-slate-950/90 px-2.5 text-[10.5px] font-semibold text-stone-300 shadow-md cursor-pointer"
+              >
+                Ulangi
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Tutup Peta Petualangan"
+                className="min-h-[38px] rounded-full border border-rose-300/45 bg-rose-950/85 px-2.5 text-[11px] font-bold text-rose-200 shadow-md cursor-pointer"
+              >
+                [ X ]
+              </button>
+            </div>
+          </div>
+
+          {/* Segmented 3-Tab Pill Group (Full-width grid on mobile, inline pill on desktop) */}
+          <div className="pointer-events-auto grid grid-cols-3 items-center gap-1 rounded-full border border-[#d6b26f]/45 bg-slate-950/88 p-1 shadow-[0_12px_30px_rgba(0,0,0,0.85)] backdrop-blur-md md:flex md:flex-wrap md:gap-1.5 md:px-2.5 md:py-1.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-bold tracking-wider uppercase text-white transition hover:border-[#f3d89b] hover:text-[#f3d89b] cursor-pointer"
+            >
+              <span>&lt;- Ruang Pustaka</span>
+            </button>
+
+            <div className="mx-0.5 hidden h-3.5 w-px bg-[#d6b26f]/30 md:block" />
+
             <button
               type="button"
               onClick={() => {
                 playChime();
                 setActiveTab("peta");
               }}
-              className={`rounded-full px-4 py-1.5 text-xs font-brand tracking-wider uppercase transition-all cursor-pointer ${
+              className={`min-h-[36px] md:min-h-0 rounded-full px-2 md:px-3 py-1 text-[11px] font-bold transition-all cursor-pointer truncate ${
                 activeTab === "peta"
-                  ? "bg-[#cda250] text-[#030712] font-semibold shadow-[0_0_16px_rgba(205,162,80,0.45)]"
-                  : "border border-white/15 bg-white/5 text-stone-300 hover:border-[#cda250]/60 hover:text-white"
+                  ? "bg-[#f3d89b] text-slate-950 shadow-[0_0_12px_rgba(243,216,155,0.45)]"
+                  : "text-amber-100/85 hover:text-white"
               }`}
             >
-              1. Peta 5 TP & Jalur Cepat
+              <span className="md:hidden">Peta Misi</span>
+              <span className="hidden md:inline">1. Peta Misi</span>
             </button>
+
             <button
               type="button"
               onClick={() => {
                 playChime();
                 setActiveTab("quest");
               }}
-              className={`rounded-full px-4 py-1.5 text-xs font-brand tracking-wider uppercase transition-all cursor-pointer ${
+              className={`min-h-[36px] md:min-h-0 rounded-full px-2 md:px-3 py-1 text-[11px] font-bold transition-all cursor-pointer truncate ${
                 activeTab === "quest"
-                  ? "bg-[#cda250] text-[#030712] font-semibold shadow-[0_0_16px_rgba(205,162,80,0.45)]"
-                  : "border border-white/15 bg-white/5 text-stone-300 hover:border-[#cda250]/60 hover:text-white"
+                  ? "bg-[#f3d89b] text-slate-950 shadow-[0_0_12px_rgba(243,216,155,0.45)]"
+                  : "text-amber-100/85 hover:text-white"
               }`}
             >
-              2. Quest Tantangan ({metrics.questScore}%)
+              <span className="md:hidden">Kuis ({metrics.questScore}%)</span>
+              <span className="hidden md:inline">2. Kuis Bonus ({metrics.questScore}%)</span>
             </button>
+
             <button
               type="button"
               onClick={() => {
                 playChime();
                 setActiveTab("luring");
               }}
-              className={`rounded-full px-4 py-1.5 text-xs font-brand tracking-wider uppercase transition-all cursor-pointer ${
+              className={`min-h-[36px] md:min-h-0 rounded-full px-2 md:px-3 py-1 text-[11px] font-bold transition-all cursor-pointer truncate ${
                 activeTab === "luring"
-                  ? "bg-[#cda250] text-[#030712] font-semibold shadow-[0_0_16px_rgba(205,162,80,0.45)]"
-                  : "border border-white/15 bg-white/5 text-stone-300 hover:border-[#cda250]/60 hover:text-white"
+                  ? "bg-[#f3d89b] text-slate-950 shadow-[0_0_12px_rgba(243,216,155,0.45)]"
+                  : "text-amber-100/85 hover:text-white"
               }`}
             >
-              3. Cetak LKS Luring & Bank Kata
+              <span className="md:hidden">LKS &amp; Kamus</span>
+              <span className="hidden md:inline">3. Cetak LKS &amp; Kamus Kata</span>
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              playChime();
-              resetLearningState();
-            }}
-            className="text-[11px] text-stone-400 underline-offset-4 hover:text-amber-300 hover:underline cursor-pointer"
-          >
-            Atur Ulang Progres Simulasi
-          </button>
-        </div>
+          {/* Desktop Right Floating Pill Group */}
+          <div className="pointer-events-auto hidden md:flex flex-wrap items-center gap-1.5 rounded-full border border-[#d6b26f]/45 bg-slate-950/84 px-3 py-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.85)] backdrop-blur-md">
+            <span className="text-[11px] text-amber-100/85">
+              Segel:{" "}
+              <strong className="text-[#ffe8b6]">
+                {metrics.unlockedSealsCount}/3
+              </strong>{" "}
+              <span className="mx-1 text-[#d6b26f]/40">|</span>
+              <strong className="text-emerald-300">
+                Skor {metrics.overallPercentage}%
+              </strong>
+            </span>
 
-        {/* Scrollable Body Content */}
+            <div className="mx-0.5 h-3.5 w-px bg-[#d6b26f]/30" />
+
+            <button
+              type="button"
+              onClick={handleStartWalkthrough}
+              className="rounded-full border border-[#f3d89b]/60 bg-[#cda250]/20 px-2.5 py-0.5 text-[11px] font-bold text-[#ffe8b6] transition hover:bg-[#cda250]/35 cursor-pointer"
+            >
+              ? Cara Main
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                playChime();
+                setUserSelectedNodeId(null);
+                resetLearningState();
+              }}
+              className="px-1.5 text-[11px] text-stone-300 underline-offset-2 hover:text-amber-300 hover:underline cursor-pointer"
+            >
+              Ulangi
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-rose-300/45 bg-rose-950/60 px-2.5 py-0.5 text-[11px] font-bold text-rose-200 transition hover:border-rose-300 hover:bg-rose-900/80 cursor-pointer"
+              aria-label="Tutup Peta Petualangan"
+            >
+              [ X ] Tutup
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. FLOATING OVERLAY WHEN TAB 2 (KUIS BONUS) OR TAB 3 (LKS & KAMUS KATA) IS OPEN */}
+      {activeTab !== "peta" && (
         <div
           data-lenis-prevent
-          className="flex-1 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6 space-y-5"
+          className="fixed inset-0 z-30 overflow-y-auto overscroll-contain bg-black/65 px-3 pt-28 pb-8 backdrop-blur-[6px] sm:px-6 md:pt-20"
         >
-          {activeTab === "peta" && (
-            <div className="space-y-5">
-              {/* 4 Core Seals Progress Bar (Babak I - IV) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                <div className="rounded-xl border border-[#cda250]/40 bg-[#071324]/75 p-4 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-brand text-xs tracking-wider text-[#f4d993] uppercase">
-                        Babak I · Kompas Waktu
-                      </span>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ${
-                          state.sealAlurUnlocked
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40"
-                            : "bg-amber-500/15 text-amber-200 border border-amber-400/30"
-                        }`}
-                      >
-                        {state.sealAlurUnlocked ? "Segel Terbuka" : `Skor ${metrics.babak1Score}%`}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-xs text-stone-300">
-                      Alur Awal–Tengah–Akhir, teks model <em>Bola-Bola Waktu</em>, &amp; rumusan Amanat.
-                    </p>
-                  </div>
+          <div className="mx-auto w-full max-w-4xl space-y-4">
+            {activeTab === "quest" && (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#cda250]/50 bg-slate-950/92 px-4 py-3 text-xs sm:text-sm text-stone-200 shadow-2xl">
+                  <span>
+                    <strong className="text-[#f4d993]">
+                      Misi Bonus Penjaga Aksara:
+                    </strong>{" "}
+                    Jawab 3 teka-teki singkat ini buat latihan mencari ide
+                    cerita dan mengecek ejaan sebelum mengarang!
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
                       playChime();
-                      onClose();
-                      onJumpToGrimoireChapter("alur");
+                      setActiveTab("peta");
                     }}
-                    className="mt-3 w-full rounded-lg border border-[#cda250]/60 bg-[#cda250]/15 px-3 py-1.5 text-xs font-semibold text-[#f4d993] transition-colors hover:bg-[#cda250] hover:text-[#030712] cursor-pointer"
+                    className="rounded-full border border-[#cda250]/60 bg-[#071324] px-3 py-1 text-xs font-bold text-[#f4d993] hover:bg-[#cda250] hover:text-[#030712] cursor-pointer"
                   >
-                    Buka Babak I di Kitab
+                    &lt;- Kembali ke Peta
                   </button>
                 </div>
 
-                <div className="rounded-xl border border-[#cda250]/40 bg-[#071324]/75 p-4 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-brand text-xs tracking-wider text-[#f4d993] uppercase">
-                        Babak II · Cermin Watak
-                      </span>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ${
-                          state.sealWatakUnlocked
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40"
-                            : "bg-amber-500/15 text-amber-200 border border-amber-400/30"
-                        }`}
-                      >
-                        {state.sealWatakUnlocked ? "Segel Terbuka" : `Skor ${metrics.babak2Score}%`}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-xs text-stone-300">
-                      Penokohan <em>Sihir Unik Mao</em>, 4 Kantong <em>Keberanian Emas</em>, &amp; Peta 5 Indera.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playChime();
-                      onClose();
-                      onJumpToGrimoireChapter("watak");
-                    }}
-                    className="mt-3 w-full rounded-lg border border-[#cda250]/60 bg-[#cda250]/15 px-3 py-1.5 text-xs font-semibold text-[#f4d993] transition-colors hover:bg-[#cda250] hover:text-[#030712] cursor-pointer"
-                  >
-                    Buka Babak II di Kitab
-                  </button>
-                </div>
+                {ASTROLABE_SIDE_QUESTS.map((quest) => {
+                  const chosenId = state.questAnswers[quest.id];
+                  const chosenOpt = quest.options.find(
+                    (o) => o.id === chosenId
+                  );
 
-                <div className="rounded-xl border border-[#cda250]/40 bg-[#071324]/75 p-4 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-brand text-xs tracking-wider text-[#f4d993] uppercase">
-                        Babak III · Alkimia Bahasa
-                      </span>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ${
-                          state.sealBahasaUnlocked
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40"
-                            : "bg-amber-500/15 text-amber-200 border border-amber-400/30"
-                        }`}
-                      >
-                        {state.sealBahasaUnlocked ? "Segel Terbuka" : `Skor ${metrics.babak3Score}%`}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-xs text-stone-300">
-                      Majas Asosiasi, Bank Kata Fantasi, &amp; Kalimat Langsung/Tak Langsung EYD V.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playChime();
-                      onClose();
-                      onJumpToGrimoireChapter("bahasa");
-                    }}
-                    className="mt-3 w-full rounded-lg border border-[#cda250]/60 bg-[#cda250]/15 px-3 py-1.5 text-xs font-semibold text-[#f4d993] transition-colors hover:bg-[#cda250] hover:text-[#030712] cursor-pointer"
-                  >
-                    Buka Babak III di Kitab
-                  </button>
-                </div>
-
-                <div className="rounded-xl border border-[#cda250]/40 bg-[#071324]/75 p-4 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-brand text-xs tracking-wider text-[#f4d993] uppercase">
-                        Babak IV · Studio Tulis
-                      </span>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ${
-                          state.sealStudioUnlocked
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40"
-                            : "bg-amber-500/15 text-amber-200 border border-amber-400/30"
-                        }`}
-                      >
-                        {state.sealStudioUnlocked ? "Segel Terbuka" : `Skor ${metrics.babak4Score}%`}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-xs text-stone-300">
-                      Penulisan Terbimbing 6 Langkah, Detektor Sastra Real-Time, &amp; Galeri ({state.savedManuscripts.length} Karya).
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playChime();
-                      onClose();
-                      onJumpToStudio();
-                    }}
-                    className="mt-3 w-full rounded-lg bg-[#cda250] px-3 py-1.5 text-xs font-bold text-[#030712] transition-colors hover:bg-[#f4d993] cursor-pointer"
-                  >
-                    Buka Meja Studio Tulis
-                  </button>
-                </div>
-              </div>
-
-              {/* 5 Tujuan Pembelajaran Mapping Table */}
-              <div className="space-y-3">
-                <h3 className="font-serif text-base sm:text-lg font-medium text-white">
-                  Pemetaan 5 Tujuan Pembelajaran (TP) & Solusi Masalah Siswa
-                </h3>
-                <div className="grid grid-cols-1 gap-3">
-                  {TUJUAN_PEMBELAJARAN_LIST.map((tp) => (
+                  return (
                     <div
-                      key={tp.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-white/12 bg-[#040915]/90 p-4 transition-colors hover:border-[#cda250]/50"
+                      key={quest.id}
+                      className="rounded-2xl border border-[#cda250]/35 bg-slate-950/92 p-4 sm:p-5 space-y-2.5 shadow-2xl"
                     >
-                      <div className="space-y-1 max-w-2xl">
-                        <div className="flex items-center gap-2">
-                          <span className="rounded bg-[#cda250]/20 px-2 py-0.5 font-mono text-[11px] font-semibold text-[#f4d993]">
-                            {tp.code}
-                          </span>
-                          <span className="font-serif text-sm sm:text-base font-medium text-white">
-                            {tp.title}
-                          </span>
-                        </div>
-                        <p className="text-xs text-stone-300 leading-relaxed">
-                          {tp.description}
-                        </p>
-                        <div className="pt-1 text-[11px] text-amber-200/85">
-                          <strong>Peran Media:</strong> {tp.mediaRole}
-                        </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-brand text-xs font-semibold tracking-wider text-[#f4d993] uppercase">
+                          {quest.code}
+                        </span>
+                        <span className="text-[11px] text-stone-400">
+                          {quest.targetCompetency}
+                        </span>
                       </div>
 
-                      <div className="shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            playChime();
-                            onClose();
-                            if (tp.targetDestination === "studio") {
-                              onJumpToStudio();
-                            } else {
-                              onJumpToGrimoireChapter(tp.targetDestination);
-                            }
-                          }}
-                          className="rounded-full border border-[#cda250]/60 bg-[#071324] px-4 py-2 text-xs font-brand tracking-wider uppercase text-[#f4d993] transition-all hover:bg-[#cda250] hover:text-[#030712] cursor-pointer"
+                      <h3 className="font-serif text-base font-bold text-white">
+                        {quest.title}
+                      </h3>
+
+                      <div className="rounded-lg border border-amber-400/25 bg-amber-950/25 p-3 text-xs sm:text-sm text-amber-100/90 italic">
+                        {quest.scenario}
+                      </div>
+
+                      <p className="text-xs sm:text-sm font-semibold text-stone-200">
+                        {quest.question}
+                      </p>
+
+                      <div className="grid grid-cols-1 gap-2 pt-1">
+                        {quest.options.map((opt) => {
+                          const isSelected = chosenId === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() =>
+                                handleQuestSelect(
+                                  quest.id,
+                                  opt.id,
+                                  opt.isCorrect
+                                )
+                              }
+                              className={`text-left rounded-xl border p-3 text-xs sm:text-sm transition-all cursor-pointer ${
+                                isSelected
+                                  ? opt.isCorrect
+                                    ? "border-emerald-400/70 bg-emerald-950/45 text-emerald-100"
+                                    : "border-rose-400/70 bg-rose-950/45 text-rose-100"
+                                  : "border-white/15 bg-white/5 text-stone-200 hover:border-[#cda250]/60 hover:bg-white/10"
+                              }`}
+                            >
+                              {opt.text}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {chosenOpt && (
+                        <div
+                          className={`rounded-lg p-3 text-xs leading-relaxed ${
+                            chosenOpt.isCorrect
+                              ? "bg-emerald-950/60 border border-emerald-500/40 text-emerald-200"
+                              : "bg-rose-950/60 border border-rose-500/40 text-rose-200"
+                          }`}
                         >
-                          {tp.targetDestination === "studio"
-                            ? "Ke Meja Studio Tulis"
-                            : `Lompat ke Babak ${tp.targetDestination.toUpperCase()}`}
-                        </button>
+                          <strong>Penjelasan:</strong> {chosenOpt.feedback}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {activeTab === "luring" && (
+              <>
+                <div className="rounded-2xl border border-[#cda250]/50 bg-slate-950/92 p-4 sm:p-5 space-y-3.5 shadow-2xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-brand text-[11px] tracking-widest text-[#f4d993] uppercase">
+                        LEMBAR KERJA KERTAS &amp; KAMUS KATA FANTASI
+                      </span>
+                      <h3 className="mt-0.5 font-serif text-lg font-bold text-white">
+                        Cetak Lembar Kerja Siswa (LKS) &amp; Rapor Belajar
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playChime();
+                        setActiveTab("peta");
+                      }}
+                      className="rounded-full border border-[#cda250]/60 bg-[#071324] px-3 py-1 text-xs font-bold text-[#f4d993] hover:bg-[#cda250] hover:text-[#030712] cursor-pointer"
+                    >
+                      &lt;- Kembali ke Peta
+                    </button>
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
+                    Mau mengerjakan di kertas atau menyimpannya sebagai PDF? Isi
+                    nama dan kelasmu di bawah, lalu klik tombol cetak!
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <label className="block space-y-1">
+                      <span className="text-xs text-stone-300">
+                        Nama Lengkapmu:
+                      </span>
+                      <input
+                        type="text"
+                        value={studentName}
+                        onChange={(e) => setStudentName(e.target.value)}
+                        placeholder="Contoh: Aruna Pratama"
+                        className="w-full rounded-lg border border-white/20 bg-[#030712] px-3 py-2 text-base sm:text-sm text-white placeholder:text-stone-500 focus:border-[#f4d993] focus:outline-none"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs text-stone-300">Kelas:</span>
+                      <input
+                        type="text"
+                        value={studentClass}
+                        onChange={(e) => setStudentClass(e.target.value)}
+                        placeholder="VII-A"
+                        className="w-full rounded-lg border border-white/20 bg-[#030712] px-3 py-2 text-base sm:text-sm text-white placeholder:text-stone-500 focus:border-[#f4d993] focus:outline-none"
+                      />
+                    </label>
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={handlePrintOfflineWorksheet}
+                        className="w-full min-h-[44px] rounded-lg bg-[#cda250] px-4 py-2.5 text-xs font-brand font-bold tracking-wider uppercase text-[#030712] transition-all hover:bg-[#f4d993] cursor-pointer"
+                      >
+                        Cetak LKS &amp; Rapor (PDF)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Kamus Kata Fantasi */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {FANTASY_LEXICON_BANK.map((cat) => (
+                    <div
+                      key={cat.id}
+                      className="rounded-2xl border border-[#cda250]/35 bg-slate-950/92 p-4 space-y-2.5 shadow-2xl"
+                    >
+                      <div>
+                        <h4 className="font-serif text-base font-bold text-[#f4d993]">
+                          Kamus Kata: {cat.category}
+                        </h4>
+                        <p className="text-xs text-stone-400">{cat.subtitle}</p>
+                      </div>
+                      <div className="space-y-2">
+                        {cat.entries.map((entry) => (
+                          <div
+                            key={entry.word}
+                            className="rounded-lg border border-white/10 bg-white/5 p-2.5 text-xs space-y-1"
+                          >
+                            <div className="flex items-center justify-between">
+                              <strong className="text-white">
+                                {entry.word}
+                              </strong>
+                              <span className="rounded bg-[#cda250]/20 px-2 py-0.5 text-[10px] text-[#f4d993]">
+                                {entry.type}
+                              </span>
+                            </div>
+                            <p className="text-stone-300">{entry.meaning}</p>
+                            <p className="text-amber-200/85 italic">
+                              Contoh: &ldquo;{entry.example}&rdquo;
+                            </p>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "quest" && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-[#cda250]/35 bg-[#071324]/70 p-4 text-xs sm:text-sm text-stone-200">
-                <strong>Misi Tambahan Penjaga Aksara:</strong> Selesaikan 3 kasus penulisan di bawah ini untuk melatih kepekaan ide, logika dunia fantasi, dan ketelitian penyuntingan EYD V sebelum menulis naskah utuh di Studio Tulis.
-              </div>
-
-              {ASTROLABE_SIDE_QUESTS.map((quest) => {
-                const chosenId = state.questAnswers[quest.id];
-                const chosenOpt = quest.options.find((o) => o.id === chosenId);
-
-                return (
-                  <div
-                    key={quest.id}
-                    className="rounded-xl border border-white/15 bg-[#040915]/95 p-4 sm:p-5 space-y-3"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-brand text-xs font-semibold tracking-wider text-[#f4d993] uppercase">
-                        {quest.code}
-                      </span>
-                      <span className="text-[11px] text-stone-400">
-                        {quest.targetCompetency}
-                      </span>
-                    </div>
-
-                    <h3 className="font-serif text-base sm:text-lg font-medium text-white">
-                      {quest.title}
-                    </h3>
-
-                    <div className="rounded-lg border border-amber-400/25 bg-amber-950/20 p-3 text-xs sm:text-sm text-amber-100/90 italic">
-                      {quest.scenario}
-                    </div>
-
-                    <p className="text-xs sm:text-sm font-semibold text-stone-200">
-                      {quest.question}
-                    </p>
-
-                    <div className="grid grid-cols-1 gap-2.5 pt-1">
-                      {quest.options.map((opt) => {
-                        const isSelected = chosenId === opt.id;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() => handleQuestSelect(quest.id, opt.id, opt.isCorrect)}
-                            className={`text-left rounded-xl border p-3.5 text-xs sm:text-sm transition-all cursor-pointer ${
-                              isSelected
-                                ? opt.isCorrect
-                                  ? "border-emerald-400/70 bg-emerald-950/40 text-emerald-100"
-                                  : "border-rose-400/70 bg-rose-950/40 text-rose-100"
-                                : "border-white/12 bg-white/5 text-stone-200 hover:border-[#cda250]/60 hover:bg-white/10"
-                            }`}
-                          >
-                            {opt.text}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {chosenOpt && (
-                      <div
-                        className={`rounded-lg p-3 text-xs leading-relaxed ${
-                          chosenOpt.isCorrect
-                            ? "bg-emerald-950/60 border border-emerald-500/40 text-emerald-200"
-                            : "bg-rose-950/60 border border-rose-500/40 text-rose-200"
-                        }`}
-                      >
-                        <strong>Umpan Balik:</strong> {chosenOpt.feedback}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {activeTab === "luring" && (
-            <div className="space-y-5">
-              {/* Printable Offline Worksheet Generator Card */}
-              <div className="rounded-xl border border-[#cda250]/50 bg-[#071324]/85 p-5 space-y-4">
-                <div>
-                  <span className="font-brand text-[11px] tracking-widest text-[#f4d993] uppercase">
-                    DUKUNGAN AKSES TERBATAS & BELAJAR MANDIRI
-                  </span>
-                  <h3 className="mt-1 font-serif text-lg sm:text-xl font-medium text-white">
-                    Cetak Lembar Kerja Siswa (LKS) Luring & Rapor Kompetensi
-                  </h3>
-                  <p className="mt-1 text-xs sm:text-sm text-stone-300 leading-relaxed">
-                    Sesuai analisis kondisi kelas (waktu terbatas dan ketersediaan perangkat digital belum merata), guru atau siswa dapat mencetak Lembar Kerja Terbimbing lengkap beserta Bank Kata Fantasi, Peta Lima Indera, Diagram Alur, dan Daftar Periksa Revisi untuk dikerjakan secara luring.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <label className="block space-y-1">
-                    <span className="text-xs text-stone-300">Nama Siswa (Opsional):</span>
-                    <input
-                      type="text"
-                      value={studentName}
-                      onChange={(e) => setStudentName(e.target.value)}
-                      placeholder="Contoh: Aruna Pratama"
-                      className="w-full rounded-lg border border-white/20 bg-[#030712] px-3 py-2 text-xs sm:text-sm text-white placeholder:text-stone-500 focus:border-[#f4d993] focus:outline-none"
-                    />
-                  </label>
-                  <label className="block space-y-1">
-                    <span className="text-xs text-stone-300">Kelas:</span>
-                    <input
-                      type="text"
-                      value={studentClass}
-                      onChange={(e) => setStudentClass(e.target.value)}
-                      placeholder="VII-A"
-                      className="w-full rounded-lg border border-white/20 bg-[#030712] px-3 py-2 text-xs sm:text-sm text-white placeholder:text-stone-500 focus:border-[#f4d993] focus:outline-none"
-                    />
-                  </label>
-                  <div className="flex items-end">
-                    <button
-                      type="button"
-                      onClick={handlePrintOfflineWorksheet}
-                      className="w-full rounded-lg bg-[#cda250] px-4 py-2.5 text-xs font-brand font-semibold tracking-wider uppercase text-[#030712] transition-all hover:bg-[#f4d993] cursor-pointer"
-                    >
-                      Cetak LKS & Rapor (PDF/Print)
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Fantasy Lexicon Bank Preview */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {FANTASY_LEXICON_BANK.map((cat) => (
-                  <div
-                    key={cat.id}
-                    className="rounded-xl border border-white/15 bg-[#040915]/90 p-4 space-y-3"
-                  >
-                    <div>
-                      <h4 className="font-serif text-base font-medium text-[#f4d993]">
-                        {cat.category}
-                      </h4>
-                      <p className="text-xs text-stone-400">{cat.subtitle}</p>
-                    </div>
-                    <div className="space-y-2.5">
-                      {cat.entries.map((entry) => (
-                        <div
-                          key={entry.word}
-                          className="rounded-lg border border-white/10 bg-white/5 p-2.5 text-xs space-y-1"
-                        >
-                          <div className="flex items-center justify-between">
-                            <strong className="text-white">{entry.word}</strong>
-                            <span className="rounded bg-[#cda250]/20 px-2 py-0.5 text-[10px] text-[#f4d993]">
-                              {entry.type}
-                            </span>
-                          </div>
-                          <p className="text-stone-300">{entry.meaning}</p>
-                          <p className="text-amber-200/85 italic">&ldquo;{entry.example}&rdquo;</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -7,8 +7,10 @@ import {
   ParchmentSpineShadowOverlay,
 } from "@/components/shared/ParchmentInkFilters";
 import { BookHomographyCalibrator } from "@/components/shared/BookHomographyCalibrator";
+import { ParchmentSelect } from "@/components/shared/ui/ParchmentSelect";
 import {
-  computeCoverStageMetrics,
+  computeEffectiveCoverStageMetrics,
+  computeMobile3dCameraTransform,
   computeSpreadQuadProjection,
   READING_2D_DEFAULT_CALIBRATION,
   STAGE_SOURCE_HEIGHT,
@@ -65,9 +67,9 @@ const SEAL_BADGES: readonly {
   readonly id: GrimoireChapterId;
   readonly label: string;
 }[] = [
-    { id: "alur", label: "Segel I · Alur" },
-    { id: "watak", label: "Segel II · Watak & 5 Indera" },
-    { id: "bahasa", label: "Segel III · Majas & EYD V" },
+    { id: "alur", label: "Misi 1 · Alur" },
+    { id: "watak", label: "Misi 2 · Tokoh & Indera" },
+    { id: "bahasa", label: "Misi 3 · Perumpamaan & Dialog" },
   ];
 
 const CORE_SPREAD_LABELS: readonly {
@@ -76,15 +78,15 @@ const CORE_SPREAD_LABELS: readonly {
 }[] = [
     {
       index: 0,
-      shortLabel: "Lembar 1: Peta Rancang",
+      shortLabel: "Langkah 1: Rencana Cerita",
     },
     {
       index: 1,
-      shortLabel: "Lembar 2: Orientasi & Komplikasi",
+      shortLabel: "Langkah 2: Awal & Masalah",
     },
     {
       index: 2,
-      shortLabel: "Lembar 3: Klimaks & Resolusi",
+      shortLabel: "Langkah 3: Puncak & Akhir",
     },
   ];
 
@@ -103,17 +105,19 @@ export function StudioTulisStageOverlay({
 
   const [activeViewTab, setActiveViewTab] = useState<StudioViewTab>("dual_book");
   const [currentSpread, setCurrentSpread] = useState<number>(0);
+  const [isMobileBook, setIsMobileBook] = useState<boolean>(false);
+  const [mobilePageSide, setMobilePageSide] = useState<"left" | "right">("left");
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
   const [isGuideDrawerOpen, setIsGuideDrawerOpen] = useState<boolean>(false);
   const [kbbiLookupQuery, setKbbiLookupQuery] = useState("");
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [stageMetrics, setStageMetrics] = useState<CoverStageMetrics>({
+  const [viewportSize, setViewportSize] = useState<{
+    readonly width: number;
+    readonly height: number;
+  }>({
     width: STAGE_SOURCE_WIDTH,
     height: STAGE_SOURCE_HEIGHT,
-    offsetX: 0,
-    offsetY: 0,
-    scale: 1,
   });
   const [studioBookCalibration, setStudioBookCalibration] =
     useState<BookSpreadCalibration>(STUDIO_BOOK_DEFAULT_CALIBRATION);
@@ -142,8 +146,11 @@ export function StudioTulisStageOverlay({
 
   useEffect(() => {
     const syncCoverStage = () => {
-      setStageMetrics(
-        computeCoverStageMetrics(window.innerWidth, window.innerHeight)
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setIsMobileBook(w < 768);
+      setViewportSize((prev) =>
+        prev.width === w && prev.height === h ? prev : { width: w, height: h }
       );
     };
     const rafId = window.requestAnimationFrame(syncCoverStage);
@@ -153,6 +160,32 @@ export function StudioTulisStageOverlay({
       window.removeEventListener("resize", syncCoverStage);
     };
   }, []);
+
+  const mobileCamera = useMemo(
+    () =>
+      !isBookFocused && !isCalibrating
+        ? computeMobile3dCameraTransform(
+            viewportSize.width,
+            viewportSize.height,
+            "studio"
+          )
+        : computeMobile3dCameraTransform(
+            viewportSize.width,
+            viewportSize.height,
+            "none"
+          ),
+    [isBookFocused, isCalibrating, viewportSize.height, viewportSize.width]
+  );
+
+  const stageMetrics: CoverStageMetrics = useMemo(
+    () =>
+      computeEffectiveCoverStageMetrics(
+        viewportSize.width,
+        viewportSize.height,
+        mobileCamera
+      ),
+    [mobileCamera, viewportSize.height, viewportSize.width]
+  );
 
   useEffect(() => {
     if (!isVisible || !isBookFocused) return;
@@ -236,9 +269,9 @@ export function StudioTulisStageOverlay({
     onSetBookFocused,
   ]);
 
-  const studio3dBaseWidth = Math.max(195, Math.round(stageMetrics.width * 0.152));
+  const studio3dBaseWidth = Math.max(120, Math.round(stageMetrics.width * 0.152));
   const studio3dBaseHeight = Math.max(
-    200,
+    130,
     Math.round(stageMetrics.height * 0.266)
   );
 
@@ -323,8 +356,15 @@ export function StudioTulisStageOverlay({
       return;
     }
 
-    const dir: "next" | "prev" = clamped >= safeCurrentSpread ? "next" : "prev";
     playPageFlip();
+    if (isMobileBook) {
+      setActiveViewTab("dual_book");
+      setCurrentSpread(clamped);
+      setMobilePageSide("left");
+      return;
+    }
+
+    const dir: "next" | "prev" = clamped >= safeCurrentSpread ? "next" : "prev";
     setFlipDirection(dir);
 
     if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
@@ -339,6 +379,14 @@ export function StudioTulisStageOverlay({
   const triggerTabFlip = (nextTab: StudioViewTab) => {
     if (nextTab === activeViewTab || flipDirection !== null) return;
     setIsGuideDrawerOpen(false);
+    playPageFlip();
+
+    if (isMobileBook) {
+      setActiveViewTab(nextTab);
+      setMobilePageSide("left");
+      return;
+    }
+
     const order: Record<StudioViewTab, number> = {
       dual_book: 0,
       audit_revisi: 1,
@@ -346,7 +394,6 @@ export function StudioTulisStageOverlay({
     };
     const dir: "next" | "prev" =
       order[nextTab] >= order[activeViewTab] ? "next" : "prev";
-    playPageFlip();
     setFlipDirection(dir);
 
     if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
@@ -363,6 +410,7 @@ export function StudioTulisStageOverlay({
       setCurrentSpread(targetSpread);
     }
     setActiveViewTab("dual_book");
+    setMobilePageSide("left");
     onSetBookFocused(true);
   };
 
@@ -370,6 +418,7 @@ export function StudioTulisStageOverlay({
     playPageFlip();
     setIsGuideDrawerOpen(false);
     setActiveViewTab(targetTab);
+    setMobilePageSide("left");
     onSetBookFocused(true);
   };
 
@@ -482,8 +531,8 @@ export function StudioTulisStageOverlay({
     const rightPageNum = leftPageNum + 1;
     const newSpread: StudioExtraSpread = {
       id: `spread-extra-${Date.now()}`,
-      leftTitle: `Lembar Tambahan ${nextNumber}A (Hlm. ${leftPageNum})`,
-      rightTitle: `Lembar Tambahan ${nextNumber}B (Hlm. ${rightPageNum})`,
+      leftTitle: `Lembar Cerita ${nextNumber} · Kiri (${leftPageNum})`,
+      rightTitle: `Lembar Cerita ${nextNumber} · Kanan (${rightPageNum})`,
       leftText: "",
       rightText: "",
     };
@@ -492,17 +541,23 @@ export function StudioTulisStageOverlay({
 
     const newSpreadIndex = 3 + nextExtras.length - 1;
     playPageFlip();
-    setFlipDirection("next");
-    if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
-    flipTimerRef.current = setTimeout(() => {
+    if (isMobileBook) {
       setActiveViewTab("dual_book");
       setCurrentSpread(newSpreadIndex);
-      setFlipDirection(null);
-      flipTimerRef.current = null;
-    }, 440);
+      setMobilePageSide("left");
+    } else {
+      setFlipDirection("next");
+      if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
+      flipTimerRef.current = setTimeout(() => {
+        setActiveViewTab("dual_book");
+        setCurrentSpread(newSpreadIndex);
+        setFlipDirection(null);
+        flipTimerRef.current = null;
+      }, 440);
+    }
 
     showTempBanner(
-      `Lembar Kertas Baru (Halaman ${leftPageNum}–${rightPageNum}) telah ditambahkan ke dalam buku!`
+      `Lembar kertas baru (Halaman ${leftPageNum}–${rightPageNum}) ditambahkan ke bukumu!`
     );
   };
 
@@ -521,7 +576,7 @@ export function StudioTulisStageOverlay({
     const updated = extraSpreads.filter((item) => item.id !== spreadId);
     updateStudioDraft({ extraSpreads: updated });
     setCurrentSpread((prev) => Math.min(prev, 2 + updated.length));
-    showTempBanner("Lembar kertas tambahan telah dihapus dari buku.");
+    showTempBanner("Lembar kertas tambahan sudah dihapus dari bukumu.");
   };
 
   const handleInsertTimeConjunctionSnippet = () => {
@@ -532,7 +587,7 @@ export function StudioTulisStageOverlay({
       paragraphKomplikasi: `${(draft.paragraphKomplikasi ?? "").trimEnd()}${snippet}`,
     });
     showTempBanner(
-      "Kalimat pemicu konflik berkonjungsi kronologis ('Tiba-tiba') disisipkan ke Paragraf II (Komplikasi)."
+      "Kalimat pemicu masalah ('Tiba-tiba...') ditambahkan ke Paragraf 2!"
     );
   };
 
@@ -544,7 +599,7 @@ export function StudioTulisStageOverlay({
       paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()}${snippet}`,
     });
     showTempBanner(
-      "Contoh Majas Asosiasi ('bagaikan bintang kejora') disisipkan ke Paragraf III (Klimaks)."
+      "Contoh kalimat perumpamaan ('bagaikan bintang kejora') ditambahkan ke Paragraf 3!"
     );
   };
 
@@ -556,7 +611,7 @@ export function StudioTulisStageOverlay({
       paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()}${snippet}`,
     });
     showTempBanner(
-      "Template Kalimat Langsung berkaidah EYD V disisipkan ke Paragraf III (Klimaks)."
+      "Contoh kalimat dialog bertanda petik (\"...\") ditambahkan ke Paragraf 3!"
     );
   };
 
@@ -568,7 +623,7 @@ export function StudioTulisStageOverlay({
       paragraphResolusi: `${draft.paragraphResolusi.trimEnd()}${snippet}`,
     });
     showTempBanner(
-      "Template Kalimat Tak Langsung & Konjungsi Alur disisipkan ke Paragraf IV (Resolusi)."
+      "Contoh kalimat penutup cerita ditambahkan ke Paragraf 4!"
     );
   };
 
@@ -576,7 +631,7 @@ export function StudioTulisStageOverlay({
     if (analysis.eydAndLexiconIssues.length === 0) {
       playChime();
       showTempBanner(
-        "Tidak ditemukan pelanggaran kata depan 'di' atau kata tidak baku pada naskahmu."
+        "Hebat! Kata depan 'di', tanda petik, dan ejaanmu sudah rapi semua."
       );
       return;
     }
@@ -594,7 +649,7 @@ export function StudioTulisStageOverlay({
       extraSpreads: fixedExtras,
     });
     showTempBanner(
-      "Seluruh temuan kata depan 'di', tanda baca petik, dan kata baku KBBI VI telah diperbaiki secara otomatis!"
+      "Seluruh kata depan 'di', tanda petik dialog, dan kata tidak baku sudah dirapikan otomatis!"
     );
   };
 
@@ -602,21 +657,21 @@ export function StudioTulisStageOverlay({
     if (analysis.isModelPresetReference) {
       playErrorTone();
       showTempBanner(
-        "Naskah saat ini masih berupa Teks Model Contoh. Silakan ubah atau tulis kalimat ceritamu sendiri sebelum menyimpan ke Galeri Karya."
+        "Isian ini masih berupa Contoh Cerita. Yuk ubah dulu dengan kalimat ceritamu sendiri sebelum disimpan!"
       );
       return;
     }
     if (analysis.totalWords < 15) {
       playErrorTone();
       showTempBanner(
-        "Tuliskan minimal 15 kata pada bagian paragraf cerita sebelum menyimpan ke Galeri Karya."
+        "Yuk tulis minimal 15 kata dulu di paragraf ceritamu sebelum disimpan ke Galeri Karya!"
       );
       return;
     }
     playSealUnlock();
     const saved = saveCurrentManuscriptToPustaka();
     showTempBanner(
-      `Manuskrip "${saved.storyTitle}" (${saved.wordCount} kata, Skor ${saved.studioScore}%) berhasil disimpan ke Galeri Karya!`
+      `Cerita "${saved.storyTitle}" (${saved.wordCount} kata, Skor ${saved.studioScore}%) berhasil disimpan ke Galeri Karya!`
     );
   };
 
@@ -629,9 +684,9 @@ export function StudioTulisStageOverlay({
       draft.authorName.trim() || "................................................";
     const safeClass = draft.authorClass.trim() || "VII-....";
     const safeTitle =
-      draft.storyTitle.trim() || "Manuskrip Cerita Fantasi Tanpa Judul";
+      draft.storyTitle.trim() || "Cerita Fantasi Tanpa Judul";
     const safeAmanat =
-      draft.amanat.trim() || "(Belum dirumuskan oleh penulis)";
+      draft.amanat.trim() || "(Belum ditulis oleh penulis)";
     const safeWorldRule = draft.worldRule.trim() || "(Belum ditulis)";
 
     const extraParagraphsHtml = extraSpreads
@@ -648,7 +703,7 @@ export function StudioTulisStageOverlay({
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>Piagam & Manuskrip Naratif — ${safeTitle}</title>
+  <title>Piagam &amp; Karya Cerita — ${safeTitle}</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -754,7 +809,7 @@ export function StudioTulisStageOverlay({
 </head>
 <body>
   <div class="no-print" style="margin-bottom:14px; padding:10px 14px; background:#1e160d; color:#f4d993; border-radius:8px; display:flex; justify-content:space-between; align-items:center; font-family:sans-serif; font-size:13px;">
-    <span><strong>Pratinjau Cetak Piagam &amp; Manuskrip Naratif</strong> — Siap dicetak atau disimpan sebagai PDF untuk dikumpulkan ke Guru.</span>
+    <span><strong>Pratinjau Cetak Piagam &amp; Cerita Fantasimu</strong> — Siap dicetak atau disimpan sebagai PDF untuk dikumpulkan ke Guru.</span>
     <button onclick="window.print()" style="background:#f4d993; color:#111; border:none; padding:7px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">Cetak / Simpan PDF</button>
   </div>
 
@@ -762,11 +817,11 @@ export function StudioTulisStageOverlay({
     <div class="header">
       <div>
         <div class="brand">PUSTAKA AGUNG E-AKSARALOKA · BAHASA INDONESIA KELAS VII SMP</div>
-        <h1>PIAGAM PENJAGA AKSARA &amp; MANUSKRIP CERITA FANTASI</h1>
+        <h1>PIAGAM PENULIS MUDA &amp; CERITA FANTASI</h1>
       </div>
       <div style="text-align:right; font-size:11.5px;">
-        <div>Bab II: Berkelana di Dunia Imajinasi (Hlm. 52–70)</div>
-        <div><strong>Skor Holistik: ${metrics.holisticTotalPercentage}%</strong></div>
+        <div>Karya Cerita Fantasi · Kelas VII SMP</div>
+        <div><strong>Skor Keseluruhan: ${metrics.holisticTotalPercentage}%</strong></div>
       </div>
     </div>
 
@@ -775,11 +830,11 @@ export function StudioTulisStageOverlay({
       <div><strong>Kelas:</strong> ${safeClass}</div>
       <div><strong>Tema Fantasi:</strong> ${draft.themeCategory}</div>
       <div><strong>Segel Materi Terbuka:</strong> ${metrics.unlockedSealsCount} / 3 Segel (${metrics.overallPercentage}%)</div>
-      <div><strong>Skor Analisis Naskah (Studio Tulis):</strong> ${analysis.studioScore}% (${analysis.passedIndicatorsCount}/5 Indikator)</div>
-      <div><strong>Jumlah Kata Manuskrip:</strong> ${analysis.totalWords} kata</div>
+      <div><strong>Skor Cerita (Studio Tulis):</strong> ${analysis.studioScore}% (${analysis.passedIndicatorsCount}/5 Misi Beres)</div>
+      <div><strong>Jumlah Kata Cerita:</strong> ${analysis.totalWords} kata</div>
     </div>
 
-    <h2>I. Peta Rancang Semesta (Kerangka Langkah 1–4)</h2>
+    <h2>I. Peta Rencana Dunia Ceritamu</h2>
     <table>
       <tbody>
         <tr>
@@ -806,7 +861,7 @@ export function StudioTulisStageOverlay({
       </tbody>
     </table>
 
-    <h2>II. Manuskrip Cerita Fantasi Karya Siswa (Langkah 5–6)</h2>
+    <h2>II. Cerita Fantasi Karya Siswa</h2>
     <div class="story-container">
       <div class="story-title">${safeTitle}</div>
       <p class="story-para">${draft.paragraphOrientasi || "(Paragraf Orientasi belum ditulis)"}</p>
@@ -820,15 +875,14 @@ export function StudioTulisStageOverlay({
       </div>
     </div>
 
-    <h2>III. Rapor 5 Indikator Detektor Sastra Otomatis &amp; Kaidah EYD V</h2>
+    <h2>III. Penilaian 5 Unsur Cerita &amp; Kerapian Ejaan</h2>
     <table>
       <thead>
         <tr>
-          <th>Indikator Kompetensi Menulis</th>
-          <th>Rujukan TP</th>
+          <th>Unsur Penilaian Cerita</th>
           <th>Status</th>
           <th>Skor</th>
-          <th>Temuan Bukti di Dalam Naskah</th>
+          <th>Bukti Kalimat di Dalam Ceritamu</th>
         </tr>
       </thead>
       <tbody>
@@ -836,8 +890,7 @@ export function StudioTulisStageOverlay({
         .map(
           (ind) => `<tr>
           <td><strong>${ind.title}</strong></td>
-          <td>${ind.tpCode}</td>
-          <td>${ind.passed ? "Terpenuhi" : "Perlu Pengayaan"}</td>
+          <td>${ind.passed ? "Beres" : "Perlu Dilengkapi"}</td>
           <td>${ind.earnedScore} / ${ind.scoreWeight}</td>
           <td>${ind.detectedSnippets.length > 0 ? ind.detectedSnippets.join("; ") : ind.summary}</td>
         </tr>`
@@ -856,13 +909,13 @@ export function StudioTulisStageOverlay({
 
   // Ringkasan teks untuk pratinjau 3D di atas buku meja POV (frame-188.webp)
   const deskLeftPreviewTitle =
-    draft.storyTitle.trim() || "Kitab Manuskrip Fantasi";
+    draft.storyTitle.trim() || "Buku Cerita Fantasimu";
   const deskLeftPreviewBody =
     draft.paragraphOrientasi.trim() ||
     draft.outlineOrientasi.trim() ||
     (draft.protagonistName.trim()
-      ? `Tokoh Utama: ${draft.protagonistName} di ${draft.settingPlace || "Dunia Imajinasi"}. Aturan Dunia: ${draft.worldRule || "Belum ditetapkan"}`
-      : "Lembar buku di meja tulis telah terbuka. Klik permukaan buku ini untuk menundukkan pandangan dan mulai menulis cerita fantasimu.");
+      ? `Tokoh Utama: ${draft.protagonistName} di ${draft.settingPlace || "Dunia Imajinasi"}. Aturan Keajaiban: ${draft.worldRule || "Belum ditulis"}`
+      : "Buku tulis di meja sudah terbuka. Klik bukunya untuk langsung mulai merangkai cerita fantasimu!");
 
   const deskRightPreviewBody =
     (draft.paragraphKomplikasi ?? "").trim() ||
@@ -875,29 +928,58 @@ export function StudioTulisStageOverlay({
 
   // Gaya input/textarea goresan pena transparan murni agar teks menyatu langsung di atas perkamen
   const inkInputClass =
-    "parchment-pen-input w-full px-1 py-0.5 text-[11.5px] leading-tight font-semibold italic placeholder:text-[#5c3d1e]/70";
+    "parchment-pen-input w-full px-1 py-0.5 text-base md:text-[11.5px] leading-tight font-semibold italic placeholder:text-[#5c3d1e]/70";
   const inkTextareaClass =
-    "parchment-scroll-hidden parchment-pen-input w-full resize-none px-1 py-0.5 text-[11px] leading-[1.35] italic placeholder:text-[#5c3d1e]/70";
+    "parchment-scroll-hidden parchment-pen-input w-full resize-none px-1 py-0.5 text-base md:text-[11px] leading-[1.35] italic placeholder:text-[#5c3d1e]/70";
   const inkStoryTextareaClass =
-    "parchment-scroll parchment-pen-textarea w-full flex-1 min-h-0 resize-none border-0 bg-transparent px-1 py-0.5 font-serif text-xs sm:text-[13px] placeholder:text-[#5c3d1e]/70";
+    "parchment-scroll parchment-pen-textarea w-full flex-1 min-h-[200px] md:min-h-0 resize-none border-0 bg-transparent px-1 py-0.5 font-serif text-base md:text-xs lg:text-[13px] placeholder:text-[#5c3d1e]/70";
 
   const scalePx = (n: number) => `${(n * stageMetrics.scale).toFixed(2)}px`;
 
-  const studio2dLeftPageStyle: CSSProperties = {
-    width: `${studio2dLeftBaseWidth}px`,
-    height: `${studio2dBaseHeight}px`,
-    transformOrigin: "0 0",
-    transform: studio2dProj.leftMatrixCss,
-    filter: studio2dProj.hasLeftCurve ? "url(#studio-2d-curve-left)" : undefined,
-  };
+  const studio2dLeftPageStyle: CSSProperties = isMobileBook
+    ? {
+        display: mobilePageSide === "left" ? "flex" : "none",
+        width: "100%",
+        height: "100%",
+      }
+    : {
+        width: `${studio2dLeftBaseWidth}px`,
+        height: `${studio2dBaseHeight}px`,
+        transformOrigin: "0 0",
+        transform: studio2dProj.leftMatrixCss,
+        filter: studio2dProj.hasLeftCurve ? "url(#studio-2d-curve-left)" : undefined,
+      };
 
-  const studio2dRightPageStyle: CSSProperties = {
-    width: `${studio2dRightBaseWidth}px`,
-    height: `${studio2dBaseHeight}px`,
-    transformOrigin: "0 0",
-    transform: studio2dProj.rightMatrixCss,
-    filter: studio2dProj.hasRightCurve ? "url(#studio-2d-curve-right)" : undefined,
-  };
+  const studio2dRightPageStyle: CSSProperties = isMobileBook
+    ? {
+        display: mobilePageSide === "right" ? "flex" : "none",
+        width: "100%",
+        height: "100%",
+      }
+    : {
+        width: `${studio2dRightBaseWidth}px`,
+        height: `${studio2dBaseHeight}px`,
+        transformOrigin: "0 0",
+        transform: studio2dProj.rightMatrixCss,
+        filter: studio2dProj.hasRightCurve ? "url(#studio-2d-curve-right)" : undefined,
+      };
+
+  const studio2dPageClass = isMobileBook
+    ? "parchment-ink parchment-ink-bleed mobile-parchment-sheet pointer-events-auto relative h-full w-full min-h-0 flex-col justify-between overflow-hidden px-4 py-3.5"
+    : "parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5";
+
+  const mobileSideLabels: readonly [string, string] =
+    activeViewTab === "audit_revisi"
+      ? ["1. Skor 5 Misi", "2. Ejaan & Ceklis ->"]
+      : activeViewTab === "galeri_piagam"
+        ? ["1. Galeri Cerita", "2. Cetak Piagam ->"]
+        : safeCurrentSpread === 0
+          ? ["1. Tokoh & Aturan", "2. Suasana & Alur ->"]
+          : safeCurrentSpread === 1
+            ? ["1. Awal Cerita", "2. Muncul Masalah ->"]
+            : safeCurrentSpread === 2
+              ? ["1. Puncak Masalah", "2. Akhir & Pesan ->"]
+              : ["1. Halaman Kiri", "2. Halaman Kanan ->"];
 
   return (
     <div
@@ -924,7 +1006,7 @@ export function StudioTulisStageOverlay({
 
           {/* Cover-Matched Stage Container: Locked 1:1 with 1920x1080 Canvas Geometry */}
           <div
-            className="pointer-events-none fixed overflow-hidden"
+            className="pointer-events-none fixed overflow-hidden transition-[left,top] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{
               left: `${stageMetrics.offsetX}px`,
               top: `${stageMetrics.offsetY}px`,
@@ -1045,22 +1127,108 @@ export function StudioTulisStageOverlay({
                 >
                   <span>Kata: {analysis.totalWords}</span>
                   <span>·</span>
-                  <span>EYD: {analysis.passedIndicatorsCount}/5</span>
+                  <span>Misi: {analysis.passedIndicatorsCount}/5</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Non-obstructing Call-to-Action Pill at Lower Book Center */}
+          {/* Unified Bottom 3D Thumb Stack (CTA + Action Dock Bar — Zero Overlap on Mobile) */}
           {!isCalibrating && (
-            <div className="pointer-events-none fixed inset-x-0 bottom-16 z-30 flex justify-center sm:bottom-18">
-              <button
-                type="button"
-                onClick={() => handleEnterFocusBook()}
-                className="pointer-events-auto cursor-pointer rounded-full border border-[#f4d993]/85 bg-[#040917]/92 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#f4d993] shadow-[0_10px_28px_rgba(0,0,0,0.85)] backdrop-blur-md transition-transform duration-300 hover:scale-105 sm:px-5 sm:py-2 sm:text-xs"
-              >
-                Klik Buku di Meja untuk Menulis Cerita -&gt;
-              </button>
+            <div className="pointer-events-none fixed inset-x-0 bottom-2.5 sm:bottom-4 z-30 flex flex-col items-center gap-2 px-3 sm:px-6">
+              <div className="flex flex-col items-center gap-1">
+                {analysis.totalWords === 0 && (
+                  <span className="hidden sm:inline-block rounded-full border border-[#f4d993]/75 bg-[#040915]/92 px-3 py-0.5 text-[10px] font-bold text-[#f4d993] shadow-lg animate-float-gentle text-center">
+                    Petunjuk: Klik buku di meja buat mulai mengarang ceritamu!
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleEnterFocusBook()}
+                  className="pointer-events-auto cursor-pointer min-h-[44px] sm:min-h-0 rounded-full border border-[#f4d993]/85 bg-[#040917]/92 px-5 py-2 text-xs font-bold uppercase tracking-wider text-[#f4d993] shadow-[0_10px_28px_rgba(0,0,0,0.85)] backdrop-blur-md transition-transform duration-300 hover:scale-105"
+                >
+                  Buka Buku &amp; Mulai Mengarang Ceritamu! -&gt;
+                </button>
+              </div>
+
+              {statusBanner && (
+                <div className="pointer-events-auto flex w-full max-w-[1180px] items-center justify-between gap-2 rounded-xl border border-emerald-400/55 bg-emerald-950/95 px-3.5 py-1.5 text-[11px] text-emerald-100 shadow-2xl">
+                  <span>{statusBanner}</span>
+                  <button
+                    type="button"
+                    onClick={() => setStatusBanner(null)}
+                    className="text-[10px] font-bold uppercase text-emerald-300 hover:text-white cursor-pointer shrink-0"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              )}
+
+              <div className="pointer-events-auto flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto md:flex-wrap md:justify-between md:overflow-visible rounded-2xl border border-[#d6b26f]/35 bg-slate-950/85 px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] backdrop-blur-md">
+                <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                  <span className="hidden md:inline-block rounded-full bg-[#090d16]/75 border border-white/10 px-3 py-1 text-[11px] font-medium text-stone-200 shadow-md">
+                    Status:{" "}
+                    <strong
+                      className={
+                        state.sealStudioUnlocked
+                          ? "text-emerald-300"
+                          : "text-[#f4d993]"
+                      }
+                    >
+                      {state.sealStudioUnlocked
+                        ? "Siap Disimpan & Cetak!"
+                        : analysis.isModelPresetReference
+                          ? "Contoh Cerita (Yuk Ganti Kalimatmu!)"
+                          : "Siap Disimpan"}
+                    </strong>
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playChime();
+                      onOpenPetaModal();
+                    }}
+                    className="whitespace-nowrap rounded-full border border-[#cda250]/55 bg-[#090d16]/90 hover:bg-[#090d16] px-3 py-1.5 md:py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-lg"
+                  >
+                    Peta &amp; LKS
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenBookAtTab("galeri_piagam")}
+                    className="whitespace-nowrap rounded-full border border-[#cda250]/55 bg-[#090d16]/90 hover:bg-[#090d16] px-3 py-1.5 md:py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-lg"
+                  >
+                    Galeri ({state.savedManuscripts.length})
+                  </button>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenBookAtTab("audit_revisi")}
+                    className="whitespace-nowrap rounded-full border border-[#cda250]/60 bg-[#090d16]/90 hover:bg-[#090d16] px-3.5 py-1.5 md:py-1 text-xs font-bold text-[#f4d993] transition-colors cursor-pointer shadow-lg"
+                  >
+                    Cek Ejaan &amp; Skor ({analysis.passedIndicatorsCount}/5)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveManuscript}
+                    className="whitespace-nowrap rounded-full border border-emerald-400/55 bg-emerald-950/90 hover:bg-emerald-900/95 px-3.5 py-1.5 md:py-1 text-xs font-bold text-emerald-200 transition-colors cursor-pointer shadow-lg"
+                  >
+                    Simpan Cerita
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePrintManuscriptAndCharter}
+                    className="whitespace-nowrap rounded-full bg-[#f4d993] hover:bg-[#fbe6af] px-3.5 py-1.5 md:py-1 text-xs font-bold text-slate-950 transition-colors cursor-pointer shadow-lg"
+                  >
+                    Cetak Piagam
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1080,90 +1248,6 @@ export function StudioTulisStageOverlay({
               onClose={() => setIsCalibrating(false)}
             />
           )}
-
-          {/* 3D Mode Floating Action Dock Bar (Bawah Meja — Tampil Hanya saat Mode 3D) */}
-          <div className="pointer-events-auto fixed inset-x-0 bottom-3 sm:bottom-4 z-30 flex flex-col items-center gap-2 px-4 sm:px-8">
-            {statusBanner && (
-              <div className="flex w-full max-w-[1180px] items-center justify-between gap-2 rounded-xl border border-emerald-400/55 bg-emerald-950/95 px-3.5 py-1.5 text-[11px] text-emerald-100 shadow-2xl">
-                <span>{statusBanner}</span>
-                <button
-                  type="button"
-                  onClick={() => setStatusBanner(null)}
-                  className="text-[10px] font-bold uppercase text-emerald-300 hover:text-white cursor-pointer shrink-0"
-                >
-                  Tutup
-                </button>
-              </div>
-            )}
-
-            <div className="flex w-full max-w-[1180px] flex-wrap items-center justify-between gap-2">
-              {/* Kiri: Indikator Status + Peta Belajar/LKS + Galeri Karya */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="hidden md:inline-block rounded-full bg-[#090d16]/75 border border-white/10 px-3 py-1 text-[11px] font-medium text-stone-200 shadow-md">
-                  Status:{" "}
-                  <strong
-                    className={
-                      state.sealStudioUnlocked
-                        ? "text-emerald-300"
-                        : "text-[#f4d993]"
-                    }
-                  >
-                    {state.sealStudioUnlocked
-                      ? "Siap Disimpan & Cetak (Segel IV Terbuka)"
-                      : analysis.isModelPresetReference
-                        ? "Mode Teks Model (Sunting Kalimatmu)"
-                        : "Siap Disimpan"}
-                  </strong>
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    playChime();
-                    onOpenPetaModal();
-                  }}
-                  className="rounded-full border border-[#cda250]/55 bg-[#090d16]/90 hover:bg-[#090d16] px-3 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-lg"
-                >
-                  Peta Belajar &amp; LKS Cetak
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenBookAtTab("galeri_piagam")}
-                  className="rounded-full border border-[#cda250]/55 bg-[#090d16]/90 hover:bg-[#090d16] px-3 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-lg"
-                >
-                  Galeri Karya ({state.savedManuscripts.length})
-                </button>
-              </div>
-
-              {/* Kanan: Periksa Ejaan & Skor, Simpan Karya, Cetak Piagam & Naskah */}
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleOpenBookAtTab("audit_revisi")}
-                  className="rounded-full border border-[#cda250]/60 bg-[#090d16]/90 hover:bg-[#090d16] px-3.5 py-1 text-xs font-bold text-[#f4d993] transition-colors cursor-pointer shadow-lg"
-                >
-                  Periksa Ejaan &amp; Skor ({analysis.passedIndicatorsCount}/5)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveManuscript}
-                  className="rounded-full border border-emerald-400/55 bg-emerald-950/90 hover:bg-emerald-900/95 px-3.5 py-1 text-xs font-bold text-emerald-200 transition-colors cursor-pointer shadow-lg"
-                >
-                  Simpan Karya
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handlePrintManuscriptAndCharter}
-                  className="rounded-full bg-[#f4d993] hover:bg-[#fbe6af] px-3.5 py-1 text-xs font-bold text-slate-950 transition-colors cursor-pointer shadow-lg"
-                >
-                  Cetak Piagam &amp; Naskah
-                </button>
-              </div>
-            </div>
-          </div>
         </>
       )}
 
@@ -1173,7 +1257,10 @@ export function StudioTulisStageOverlay({
       {/* ketat ke aspek rasio asli gambar 946:603 agar 100% bebas distorsi.    */}
       {/* ===================================================================== */}
       {isBookFocused && (
-        <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-center gap-2 bg-black/10 px-3 pt-2.5 pb-2.5 backdrop-blur-[6px] transition-all duration-300 sm:px-6 sm:pt-3 sm:pb-3 lg:px-10">
+        <div
+          data-lenis-prevent
+          className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-center gap-2 overscroll-none bg-black/10 px-3 pt-2.5 pb-2.5 backdrop-blur-[6px] transition-all duration-300 sm:px-6 sm:pt-3 sm:pb-3 lg:px-10"
+        >
           <BookPageDisplacementDefs
             prefix="studio-2d"
             leftWidth={studio2dLeftBaseWidth}
@@ -1183,27 +1270,100 @@ export function StudioTulisStageOverlay({
             rightDisp={studio2dProj.rightDisp}
           />
         {/* ================================================================= */}
-        {/* 1. SATU BARIS FLOATING HEADER TIPIS DI ATAS BUKU                  */}
-        {/* Kiri: Tab Lembar 1-3 + Tambah Lembar                              */}
-        {/* Kanan: Panduan & Ide, Skor & Kata, Kosongkan, [ X ] Kembali Meja  */}
+        {/* 1. FLOATING HEADER TIPIS DI ATAS BUKU                             */}
         {/* ================================================================= */}
-        <div className="relative z-40 flex w-full max-w-[1180px] items-center justify-between gap-2 flex-wrap shrink-0">
-          {/* Kiri: Tab Struktur Lembar Buku */}
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="relative z-40 flex w-full max-w-[1180px] flex-col gap-1.5 md:flex-row md:flex-wrap md:items-center md:justify-between shrink-0">
+          {/* Mobile Row 1 / Desktop Kanan: Utility & Tutup */}
+          <div className="flex items-center justify-between gap-1.5 md:order-2">
+            <div className="flex items-center gap-1.5 rounded-full md:rounded-lg border border-[#cda250]/45 bg-[#090d16]/88 px-3 py-1.5 md:py-1 text-[11px] text-stone-200 shadow-md whitespace-nowrap">
+              <span className="font-brand uppercase tracking-wider text-[#f4d993]">
+                Skor:
+              </span>
+              <span className="font-bold text-white">{analysis.studioScore}%</span>
+              <span className="text-stone-500">|</span>
+              <span className="text-emerald-300 font-semibold">
+                {analysis.totalWords} Kata
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  playChime();
+                  setIsGuideDrawerOpen((prev) => !prev);
+                }}
+                aria-expanded={isGuideDrawerOpen}
+                className={`min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer shadow-md whitespace-nowrap ${isGuideDrawerOpen
+                  ? "border-[#f4d993] bg-[#cda250]/35 text-[#f4d993]"
+                  : "border-[#cda250]/55 bg-[#0d0a07]/90 hover:bg-[#0d0a07] text-[#f4d993]"
+                  }`}
+              >
+                {isGuideDrawerOpen ? "Tutup Ide" : "Butuh Ide?"}
+              </button>
+
+              {activeViewTab === "dual_book" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => triggerTabFlip("audit_revisi")}
+                    className="md:hidden min-h-[36px] rounded-full border border-emerald-400/50 bg-emerald-950/90 px-2.5 py-1 text-[11px] font-bold text-emerald-200 cursor-pointer shadow-md whitespace-nowrap"
+                  >
+                    Cek ({analysis.passedIndicatorsCount}/5)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetDraft}
+                    className="hidden sm:inline-block rounded-lg border border-white/20 bg-[#0d0a07]/85 hover:bg-[#0d0a07] px-2.5 py-1 text-[11px] text-stone-200 transition-colors cursor-pointer shadow-md whitespace-nowrap"
+                  >
+                    Hapus Isian
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => triggerTabFlip("dual_book")}
+                  className="min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-[#cda250]/55 bg-[#090d16]/85 hover:bg-[#090d16] px-2.5 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-md whitespace-nowrap"
+                >
+                  &lt;- Menulis
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleExitFocusBookToDesk}
+                aria-label="Tutup tampilan tulis penuh"
+                className="min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-rose-400/45 bg-[#090d16]/90 hover:bg-rose-950/75 px-2.5 py-1 text-[11px] font-bold text-stone-100 hover:text-rose-200 transition-colors cursor-pointer shadow-md whitespace-nowrap"
+              >
+                <span className="md:hidden">[ X ]</span>
+                <span className="hidden md:inline">[ X ] Kembali ke Meja</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Kiri: Tab Struktur Lembar Buku (Compact di Mobile, Lengkap di Desktop) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 md:order-1 md:flex-wrap md:overflow-visible md:pb-0">
             {CORE_SPREAD_LABELS.map((sp) => {
               const isSpreadActive =
                 activeViewTab === "dual_book" && safeCurrentSpread === sp.index;
+              const mobileShort =
+                sp.index === 0
+                  ? "1. Rencana"
+                  : sp.index === 1
+                    ? "2. Awal-Masalah"
+                    : "3. Puncak-Akhir";
               return (
                 <button
                   key={sp.index}
                   type="button"
                   onClick={() => triggerSpreadTransition(sp.index)}
-                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer shadow-md ${isSpreadActive
+                  className={`shrink-0 min-h-[34px] md:min-h-0 rounded-full md:rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer shadow-md whitespace-nowrap ${isSpreadActive
                     ? "bg-[#f4d993] text-slate-950"
                     : "border border-[#cda250]/45 bg-[#0d0a07]/85 text-[#f4d993] hover:bg-[#0d0a07]"
                     }`}
                 >
-                  {sp.shortLabel}
+                  <span className="md:hidden">{mobileShort}</span>
+                  <span className="hidden md:inline">{sp.shortLabel}</span>
                 </button>
               );
             })}
@@ -1217,7 +1377,7 @@ export function StudioTulisStageOverlay({
                   key={ex.id}
                   type="button"
                   onClick={() => triggerSpreadTransition(spIdx)}
-                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer shadow-md ${isSpreadActive
+                  className={`shrink-0 min-h-[34px] md:min-h-0 rounded-full md:rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer shadow-md whitespace-nowrap ${isSpreadActive
                     ? "bg-[#f4d993] text-slate-950"
                     : "border border-emerald-400/45 bg-emerald-950/80 text-emerald-200 hover:bg-emerald-900/90"
                     }`}
@@ -1230,76 +1390,33 @@ export function StudioTulisStageOverlay({
             <button
               type="button"
               onClick={handleAddExtraSpread}
-              className="rounded-lg border border-emerald-400/55 bg-emerald-950/85 hover:bg-emerald-900/90 px-2.5 py-1 text-[11px] font-bold text-emerald-200 transition-colors cursor-pointer shadow-md"
+              className="shrink-0 min-h-[34px] md:min-h-0 rounded-full md:rounded-lg border border-emerald-400/55 bg-emerald-950/85 hover:bg-emerald-900/90 px-2.5 py-1 text-[11px] font-bold text-emerald-200 transition-colors cursor-pointer shadow-md whitespace-nowrap"
             >
               + Tambah Lembar
             </button>
-          </div>
-
-          {/* Kanan: Panduan & Ide, Skor | Kata, Kosongkan, & [ X ] Kembali ke Meja */}
-          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
-              onClick={() => {
-                playChime();
-                setIsGuideDrawerOpen((prev) => !prev);
-              }}
-              aria-expanded={isGuideDrawerOpen}
-              className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer shadow-md ${isGuideDrawerOpen
-                ? "border-[#f4d993] bg-[#cda250]/35 text-[#f4d993]"
-                : "border-[#cda250]/45 bg-[#0d0a07]/85 hover:bg-[#0d0a07] text-[#f4d993]"
-                }`}
+              onClick={() => triggerTabFlip("galeri_piagam")}
+              className={`md:hidden shrink-0 min-h-[34px] rounded-full border px-2.5 py-1 text-[11px] font-bold cursor-pointer shadow-md whitespace-nowrap ${
+                activeViewTab === "galeri_piagam"
+                  ? "border-[#f4d993] bg-[#f4d993] text-slate-950"
+                  : "border-[#cda250]/45 bg-[#0d0a07]/85 text-[#f4d993]"
+              }`}
             >
-              {isGuideDrawerOpen
-                ? "Tutup Panduan"
-                : `Panduan (${metrics.unlockedSealsCount}/3) & Ide`}
-            </button>
-
-            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[#cda250]/40 bg-[#090d16]/85 px-2.5 py-1 text-[11px] text-stone-200 shadow-md">
-              <span className="font-brand uppercase tracking-wider text-[#f4d993]">
-                Skor:
-              </span>
-              <span className="font-bold text-white">{analysis.studioScore}%</span>
-              <span className="text-stone-500">|</span>
-              <span className="text-emerald-300 font-semibold">
-                {analysis.totalWords} Kata
-              </span>
-            </div>
-
-            {activeViewTab === "dual_book" ? (
-              <button
-                type="button"
-                onClick={handleResetDraft}
-                className="rounded-lg border border-white/20 bg-[#0d0a07]/85 hover:bg-[#0d0a07] px-2.5 py-1 text-[11px] text-stone-200 transition-colors cursor-pointer shadow-md"
-              >
-                Kosongkan
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => triggerTabFlip("dual_book")}
-                className="rounded-lg border border-[#cda250]/55 bg-[#090d16]/85 hover:bg-[#090d16] px-2.5 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-md"
-              >
-                Kembali ke Lembar Cerita
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleExitFocusBookToDesk}
-              className="rounded-lg border border-rose-400/45 bg-[#090d16]/90 hover:bg-rose-950/75 px-2.5 py-1 text-[11px] font-bold text-stone-100 hover:text-rose-200 transition-colors cursor-pointer shadow-md"
-            >
-              [ X ] Kembali ke Meja
+              Galeri &amp; Piagam
             </button>
           </div>
 
-          {/* Popover Mengambang (Absolute Overlay — 0px Vertical Layout Shift) */}
+          {/* Popover Mengambang (Scrollable cleanly inside viewport on small phones) */}
           {isGuideDrawerOpen && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-2xl border border-[#cda250]/55 bg-[#070d1d]/96 p-3 shadow-2xl space-y-2.5">
+            <div
+              data-lenis-prevent
+              className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-[70dvh] overflow-y-auto overscroll-contain rounded-2xl border border-[#cda250]/55 bg-[#070d1d]/96 p-3 shadow-2xl space-y-2.5"
+            >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="font-brand text-[10px] tracking-[0.16em] uppercase text-[#f4d993]">
-                    BEKAL SEGEL MATERI (KLIK UNTUK BACA ULANG BABAK):
+                    3 SEGEL MATERI (KLIK KALAU MAU BACA LAGI):
                   </span>
                   {SEAL_BADGES.map((sb) => {
                     const unlocked = isSealUnlockedForId(sb.id);
@@ -1317,7 +1434,7 @@ export function StudioTulisStageOverlay({
                           : "bg-amber-500/15 text-amber-200 border border-amber-400/40 hover:bg-amber-500/25"
                           }`}
                       >
-                        {sb.label}: {unlocked ? "Terbuka" : "Pelajari di Kitab ->"}
+                        {sb.label}: {unlocked ? "Selesai ✓" : "Buka di Kitab ->"}
                       </button>
                     );
                   })}
@@ -1328,7 +1445,7 @@ export function StudioTulisStageOverlay({
                   onClick={() => setIsGuideDrawerOpen(false)}
                   className="text-[10px] font-bold uppercase text-[#f4d993] hover:text-white cursor-pointer"
                 >
-                  [ X ] Tutup Drawer
+                  [ X ] Tutup Ide
                 </button>
               </div>
 
@@ -1340,7 +1457,7 @@ export function StudioTulisStageOverlay({
                   >
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#f4d993]">
-                        Inspirasi {idx + 1}: {seed.title}
+                        Ide Cerita {idx + 1}: {seed.title}
                       </span>
                       <p className="mt-0.5 text-[11px] text-stone-300 leading-snug">
                         {seed.description}
@@ -1352,14 +1469,14 @@ export function StudioTulisStageOverlay({
                         onClick={() => handleApplySeedOutline(seed.id, seed.title)}
                         className="rounded-lg border border-emerald-400/50 bg-emerald-500/20 hover:bg-emerald-500/30 px-2 py-1 text-[10px] font-bold text-emerald-200 cursor-pointer"
                       >
-                        Muat Kerangka Ide (Lembar 1)
+                        Pakai Rencana Ide Ini
                       </button>
                       <button
                         type="button"
                         onClick={() => handleApplySeedFullModel(seed.id, seed.title)}
                         className="rounded-lg border border-[#cda250]/40 bg-white/5 hover:bg-white/10 px-2 py-1 text-[10px] font-semibold text-[#f4d993] cursor-pointer"
                       >
-                        Lihat Contoh Teks Model
+                        Lihat Contoh Ceritanya
                       </button>
                     </div>
                   </div>
@@ -1384,48 +1501,76 @@ export function StudioTulisStageOverlay({
         </div>
 
         {/* ================================================================= */}
-        {/* 2. KANVAS BUKU 2D MURNI (TERKUNCI ASPEK RASIO ASLI 946:603)       */}
-        {/* Width dihitung matematis lewat min(94vw, 1180px, height*946/603)  */}
-        {/* + aspectRatio 946/603 sehingga skala X & Y gambar identik 100% di */}
-        {/* segala ukuran layar (bebas gepeng/stretch selamanya).             */}
+        {/* 2. KANVAS BUKU 2D (DESKTOP) / KERTAS TUNGGAL PROPORSIONAL (MOBILE) */}
         {/* ================================================================= */}
         <div
           style={{
-            perspective: "1800px",
+            perspective: isMobileBook ? undefined : "1800px",
           }}
-          className="relative my-auto flex w-full flex-1 items-center justify-center overflow-visible"
+          className={`relative z-10 my-auto flex w-full flex-1 min-h-0 items-center justify-center ${
+            isMobileBook ? "overflow-hidden" : "overflow-visible"
+          }`}
         >
           <div
             ref={studio2dContainerRef}
-            style={{
-              width: "min(94vw, 1180px, calc((100dvh - 4.4rem) * 946 / 603))",
-              aspectRatio: "946 / 603",
-            }}
-            className="relative drop-shadow-[0_28px_55px_rgba(0,0,0,0.9)]"
+            style={
+              isMobileBook
+                ? undefined
+                : {
+                    width: "min(94vw, 1180px, calc((100dvh - 4.4rem) * 946 / 603))",
+                    aspectRatio: "946 / 603",
+                  }
+            }
+            className={
+              isMobileBook
+                ? "relative h-full w-full max-w-[480px] overflow-hidden rounded-2xl border-2 border-[#cda250]/65 bg-[#eed8b0] shadow-[0_8px_20px_rgba(0,0,0,0.55)]"
+                : "relative drop-shadow-[0_28px_55px_rgba(0,0,0,0.9)]"
+            }
           >
-            {/* ASSET 1: book-base.webp (Terkunci rasio asli 1376x768 -> crop 946x603) */}
-            <div
-              style={{
-                backgroundImage: "url('/assets/studio/book-base.webp')",
-                backgroundSize: "145.45% 127.36%",
-                backgroundPosition: "50% 55.15%",
-                backgroundRepeat: "no-repeat",
-              }}
-              className="pointer-events-none absolute inset-0"
-              aria-hidden="true"
-            />
+            {isMobileBook ? (
+              <>
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 bg-no-repeat"
+                  style={{
+                    backgroundImage: "url('/assets/studio/single-page.webp')",
+                    backgroundSize: "415% 152%",
+                    backgroundPosition:
+                      mobilePageSide === "left" ? "28.8% 53.5%" : "70% 53.5%",
+                  }}
+                />
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 shadow-[inset_0_0_28px_rgba(92,61,30,0.22)]"
+                />
+              </>
+            ) : (
+              <>
+                {/* ASSET 1: book-base.webp (Terkunci rasio asli 1376x768 -> crop 946x603) */}
+                <div
+                  style={{
+                    backgroundImage: "url('/assets/studio/book-base.webp')",
+                    backgroundSize: "145.45% 127.36%",
+                    backgroundPosition: "50% 55.15%",
+                    backgroundRepeat: "no-repeat",
+                  }}
+                  className="pointer-events-none absolute inset-0"
+                  aria-hidden="true"
+                />
 
-            {/* ASSET 2: single-page.webp (Terkunci 1:1 tepat di atas book-base.webp) */}
-            <div
-              style={{
-                backgroundImage: "url('/assets/studio/single-page.webp')",
-                backgroundSize: "145.45% 127.36%",
-                backgroundPosition: "50% 55.15%",
-                backgroundRepeat: "no-repeat",
-              }}
-              className="pointer-events-none absolute inset-0"
-              aria-hidden="true"
-            />
+                {/* ASSET 2: single-page.webp (Terkunci 1:1 tepat di atas book-base.webp) */}
+                <div
+                  style={{
+                    backgroundImage: "url('/assets/studio/single-page.webp')",
+                    backgroundSize: "145.45% 127.36%",
+                    backgroundPosition: "50% 55.15%",
+                    backgroundRepeat: "no-repeat",
+                  }}
+                  className="pointer-events-none absolute inset-0"
+                  aria-hidden="true"
+                />
+              </>
+            )}
 
             {/* ============================================================= */}
             {/* LAYER 3: CALIBRATED HOMOGRAPHY PAGE SPREAD (2D ORTHOGRAPHIC)  */}
@@ -1438,7 +1583,7 @@ export function StudioTulisStageOverlay({
               {/* =========================================================== */}
               <div
                 style={studio2dLeftPageStyle}
-                className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5"
+                className={studio2dPageClass}
               >
                 <div
                   key={`s2d-left-${activeViewTab}-${safeCurrentSpread}`}
@@ -1450,10 +1595,10 @@ export function StudioTulisStageOverlay({
                     <div className="space-y-2">
                       <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
                         <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
-                          Halaman 1
+                          Halaman 1 · Langkah 1
                         </span>
                         <span className="text-[10px] font-bold text-[#5c3d1e] whitespace-nowrap shrink-0">
-                          Peta Rancang Semesta
+                          Isi Rencana Ceritamu
                         </span>
                       </div>
 
@@ -1464,7 +1609,7 @@ export function StudioTulisStageOverlay({
                             htmlFor="studio-author-name"
                             className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
                           >
-                            Nama Penulis:
+                            Nama Lengkapmu:
                           </label>
                           <input
                             id="studio-author-name"
@@ -1473,7 +1618,7 @@ export function StudioTulisStageOverlay({
                             onChange={(e) =>
                               updateStudioDraft({ authorName: e.target.value })
                             }
-                            placeholder="Nama lengkapmu..."
+                            placeholder="Tulis namamu..."
                             className={inkInputClass}
                           />
                         </div>
@@ -1500,28 +1645,22 @@ export function StudioTulisStageOverlay({
                             htmlFor="studio-theme-select"
                             className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
                           >
-                            Tema Fantasi:
+                            Pilih Tema Cerita:
                           </label>
-                          <select
+                          <ParchmentSelect
                             id="studio-theme-select"
+                            ariaLabel="Pilih Tema Cerita"
                             value={draft.themeCategory}
-                            onChange={(e) =>
+                            options={THEME_OPTIONS.map((theme) => ({
+                              value: theme,
+                              label: theme,
+                            }))}
+                            onChange={(nextValue) =>
                               updateStudioDraft({
-                                themeCategory: e.target.value as FantasyThemeCategory,
+                                themeCategory: nextValue as FantasyThemeCategory,
                               })
                             }
-                            className="parchment-pen-input w-full px-1 py-0.5 text-[11.5px] leading-tight font-semibold text-[#241407]/95"
-                          >
-                            {THEME_OPTIONS.map((theme) => (
-                              <option
-                                key={theme}
-                                value={theme}
-                                className="bg-[#f4e4c1] text-[#1e1106]"
-                              >
-                                {theme}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </div>
                       </div>
 
@@ -1531,7 +1670,7 @@ export function StudioTulisStageOverlay({
                           htmlFor="studio-world-rule"
                           className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
                         >
-                          Aturan Logika Dunia Fantasi &amp; Konsekuensi Kekuatan:
+                          Aturan Benda / Kekuatan Ajaib di Ceritamu:
                         </label>
                         <textarea
                           id="studio-world-rule"
@@ -1540,7 +1679,7 @@ export function StudioTulisStageOverlay({
                           onChange={(e) =>
                             updateStudioDraft({ worldRule: e.target.value })
                           }
-                          placeholder="Contoh: Setiap kali jarum jam diputar mundur 15 menit, pemiliknya harus merelakan satu benda kesayangannya membeku menjadi batu."
+                          placeholder="Apa syarat atau risiko keajaibannya? Contoh: Setiap jam diputar mundur 15 menit, satu benda kesayangan berubah jadi batu."
                           className={inkTextareaClass}
                         />
                       </div>
@@ -1548,7 +1687,7 @@ export function StudioTulisStageOverlay({
                       {/* Baris 3: Langkah 2 Tokoh Protagonis & Antagonis (Tanpa Kotak Background) */}
                       <div className="space-y-1.5 pt-0.5">
                         <p className="font-brand text-[10px] font-bold uppercase tracking-[0.08em] text-[#3d250b] border-b border-[#5c3d1e]/35 pb-0.5 truncate">
-                          TOKOH CERITA &amp; BUKTI WATAK TINDAKAN
+                          SIAPA TOKOH DI CERITAMU?
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
                           <div className="order-1 sm:order-1 min-w-0">
@@ -1556,7 +1695,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="studio-protag-name"
                               className="block truncate text-[10px] font-bold text-[#14532d]"
                             >
-                              Tokoh Utama (Protagonis):
+                              Tokoh Utama (Jagoanmu):
                             </label>
                             <input
                               id="studio-protag-name"
@@ -1565,7 +1704,7 @@ export function StudioTulisStageOverlay({
                               onChange={(e) =>
                                 updateStudioDraft({ protagonistName: e.target.value })
                               }
-                              placeholder="Misal: Damar"
+                              placeholder="Contoh: Damar"
                               className={inkInputClass}
                             />
                           </div>
@@ -1575,7 +1714,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="studio-antag-name"
                               className="block truncate text-[10px] font-bold text-[#7f1d1d]"
                             >
-                              Tokoh Lawan (Antagonis):
+                              Tokoh Lawan / Pengganggu:
                             </label>
                             <input
                               id="studio-antag-name"
@@ -1584,7 +1723,7 @@ export function StudioTulisStageOverlay({
                               onChange={(e) =>
                                 updateStudioDraft({ antagonistName: e.target.value })
                               }
-                              placeholder="Misal: Bayang Waktu"
+                              placeholder="Contoh: Bayang Waktu"
                               className={inkInputClass}
                             />
                           </div>
@@ -1594,7 +1733,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="studio-protag-trait"
                               className="block truncate text-[10px] font-bold text-[#3d250b]"
                             >
-                              Sifat &amp; Bukti Tindakan:
+                              Sifat Baik &amp; Perbuatannya:
                             </label>
                             <textarea
                               id="studio-protag-trait"
@@ -1605,7 +1744,7 @@ export function StudioTulisStageOverlay({
                                   protagonistTraitAction: e.target.value,
                                 })
                               }
-                              placeholder="Jujur & rela berkorban: memilih mengakui kesalahan daripada terus memutar waktu."
+                              placeholder="Contoh: Jujur & berani mengakui kesalahan daripada terus berbohong."
                               className={inkTextareaClass}
                             />
                           </div>
@@ -1615,7 +1754,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="studio-antag-conflict"
                               className="block truncate text-[10px] font-bold text-[#3d250b]"
                             >
-                              Pemicu Konflik / Masalah:
+                              Masalah Apa yang Dia Buat?
                             </label>
                             <textarea
                               id="studio-antag-conflict"
@@ -1626,7 +1765,7 @@ export function StudioTulisStageOverlay({
                                   antagonistConflictTrigger: e.target.value,
                                 })
                               }
-                              placeholder="Membujuk tokoh utama terus memutar jam saku sampai seluruh kenangannya membatu."
+                              placeholder="Contoh: Membujuk tokoh utama terus memutar jam sampai kena masalah."
                               className={inkTextareaClass}
                             />
                           </div>
@@ -1641,7 +1780,7 @@ export function StudioTulisStageOverlay({
                       <div className="space-y-1.5 flex-1 min-h-0 flex flex-col">
                         <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
                           <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
-                            Halaman 3 · Orientasi (TP 3)
+                            Halaman 3 · Bagian 1: Awal Cerita
                           </span>
                           <span
                             className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.orientasiWords >= 12
@@ -1658,7 +1797,7 @@ export function StudioTulisStageOverlay({
                             htmlFor="studio-story-title"
                             className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
                           >
-                            Judul Cerita Fantasi:
+                            Judul Cerita Fantasimu:
                           </label>
                           <input
                             id="studio-story-title"
@@ -1667,7 +1806,7 @@ export function StudioTulisStageOverlay({
                             onChange={(e) =>
                               updateStudioDraft({ storyTitle: e.target.value })
                             }
-                            placeholder="Tuliskan judul cerita fantasimu yang memikat..."
+                            placeholder="Tulis judul cerita yang bikin penasaran..."
                             className="parchment-contour-warp parchment-pen-input w-full px-1 py-0.5 font-serif text-[15px] sm:text-base font-bold text-[#241407]/95 placeholder:text-[#5c3d1e]/75"
                           />
                         </div>
@@ -1677,7 +1816,7 @@ export function StudioTulisStageOverlay({
                             htmlFor="para-orientasi"
                             className="block truncate text-[11px] font-bold text-[#3d250b] border-b border-[#5c3d1e]/30 pb-1"
                           >
-                            Paragraf I · Orientasi (Tokoh, Latar 5 Indera &amp; Awal Keajaiban)
+                            Paragraf 1 · Awal Cerita (Kenalkan Tokoh, Tempat &amp; Keajaiban)
                           </label>
                           <textarea
                             id="para-orientasi"
@@ -1688,7 +1827,7 @@ export function StudioTulisStageOverlay({
                                 paragraphOrientasi: e.target.value,
                               })
                             }
-                            placeholder="Goreskan paragraf pembuka di atas perkamen ini: perkenalkan tokoh utama di latar tempat dengan melibatkan pancaindra (cahaya, suara, aroma/suhu) serta awal mula ditemukannya keajaiban..."
+                            placeholder="Ceritakan awal kisahnya: siapa tokohmu, sedang berada di mana (sebutkan cahaya, suara, atau udaranya), dan bagaimana ia menemukan hal ajaib..."
                             className={inkStoryTextareaClass}
                           />
                         </div>
@@ -1702,7 +1841,7 @@ export function StudioTulisStageOverlay({
                       <div className="space-y-1.5 flex-1 min-h-0 flex flex-col">
                         <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
                           <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
-                            Halaman 5 · Puncak Klimaks (TP 4)
+                            Halaman 5 · Bagian 3: Puncak Masalah
                           </span>
                           <span
                             className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.klimaksWords >= 12
@@ -1714,24 +1853,24 @@ export function StudioTulisStageOverlay({
                           </span>
                         </div>
 
-                        <div className="flex min-h-[26px] items-center justify-between gap-1.5 border-b border-[#5c3d1e]/30 pb-1">
+                        <div className="flex min-h-[26px] flex-wrap items-center justify-between gap-1.5 border-b border-[#5c3d1e]/30 pb-1">
                           <span className="text-[10px] font-bold text-[#3d250b] whitespace-nowrap">
-                            Sisipan:
+                            Bantuan Cepat:
                           </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <button
                               type="button"
                               onClick={handleInsertMajasSnippet}
                               className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer whitespace-nowrap"
                             >
-                              + Majas Asosiasi
+                              + Contoh Perumpamaan
                             </button>
                             <button
                               type="button"
                               onClick={handleInsertDialogSnippet}
                               className="rounded-full border border-[#1e3a8a]/75 bg-[#1e3a8a]/12 hover:bg-[#1e3a8a]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#1e3a8a] transition-colors cursor-pointer whitespace-nowrap"
                             >
-                              + Dialog EYD V
+                              + Contoh Dialog (&ldquo;...&rdquo;)
                             </button>
                           </div>
                         </div>
@@ -1741,7 +1880,7 @@ export function StudioTulisStageOverlay({
                             htmlFor="para-klimaks"
                             className="block truncate text-[11px] font-bold text-[#3d250b] border-b border-[#5c3d1e]/30 pb-1"
                           >
-                            Paragraf III · Puncak Klimaks (Ketegangan &amp; Dialog Tokoh)
+                            Paragraf 3 · Puncak Masalah (Bagian Paling Menegangkan!)
                           </label>
                           <textarea
                             id="para-klimaks"
@@ -1752,7 +1891,7 @@ export function StudioTulisStageOverlay({
                                 paragraphKlimaks: e.target.value,
                               })
                             }
-                            placeholder='Tuliskan puncak ketegangan saat bahaya mencapai titik tertinggi! Sertakan dialog langsung bertanda petik ("...") dan majas asosiasi (seperti/bagaikan/laksana)...'
+                            placeholder='Ceritakan saat masalah mencapai puncaknya! Yuk tambahkan kalimat dialog ("...") dan perumpamaan (seperti/bagaikan)...'
                             className={inkStoryTextareaClass}
                           />
                         </div>
@@ -1795,7 +1934,7 @@ export function StudioTulisStageOverlay({
                     <div className="space-y-2">
                       <div className="flex min-h-[26px] items-center border-b border-[#5c3d1e]/45 pb-1">
                         <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
-                          Pemeriksa Naskah · 5 Indikator Kompetensi
+                          Pemeriksa Cerita · 5 Misi Tulisanmu
                         </span>
                       </div>
 
@@ -1810,7 +1949,7 @@ export function StudioTulisStageOverlay({
                                 className={`text-[10px] font-bold shrink-0 ${ind.passed ? "text-[#14532d]" : "text-[#7c2d12]"
                                   }`}
                               >
-                                {ind.earnedScore}/{ind.scoreWeight} ({ind.tpCode})
+                                {ind.passed ? "Beres ✓" : `${ind.earnedScore}/${ind.scoreWeight}`}
                               </span>
                             </div>
                             <p className="mt-0.5 text-[11px] leading-snug text-[#2f1d0c]">
@@ -1818,7 +1957,7 @@ export function StudioTulisStageOverlay({
                             </p>
                             {!ind.passed && (
                               <p className="mt-0.5 text-[10px] font-semibold text-[#7c2d12]">
-                                Saran: {ind.improvementHint}
+                                Tips: {ind.improvementHint}
                               </p>
                             )}
                           </div>
@@ -1832,17 +1971,17 @@ export function StudioTulisStageOverlay({
                     <div className="space-y-2">
                       <div className="flex min-h-[26px] items-center border-b border-[#5c3d1e]/45 pb-1">
                         <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
-                          Arsip Pustaka · Daftar Manuskrip ({state.savedManuscripts.length})
+                          Galeri Ceritamu ({state.savedManuscripts.length} Karya)
                         </span>
                       </div>
 
                       {state.savedManuscripts.length === 0 ? (
                         <div className="py-8 space-y-2">
                           <p className="font-serif text-sm font-bold text-[#1e1106]">
-                            Belum Ada Karya yang Tersimpan di Galeri
+                            Belum Ada Cerita yang Disimpan
                           </p>
                           <p className="text-xs text-[#3d250b] leading-relaxed">
-                            Tuliskan cerita fantasimu pada <strong>1. Buku Menulis Cerita</strong>, lalu tekan tombol <strong>Simpan Karya ke Galeri</strong> di bawah buku.
+                            Yuk tulis cerita fantasimu dulu, lalu klik tombol <strong>+ Simpan Ceritaku Sekarang</strong> di halaman kanan atau di bawah meja!
                           </p>
                         </div>
                       ) : (
@@ -1872,7 +2011,7 @@ export function StudioTulisStageOverlay({
                                     triggerTabFlip("dual_book");
                                     setCurrentSpread(1);
                                     showTempBanner(
-                                      `Manuskrip "${ms.storyTitle}" dimuat kembali ke Buku Menulis Cerita.`
+                                      `Cerita "${ms.storyTitle}" dibuka kembali di bukumu!`
                                     );
                                   }}
                                   className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-3 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer"
@@ -1936,7 +2075,7 @@ export function StudioTulisStageOverlay({
               {/* =========================================================== */}
               <div
                 style={studio2dRightPageStyle}
-                className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5"
+                className={studio2dPageClass}
               >
                 <div
                   key={`s2d-right-${activeViewTab}-${safeCurrentSpread}`}
@@ -1948,21 +2087,21 @@ export function StudioTulisStageOverlay({
                     <div className="space-y-1.5">
                       <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
                         <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
-                          Halaman 2 · 5 Indera &amp; Alur
+                          Halaman 2 · Tempat &amp; Jalan Cerita
                         </span>
                         <button
                           type="button"
                           onClick={handleGenerateDraftFromOutline}
                           className="rounded-full border border-[#14532d]/75 bg-[#14532d]/12 hover:bg-[#14532d]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#14532d] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                         >
-                          Rakit Draf Awal -&gt;
+                          Bantu Susun ke Halaman Cerita -&gt;
                         </button>
                       </div>
 
                       {/* Langkah 3: Latar Tempat & Peta Lima Indera (Tanpa Kotak Background) */}
                       <div className="space-y-1">
                         <p className="font-brand text-[10px] font-bold uppercase tracking-[0.08em] text-[#3d250b] truncate">
-                          LANGKAH 3 · LATAR TEMPAT &amp; PANCAINDRA
+                          DI MANA CERITAMU TERJADI? (PANCA INDERA)
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5">
                           <div className="min-w-0">
@@ -1970,7 +2109,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="studio-setting-place"
                               className="block truncate text-[10px] font-bold text-[#3d250b]"
                             >
-                              Nama Latar Tempat:
+                              Nama Tempat Kejadian:
                             </label>
                             <textarea
                               id="studio-setting-place"
@@ -1979,7 +2118,7 @@ export function StudioTulisStageOverlay({
                               onChange={(e) =>
                                 updateStudioDraft({ settingPlace: e.target.value })
                               }
-                              placeholder="Contoh: Loteng Perpustakaan Tua di menara sekolah"
+                              placeholder="Contoh: Loteng Perpustakaan Tua di sekolah"
                               className={inkTextareaClass}
                             />
                           </div>
@@ -1988,7 +2127,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="studio-sensory-sight"
                               className="block truncate text-[10px] font-bold text-[#3d250b]"
                             >
-                              1. Penglihatan (Cahaya):
+                              1. Apa yang Terlihat? (Cahaya/Warna):
                             </label>
                             <textarea
                               id="studio-sensory-sight"
@@ -1997,7 +2136,7 @@ export function StudioTulisStageOverlay({
                               onChange={(e) =>
                                 updateStudioDraft({ sensorySight: e.target.value })
                               }
-                              placeholder="Cahaya keemasan berpendar dari roda gigi perunggu di sela debu."
+                              placeholder="Contoh: Cahaya keemasan berpendar dari jam tua di sela debu."
                               className={inkTextareaClass}
                             />
                           </div>
@@ -2006,7 +2145,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="studio-sensory-sound"
                               className="block truncate text-[10px] font-bold text-[#3d250b]"
                             >
-                              2. Pendengaran (Bunyi):
+                              2. Apa yang Terdengar? (Suara):
                             </label>
                             <textarea
                               id="studio-sensory-sound"
@@ -2015,7 +2154,7 @@ export function StudioTulisStageOverlay({
                               onChange={(e) =>
                                 updateStudioDraft({ sensorySound: e.target.value })
                               }
-                              placeholder="Detak jarum jam menggema berat disusul derit papan kayu tua."
+                              placeholder="Contoh: Detak jarum jam menggema disusul derit papan kayu."
                               className={inkTextareaClass}
                             />
                           </div>
@@ -2024,7 +2163,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="studio-sensory-smell"
                               className="block truncate text-[10px] font-bold text-[#3d250b]"
                             >
-                              3. Penciuman &amp; Peraba:
+                              3. Apa yang Terasa? (Aroma/Suhu):
                             </label>
                             <textarea
                               id="studio-sensory-smell"
@@ -2035,7 +2174,7 @@ export function StudioTulisStageOverlay({
                                   sensorySmellTouch: e.target.value,
                                 })
                               }
-                              placeholder="Aroma kertas kuno lembap berpadu dengan hawa dingin menusuk."
+                              placeholder="Contoh: Bau kertas tua yang lembap dan udara dingin."
                               className={inkTextareaClass}
                             />
                           </div>
@@ -2045,7 +2184,7 @@ export function StudioTulisStageOverlay({
                       {/* Langkah 4: Kerangka Alur 3 Babak (Tanpa Kotak Background) */}
                       <div className="space-y-1 pt-0.5">
                         <p className="font-brand text-[10px] font-bold uppercase tracking-[0.08em] text-[#3d250b] border-b border-[#5c3d1e]/35 pb-0.5 truncate">
-                          LANGKAH 4 · KERANGKA ALUR (AWAL -&gt; AKHIR)
+                          RENCANA JALAN CERITAMU (AWAL -&gt; MASALAH -&gt; AKHIR)
                         </p>
                         <div className="space-y-1">
                           <div>
@@ -2053,7 +2192,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="outline-orientasi"
                               className="block truncate text-[10px] font-bold text-[#3d250b]"
                             >
-                              1. Kerangka Awal (Orientasi):
+                              1. Rencana Awal Cerita:
                             </label>
                             <textarea
                               id="outline-orientasi"
@@ -2062,7 +2201,7 @@ export function StudioTulisStageOverlay({
                               onChange={(e) =>
                                 updateStudioDraft({ outlineOrientasi: e.target.value })
                               }
-                              placeholder="Bagaimana tokoh utama menemukan keajaiban di latar tempat?"
+                              placeholder="Bagaimana tokohmu pertama kali menemukan benda/kejadian ajaib?"
                               className={inkTextareaClass}
                             />
                           </div>
@@ -2071,7 +2210,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="outline-klimaks"
                               className="block truncate text-[10px] font-bold text-[#3d250b]"
                             >
-                              2. Kerangka Tengah (Komplikasi &amp; Klimaks):
+                              2. Rencana Masalah &amp; Puncaknya:
                             </label>
                             <textarea
                               id="outline-klimaks"
@@ -2082,7 +2221,7 @@ export function StudioTulisStageOverlay({
                                   outlineKomplikasiKlimaks: e.target.value,
                                 })
                               }
-                              placeholder="Bagaimana masalah muncul lalu memuncak hingga menuntut konsekuensi?"
+                              placeholder="Masalah seru apa yang muncul sampai membuat tokohmu terdesak?"
                               className={inkTextareaClass}
                             />
                           </div>
@@ -2091,7 +2230,7 @@ export function StudioTulisStageOverlay({
                               htmlFor="outline-resolusi"
                               className="block truncate text-[10px] font-bold text-[#3d250b]"
                             >
-                              3. Kerangka Akhir (Resolusi):
+                              3. Rencana Akhir Cerita:
                             </label>
                             <textarea
                               id="outline-resolusi"
@@ -2100,7 +2239,7 @@ export function StudioTulisStageOverlay({
                               onChange={(e) =>
                                 updateStudioDraft({ outlineResolusi: e.target.value })
                               }
-                              placeholder="Bagaimana tokoh menyelesaikan masalah secara logis dan memetik pelajaran?"
+                              placeholder="Bagaimana tokohmu menyelesaikan masalah dan mendapat pelajaran baik?"
                               className={inkTextareaClass}
                             />
                           </div>
@@ -2115,7 +2254,7 @@ export function StudioTulisStageOverlay({
                       <div className="space-y-1.5 flex-1 min-h-0 flex flex-col">
                         <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
                           <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
-                            Halaman 4 · Komplikasi (TP 3 &amp; TP 4)
+                            Halaman 4 · Bagian 2: Muncul Masalah
                           </span>
                           <span
                             className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.komplikasiWords >= 10
@@ -2128,23 +2267,23 @@ export function StudioTulisStageOverlay({
                         </div>
 
                         {/* Quick-Insert Time Conjunction + KBBI Reference Linker */}
-                        <div className="flex min-h-[26px] items-center justify-between gap-1.5 border-b border-[#5c3d1e]/30 pb-1">
+                        <div className="flex min-h-[26px] flex-wrap items-center justify-between gap-1.5 border-b border-[#5c3d1e]/30 pb-1">
                           <button
                             type="button"
                             onClick={handleInsertTimeConjunctionSnippet}
                             className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                           >
-                            + Konflik (&ldquo;Tiba-tiba...&rdquo;)
+                            + Tambah &ldquo;Tiba-tiba...&rdquo;
                           </button>
 
                           <div className="flex items-center gap-1 min-w-0">
                             <input
-                              aria-label="Kata untuk dicek di KBBI VI Daring"
+                              aria-label="Kata untuk dicek di Kamus Bahasa Indonesia"
                               type="text"
                               value={kbbiLookupQuery}
                               onChange={(e) => setKbbiLookupQuery(e.target.value)}
-                              placeholder="Cek kata baku..."
-                              className="parchment-pen-input w-24 sm:w-28 px-1 py-0.5 text-[10px] font-semibold text-[#241407]/95 placeholder:text-[#5c3d1e]/75"
+                              placeholder="Cari arti kata..."
+                              className="parchment-pen-input w-24 sm:w-28 px-1 py-0.5 text-base md:text-[10px] font-semibold text-[#241407]/95 placeholder:text-[#5c3d1e]/75"
                             />
                             <a
                               href={buildKbbiReferenceUrl(kbbiLookupQuery || "imajinasi")}
@@ -2152,7 +2291,7 @@ export function StudioTulisStageOverlay({
                               rel="noopener noreferrer"
                               className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] no-underline transition-colors shrink-0 whitespace-nowrap"
                             >
-                              KBBI VI -&gt;
+                              Cek Kamus -&gt;
                             </a>
                           </div>
                         </div>
@@ -2162,7 +2301,7 @@ export function StudioTulisStageOverlay({
                             htmlFor="para-komplikasi"
                             className="block truncate text-[11px] font-bold text-[#3d250b] border-b border-[#5c3d1e]/30 pb-1"
                           >
-                            Paragraf II · Komplikasi (Masalah, Rintangan &amp; Tokoh Lawan)
+                            Paragraf 2 · Munculnya Masalah (Tokoh Lawan / Rintangan)
                           </label>
                           <textarea
                             id="para-komplikasi"
@@ -2173,7 +2312,7 @@ export function StudioTulisStageOverlay({
                                 paragraphKomplikasi: e.target.value,
                               })
                             }
-                            placeholder="Ceritakan bagaimana masalah mulai muncul secara bertahap (misalnya kehadiran tokoh lawan, godaan menggunakan kekuatan ajaib, atau gangguan alam) sebelum mencapai puncak klimaks di Lembar 3..."
+                            placeholder="Ceritakan saat masalah mulai muncul: misalnya tokoh lawan datang mengganggu atau keajaibannya mulai menimbulkan bahaya..."
                             className={inkStoryTextareaClass}
                           />
                         </div>
@@ -2187,7 +2326,7 @@ export function StudioTulisStageOverlay({
                       <div className="space-y-1.5 flex-1 min-h-0 flex flex-col">
                         <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
                           <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
-                            Halaman 6 · Resolusi &amp; Amanat (TP 5)
+                            Halaman 6 · Bagian 4: Akhir &amp; Pesan
                           </span>
                           <span
                             className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.resolusiWords >= 12
@@ -2200,19 +2339,19 @@ export function StudioTulisStageOverlay({
                         </div>
 
                         <div className="flex-1 min-h-0 flex flex-col">
-                          <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/30 pb-1">
+                          <div className="flex min-h-[26px] flex-wrap items-center justify-between gap-2 border-b border-[#5c3d1e]/30 pb-1">
                             <label
                               htmlFor="para-resolusi"
                               className="block truncate text-[11px] font-bold text-[#3d250b]"
                             >
-                              Paragraf IV · Resolusi / Penyelesaian
+                              Paragraf 4 · Akhir Cerita (Masalah Selesai)
                             </label>
                             <button
                               type="button"
                               onClick={handleInsertIndirectSnippet}
                               className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                             >
-                              + Kalimat Tak Langsung
+                              + Contoh Kalimat Akhir
                             </button>
                           </div>
                           <textarea
@@ -2224,7 +2363,7 @@ export function StudioTulisStageOverlay({
                                 paragraphResolusi: e.target.value,
                               })
                             }
-                            placeholder="Tuliskan bagaimana tokoh menyelesaikan konflik sesuai aturan dunia fantasi dan mengalami perubahan sikap..."
+                            placeholder="Ceritakan bagaimana tokohmu berhasil menyelesaikan masalah dengan cerdik dan sesuai aturan keajaibannya..."
                             className={inkStoryTextareaClass}
                           />
                         </div>
@@ -2234,7 +2373,7 @@ export function StudioTulisStageOverlay({
                             htmlFor="studio-amanat"
                             className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
                           >
-                            Langkah 6 · Amanat / Pesan Moral Cerita:
+                            Pesan Kebaikan (Amanat) Ceritamu:
                           </label>
                           <textarea
                             id="studio-amanat"
@@ -2243,7 +2382,7 @@ export function StudioTulisStageOverlay({
                             onChange={(e) =>
                               updateStudioDraft({ amanat: e.target.value })
                             }
-                            placeholder="Pesan kebaikan apa yang ingin kamu sampaikan kepada pembaca lewat cerita ini?"
+                            placeholder="Pelajaran baik apa yang bisa diambil teman-teman dari ceritamu?"
                             className={inkTextareaClass}
                           />
                         </div>
@@ -2252,7 +2391,7 @@ export function StudioTulisStageOverlay({
                         <div className="border-t border-[#5c3d1e]/35 pt-1.5 shrink-0 space-y-1">
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-brand text-[10px] font-bold uppercase tracking-wider text-[#3d250b] truncate">
-                              Detektor Sastra: {analysis.passedIndicatorsCount}/5 Terpenuhi
+                              Misi Tulisanmu: {analysis.passedIndicatorsCount}/5 Beres
                             </span>
                             {analysis.eydAndLexiconIssues.length > 0 ? (
                               <button
@@ -2260,7 +2399,7 @@ export function StudioTulisStageOverlay({
                                 onClick={handleApplyAllEydFixes}
                                 className="rounded-full border border-[#7f1d1d]/75 bg-[#7f1d1d]/12 hover:bg-[#7f1d1d]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#7f1d1d] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                               >
-                                Perbaiki {analysis.eydAndLexiconIssues.length} Ejaan Otomatis
+                                Rapikan {analysis.eydAndLexiconIssues.length} Ejaan Otomatis
                               </button>
                             ) : (
                               <button
@@ -2268,7 +2407,7 @@ export function StudioTulisStageOverlay({
                                 onClick={() => triggerTabFlip("audit_revisi")}
                                 className="text-[10px] font-bold text-[#14532d] underline cursor-pointer shrink-0 whitespace-nowrap"
                               >
-                                Lihat Rincian Pemeriksa -&gt;
+                                Cek Skor &amp; Ejaan Ceritaku -&gt;
                               </button>
                             )}
                           </div>
@@ -2308,7 +2447,7 @@ export function StudioTulisStageOverlay({
                     <div className="space-y-2.5">
                       <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
                         <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
-                          Audit Ejaan EYD V &amp; Periksa Revisi (TP 5)
+                          Cek Ejaan &amp; 5 Ceklis Sebelum Kumpul
                         </span>
                         {analysis.eydAndLexiconIssues.length > 0 && (
                           <button
@@ -2316,14 +2455,14 @@ export function StudioTulisStageOverlay({
                             onClick={handleApplyAllEydFixes}
                             className="rounded-full border border-[#7f1d1d]/75 bg-[#7f1d1d]/12 hover:bg-[#7f1d1d]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#7f1d1d] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                           >
-                            Perbaiki Semua Ejaan
+                            Rapikan Semua Ejaan
                           </button>
                         )}
                       </div>
 
                       {analysis.eydAndLexiconIssues.length === 0 ? (
                         <p className="text-[11px] font-semibold text-[#14532d]">
-                          Seluruh penulisan kata depan penunjuk tempat, tanda baca petik dialog, dan kata baku telah sesuai kaidah EYD Edisi V.
+                          Mantap! Penulisan kata depan tempat (&ldquo;di&rdquo;), tanda petik dialog, dan kata baku di ceritamu sudah rapi semua!
                         </p>
                       ) : (
                         <div className="space-y-1.5 border-b border-[#5c3d1e]/30 pb-2">
@@ -2331,7 +2470,7 @@ export function StudioTulisStageOverlay({
                             <div key={issue.id} className="text-[11px]">
                               <div className="flex flex-wrap items-center justify-between gap-1">
                                 <span className="font-bold text-[#7f1d1d]">
-                                  Tertulis: &ldquo;{issue.foundText}&rdquo; -&gt; Baku:{" "}
+                                  Tertulis: &ldquo;{issue.foundText}&rdquo; -&gt; Seharusnya:{" "}
                                   <span className="text-[#14532d]">
                                     &ldquo;{issue.suggestion}&rdquo;
                                   </span>
@@ -2354,7 +2493,7 @@ export function StudioTulisStageOverlay({
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
                           <span className="font-brand text-[10px] font-bold uppercase tracking-wider text-[#3d250b]">
-                            Daftar Periksa Revisi Mandiri ({analysis.revisionCheckedCount}/{analysis.totalRevisionChecklistCount})
+                            Centang 5 Ceklis Ini Kalau Sudah Sesuai ({analysis.revisionCheckedCount}/{analysis.totalRevisionChecklistCount})
                           </span>
                         </div>
 
@@ -2415,13 +2554,13 @@ export function StudioTulisStageOverlay({
                     <div className="space-y-3">
                       <div className="flex min-h-[26px] items-center border-b border-[#5c3d1e]/45 pb-1">
                         <span className="font-brand text-[10px] font-bold uppercase tracking-[0.12em] text-[#3d250b] truncate">
-                          Ringkasan Piagam &amp; Rapor Naskah
+                          Piagam Penulis Muda &amp; Rapor Ceritamu
                         </span>
                       </div>
 
                       <div className="space-y-1.5 text-xs text-[#1e1106]">
                         <p>
-                          <strong>Judul Naskah Aktif:</strong>{" "}
+                          <strong>Judul Ceritamu:</strong>{" "}
                           {draft.storyTitle.trim() || "(Belum diberi judul)"}
                         </p>
                         <p>
@@ -2432,19 +2571,19 @@ export function StudioTulisStageOverlay({
                           <strong>Tema Fantasi:</strong> {draft.themeCategory}
                         </p>
                         <p>
-                          <strong>Total Kata Manuskrip:</strong> {analysis.totalWords} kata
+                          <strong>Panjang Cerita:</strong> {analysis.totalWords} kata
                         </p>
                         <p>
-                          <strong>Skor Analisis Naskah:</strong> {analysis.studioScore}% ({analysis.passedIndicatorsCount}/5 Indikator)
+                          <strong>Skor Cerita:</strong> {analysis.studioScore}% ({analysis.passedIndicatorsCount}/5 Misi Beres)
                         </p>
                         <p>
-                          <strong>Skor Holistik Aksaraloka:</strong> {metrics.holisticTotalPercentage}% ({metrics.kelayakanCategory})
+                          <strong>Total Skor Petualanganmu:</strong> {metrics.holisticTotalPercentage}% ({metrics.kelayakanCategory})
                         </p>
                       </div>
 
                       <div className="border-t border-[#5c3d1e]/35 pt-2.5 space-y-2">
                         <p className="text-[11px] leading-relaxed text-[#2f1d0c]">
-                          Simpan naskahmu ke Galeri Pustaka atau cetak <strong>Piagam Penjaga Aksara &amp; Manuskrip Cerita Fantasi</strong> resmi dalam format siap cetak/PDF.
+                          Simpan ceritamu ke Galeri atau cetak <strong>Piagam Penulis Muda &amp; Cerita Fantasimu</strong> dalam format siap cetak/PDF!
                         </p>
                         <div className="flex flex-wrap items-center gap-2">
                           <button
@@ -2452,14 +2591,14 @@ export function StudioTulisStageOverlay({
                             onClick={handleSaveManuscript}
                             className="rounded-full border border-[#14532d]/75 bg-[#14532d]/12 hover:bg-[#14532d]/22 px-3.5 py-1 text-xs font-bold text-[#14532d] transition-colors cursor-pointer"
                           >
-                            + Simpan Naskah Saat Ini
+                            + Simpan Ceritaku Sekarang
                           </button>
                           <button
                             type="button"
                             onClick={handlePrintManuscriptAndCharter}
                             className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-3.5 py-1 text-xs font-bold text-[#3d250b] transition-colors cursor-pointer"
                           >
-                            Cetak Piagam &amp; Manuskrip -&gt;
+                            Cetak Piagam &amp; Ceritaku -&gt;
                           </button>
                         </div>
                       </div>
@@ -2520,11 +2659,10 @@ export function StudioTulisStageOverlay({
               </div>
             </div>
 
-            {/* Layer 4: Spine Gutter Shadow & Outer Paper Edge Vignette Overlay */}
-            <ParchmentSpineShadowOverlay />
+            {/* Layer 4 & 5: Desktop Book Spine Shadow & 3D Hinge Page-Flipper */}
+            {!isMobileBook && <ParchmentSpineShadowOverlay />}
 
-            {/* 3D HINGE PAGE-FLIPPER OVERLAY (Terkunci 1:1 ke koordinat kertas 946:603) */}
-            {flipDirection !== null && (
+            {!isMobileBook && flipDirection !== null && (
               <div
                 style={{
                   left: flipDirection === "next" ? "49.05%" : "6.55%",
@@ -2552,6 +2690,40 @@ export function StudioTulisStageOverlay({
             )}
           </div>
         </div>
+
+          {/* Mobile Thumb-Zone Page Switcher Bar (Halaman Kiri <-> Halaman Kanan) */}
+          {isMobileBook && !isCalibrating && (
+            <div className="relative z-30 grid w-full max-w-[480px] shrink-0 grid-cols-2 gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  playPageFlip();
+                  setMobilePageSide("left");
+                }}
+                className={`min-h-[44px] rounded-full border px-3 py-2 text-xs font-bold shadow-[0_8px_22px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all cursor-pointer truncate ${
+                  mobilePageSide === "left"
+                    ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
+                    : "border-[#d6b26f]/55 bg-slate-950/92 text-amber-100"
+                }`}
+              >
+                {mobileSideLabels[0]}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playPageFlip();
+                  setMobilePageSide("right");
+                }}
+                className={`min-h-[44px] rounded-full border px-3 py-2 text-xs font-bold shadow-[0_8px_22px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all cursor-pointer truncate ${
+                  mobilePageSide === "right"
+                    ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
+                    : "border-emerald-400/60 bg-emerald-950/92 text-emerald-100"
+                }`}
+              >
+                {mobileSideLabels[1]}
+              </button>
+            </div>
+          )}
 
           {isCalibrating && (
             <BookHomographyCalibrator

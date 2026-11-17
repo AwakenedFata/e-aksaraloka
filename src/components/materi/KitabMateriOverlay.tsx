@@ -6,10 +6,12 @@ import {
   ParchmentSpineShadowOverlay,
 } from "@/components/shared/ParchmentInkFilters";
 import { BookHomographyCalibrator } from "@/components/shared/BookHomographyCalibrator";
+import { ParchmentSelect } from "@/components/shared/ui/ParchmentSelect";
 import {
   buildPageDisplacementSpec,
-  computeCoverStageMetrics,
+  computeEffectiveCoverStageMetrics,
   computeHomographyMatrix3d,
+  computeMobile3dCameraTransform,
   READING_2D_DEFAULT_CALIBRATION,
   READING_BOOK_DEFAULT_CALIBRATION,
   STAGE_SOURCE_HEIGHT,
@@ -63,6 +65,8 @@ export interface KitabMateriOverlayProps {
     direction: "next" | "prev",
     onMidpointChange: () => void
   ) => void;
+  readonly mobile3dSide?: "left" | "right";
+  readonly onChangeMobile3dSide?: (side: "left" | "right") => void;
   readonly onNavigateToStudioTulis: () => void;
   readonly onOpenPetaModal: () => void;
 }
@@ -80,28 +84,28 @@ interface ChapterOrderItem {
 const CHAPTER_ORDER: readonly ChapterOrderItem[] = [
   {
     id: "alur",
-    shortLabel: "Babak I: Alur & Waktu",
-    label: "Babak I: Alur, Lintas Waktu & Amanat",
-    subtitle: "Bola-Bola Waktu, Gunung Alur Interaktif & Refleksi Amanat",
-    tpTag: "TP 1 & TP 2 — Unsur Intrinsik & Struktur Alur",
+    shortLabel: "Misi 1: Alur Cerita",
+    label: "Misi 1: Jalan Cerita & Pesan Kebaikan",
+    subtitle: "Kisah Bola-Bola Waktu, Gunung Alur & Pesan Cerita",
+    tpTag: "Misi 1 · Urutan Kejadian & Pesan Cerita",
     leftPageNo: 1,
     rightPageNo: 2,
   },
   {
     id: "watak",
-    shortLabel: "Babak II: Watak & Indera",
-    label: "Babak II: Penokohan, Konflik & 5 Indera",
-    subtitle: "Bukti Watak Mao & Yari, Eskalasi 4 Kantong Emas & Citraan",
-    tpTag: "TP 1 & TP 3 — Penokohan & Deskripsi Latar",
+    shortLabel: "Misi 2: Tokoh & Indera",
+    label: "Misi 2: Sifat Tokoh, 4 Kantong Ajaib & Panca Indera",
+    subtitle: "Bukti Sifat Mao & Yari, 4 Kantong Emas & Kalimat Panca Indera",
+    tpTag: "Misi 2 · Sifat Tokoh & Suasana Tempat",
     leftPageNo: 3,
     rightPageNo: 4,
   },
   {
     id: "bahasa",
-    shortLabel: "Babak III: Bahasa & Dialog",
-    label: "Babak III: Leksikon Magis, Majas & Dialog",
-    subtitle: "Bank Kata Fantasi, Majas Asosiasi & Kalimat Langsung/Tak Langsung",
-    tpTag: "TP 4 — Kaidah Kebahasaan Cerita Fantasi",
+    shortLabel: "Misi 3: Gaya Bahasa",
+    label: "Misi 3: Kamus Kata, Perumpamaan & Dialog",
+    subtitle: "Kamus Kata Fantasi, Perumpamaan & Kalimat Dialog",
+    tpTag: "Misi 3 · Perumpamaan & Kalimat Dialog",
     leftPageNo: 5,
     rightPageNo: 6,
   },
@@ -110,30 +114,30 @@ const CHAPTER_ORDER: readonly ChapterOrderItem[] = [
 const TIME_ORB_DATA = [
   {
     id: "masa-kini-awal",
-    eraLabel: "1. Masa Kini (04.00 Pagi)",
+    eraLabel: "1. Pagi Hari (04.00)",
     location: "Rumah Ivan & Kantin Sekolah",
     summary:
-      "Setiap pukul empat pagi Ivan membantu ibunya membuat kue basah untuk dititipkan di kantin sekolah. Namun, Ivan merasa malu karena Fiam sering mengejeknya sebagai 'tukang kue'.",
+      "Setiap jam empat pagi Ivan membantu ibunya membuat kue basah untuk dijual di kantin sekolah. Tapi Ivan merasa malu karena Fiam sering mengejeknya 'tukang kue'.",
     evidenceFocus:
-      "Orientasi & Pemantik Masalah: Memperkenalkan tokoh utama (Ivan), latar keseharian, dan konflik batin akibat rasa gengsi.",
+      "Awal Cerita & Muncul Masalah: Mengenalkan Ivan dan rasa malunya karena diejek teman.",
   },
   {
     id: "lintas-tahun-2022",
-    eraLabel: "2. Lompatan Waktu (Tahun 2022)",
-    location: "Lorong Bola Waktu -> Tahun 2022",
+    eraLabel: "2. Lompat ke Tahun 2022",
+    location: "Lorong Bola Waktu -> Masa Depan",
     summary:
-      "Pria berkerudung hitam memberikan bola-bola waktu bercahaya. Ivan memilih bola merah untuk melompat ke tahun 2022 demi menjadi atlet basket populer tanpa harus berjualan kue.",
+      "Pria berjubah hitam memberi Ivan bola-bola waktu bercahaya. Ivan memilih bola merah supaya bisa langsung pindah ke tahun 2022 dan tidak perlu jualan kue lagi.",
     evidenceFocus:
-      "Komplikasi & Klimaks: Anomali lintas waktu membawa konsekuensi berat — di tahun 2022, Ayah Ivan telah wafat karena kelelahan bekerja seorang diri.",
+      "Masalah Membesar & Puncak (Klimaks): Di tahun 2022 Ivan memang jadi bintang basket, tapi ia kaget dan sedih karena Ayahnya sudah wafat akibat kelelahan bekerja sendirian.",
   },
   {
     id: "kembali-masa-kini",
     eraLabel: "3. Kembali ke Masa Kini",
     location: "Kamar Ivan & Pelukan Orang Tua",
     summary:
-      "Ivan menangis menyesal di makam ayahnya hingga terbangun kembali di masa kini. Ia memeluk kedua orang tuanya dengan penuh syukur dan bangga membantu ibunya sambil berlatih basket.",
+      "Ivan menangis menyesal lalu terbangun kembali di kamarnya. Ia langsung memeluk Ayah dan Ibunya, lalu berjanji tidak akan malu lagi membantu ibunya sambil tetap berlatih basket.",
     evidenceFocus:
-      "Resolusi & Amanat: Perubahan watak tokoh secara logis setelah melewati puncak konflik batin.",
+      "Akhir Cerita & Pesan Kebaikan: Sifat Ivan berubah menjadi anak yang bersyukur dan sayang keluarga.",
   },
 ] as const;
 
@@ -152,24 +156,24 @@ const PLOT_MOUNTAIN_COORDS: readonly {
 const FIVE_SENSES_GUIDE = [
   {
     id: "sense-visual",
-    sense: "1. Citraan Penglihatan (Visual)",
-    sceneContext: "Bola-Bola Waktu (hlm. 52–58)",
+    sense: "1. Indera Penglihatan (Mata)",
+    sceneContext: "Kisah Bola-Bola Waktu",
     weakExample: "Ivan melihat bola waktu yang bagus di tangan pria itu.",
     vividExample:
       "Bola kristal merah delima itu berpendar menembus kabut keperakan di sela jari pria berjubah hitam.",
   },
   {
     id: "sense-auditori",
-    sense: "2. Citraan Pendengaran (Auditori)",
-    sceneContext: "Keberanian Emas (hlm. 64–67)",
+    sense: "2. Indera Pendengaran (Telinga)",
+    sceneContext: "Kisah Keberanian Emas",
     weakExample: "Suara langkah Raksasa terdengar sangat keras.",
     vividExample:
       "Dentuman langkah kaki Raksasa menggetarkan tanah hutan, disusul geraman berat yang merontokkan daun kering.",
   },
   {
     id: "sense-penciuman",
-    sense: "3. Citraan Penciuman & Peraba (Olfaktori/Taktil)",
-    sceneContext: "Sihir Unik Mao (hlm. 59–62)",
+    sense: "3. Indera Penciuman & Peraba (Hidung & Kulit)",
+    sceneContext: "Kisah Sihir Unik Mao",
     weakExample: "Mao menyihir kue cokelat dan stroberi yang enak.",
     vividExample:
       "Harum manis stroberi segar dan lelehan cokelat hangat seketika mengusir hawa dingin ruang kelas peri.",
@@ -182,6 +186,8 @@ export function KitabMateriOverlay({
   isBookFocused,
   onSetBookFocused,
   onTriggerPageFlip,
+  mobile3dSide = "left",
+  onChangeMobile3dSide,
   onNavigateToStudioTulis,
   onOpenPetaModal,
 }: KitabMateriOverlayProps) {
@@ -189,6 +195,24 @@ export function KitabMateriOverlay({
   const activeChapter = state.activeGrimoireChapter;
 
   const [isIntroViewOpen, setIsIntroViewOpen] = useState<boolean>(false);
+  const [isMobileBook, setIsMobileBook] = useState<boolean>(false);
+  const [mobilePageSide, setMobilePageSide] = useState<"left" | "right">("left");
+  const [internal3dSide, setInternal3dSide] = useState<"left" | "right">("left");
+  const active3dSide = onChangeMobile3dSide ? mobile3dSide : internal3dSide;
+  const setActive3dSide = useCallback(
+    (side: "left" | "right") => {
+      if (onChangeMobile3dSide) {
+        onChangeMobile3dSide(side);
+      } else {
+        setInternal3dSide(side);
+      }
+    },
+    [onChangeMobile3dSide]
+  );
+  const touchStartRef = useRef<{ readonly x: number; readonly y: number } | null>(
+    null
+  );
+  const didSwipeRef = useRef<boolean>(false);
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(
     null
   );
@@ -213,12 +237,12 @@ export function KitabMateriOverlay({
     tone: "emerald" | "amber" | "rose";
     text: string;
   } | null>(null);
-  const [stageMetrics, setStageMetrics] = useState<CoverStageMetrics>({
+  const [viewportSize, setViewportSize] = useState<{
+    readonly width: number;
+    readonly height: number;
+  }>({
     width: STAGE_SOURCE_WIDTH,
     height: STAGE_SOURCE_HEIGHT,
-    offsetX: 0,
-    offsetY: 0,
-    scale: 1,
   });
   const [bookCalibration, setBookCalibration] = useState<BookSpreadCalibration>(
     READING_BOOK_DEFAULT_CALIBRATION
@@ -246,8 +270,11 @@ export function KitabMateriOverlay({
 
   useEffect(() => {
     const syncCoverStage = () => {
-      setStageMetrics(
-        computeCoverStageMetrics(window.innerWidth, window.innerHeight)
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setIsMobileBook(w < 768);
+      setViewportSize((prev) =>
+        prev.width === w && prev.height === h ? prev : { width: w, height: h }
       );
     };
     const rafId = window.requestAnimationFrame(syncCoverStage);
@@ -257,6 +284,32 @@ export function KitabMateriOverlay({
       window.removeEventListener("resize", syncCoverStage);
     };
   }, []);
+
+  const mobileCamera = useMemo(
+    () =>
+      !isBookFocused && !isCalibrating
+        ? computeMobile3dCameraTransform(
+            viewportSize.width,
+            viewportSize.height,
+            active3dSide === "left" ? "kitab-left" : "kitab-right"
+          )
+        : computeMobile3dCameraTransform(
+            viewportSize.width,
+            viewportSize.height,
+            "none"
+          ),
+    [active3dSide, isBookFocused, isCalibrating, viewportSize.height, viewportSize.width]
+  );
+
+  const stageMetrics: CoverStageMetrics = useMemo(
+    () =>
+      computeEffectiveCoverStageMetrics(
+        viewportSize.width,
+        viewportSize.height,
+        mobileCamera
+      ),
+    [mobileCamera, viewportSize.height, viewportSize.width]
+  );
 
   useEffect(() => {
     if (!isVisible || !isBookFocused) return;
@@ -384,15 +437,23 @@ export function KitabMateriOverlay({
           : "prev";
 
       if (isBookFocused) {
-        trigger2DHingeFlip(direction, () => {
+        if (isMobileBook) {
           setIsIntroViewOpen(false);
           setActiveGrimoireChapter(targetChapter);
-        });
+          setMobilePageSide("left");
+        } else {
+          trigger2DHingeFlip(direction, () => {
+            setIsIntroViewOpen(false);
+            setActiveGrimoireChapter(targetChapter);
+          });
+        }
       } else {
         playPageFlip();
         onTriggerPageFlip(direction, () => {
           setIsIntroViewOpen(false);
           setActiveGrimoireChapter(targetChapter);
+          setMobilePageSide("left");
+          setActive3dSide("left");
         });
       }
     },
@@ -401,9 +462,11 @@ export function KitabMateriOverlay({
       activeChapterIndex,
       flipDirection,
       isBookFocused,
+      isMobileBook,
       isPageFlipping,
       isShowingIntroSpread,
       onTriggerPageFlip,
+      setActive3dSide,
       trigger2DHingeFlip,
     ]
   );
@@ -412,17 +475,24 @@ export function KitabMateriOverlay({
     if (isShowingIntroSpread || flipDirection !== null) return;
     stopSpeechNarration();
     if (isBookFocused) {
-      trigger2DHingeFlip("prev", () => {
+      if (isMobileBook) {
         setIsIntroViewOpen(true);
-      });
+        setMobilePageSide("left");
+      } else {
+        trigger2DHingeFlip("prev", () => {
+          setIsIntroViewOpen(true);
+        });
+      }
     } else {
       setIsIntroViewOpen(true);
+      setMobilePageSide("left");
       onSetBookFocused(true);
       playPageFlip();
     }
   }, [
     flipDirection,
     isBookFocused,
+    isMobileBook,
     isShowingIntroSpread,
     onSetBookFocused,
     trigger2DHingeFlip,
@@ -431,26 +501,38 @@ export function KitabMateriOverlay({
   const handleOpenGrimoireScroll = useCallback(() => {
     stopSpeechNarration();
     if (isBookFocused) {
-      trigger2DHingeFlip("next", () => {
+      if (isMobileBook) {
         markGrimoireIntroOpened();
         setIsIntroViewOpen(false);
         setActiveGrimoireChapter("alur");
+        setMobilePageSide("left");
         showToast(
           "emerald",
-          "Gulungan Kitab Aksaraloka terbuka. Selesaikan tantangan di setiap babak untuk membuka 3 Segel Naratif."
+          "Kitab terbuka! Selesaikan setiap tantangan untuk membuka 3 Segel Rahasia."
         );
-      });
+      } else {
+        trigger2DHingeFlip("next", () => {
+          markGrimoireIntroOpened();
+          setIsIntroViewOpen(false);
+          setActiveGrimoireChapter("alur");
+          showToast(
+            "emerald",
+            "Kitab terbuka! Selesaikan setiap tantangan untuk membuka 3 Segel Rahasia."
+          );
+        });
+      }
     } else {
       markGrimoireIntroOpened();
       setIsIntroViewOpen(false);
       setActiveGrimoireChapter("alur");
+      setMobilePageSide("left");
       playPageFlip();
       showToast(
         "emerald",
-        "Gulungan Kitab Aksaraloka terbuka. Selesaikan tantangan di setiap babak untuk membuka 3 Segel Naratif."
+        "Kitab terbuka! Selesaikan setiap tantangan untuk membuka 3 Segel Rahasia."
       );
     }
-  }, [isBookFocused, showToast, trigger2DHingeFlip]);
+  }, [isBookFocused, isMobileBook, showToast, trigger2DHingeFlip]);
 
   // =========================================================================
   // BABAK 1 HANDLERS: BOLA WAKTU, GUNUNG ALUR & AMANAT
@@ -923,6 +1005,21 @@ export function KitabMateriOverlay({
     [book2dBaseH, book2dRightBaseW, book2dRightMatrixCss, hasBook2dRightCurve]
   );
 
+  const get2dPageStyle = (side: "left" | "right"): React.CSSProperties =>
+    isMobileBook
+      ? {
+          display: mobilePageSide === side ? "flex" : "none",
+          width: "100%",
+          height: "100%",
+        }
+      : side === "left"
+        ? book2dLeftPageStyle
+        : book2dRightPageStyle;
+
+  const page2dContainerClass = isMobileBook
+    ? "parchment-ink parchment-ink-bleed mobile-parchment-sheet pointer-events-auto relative h-full w-full min-h-0 flex-col justify-between overflow-hidden px-4 py-3.5"
+    : "parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5";
+
   if (!isVisible) return null;
 
   const scalePx = (n: number) => `${(n * stageMetrics.scale).toFixed(2)}px`;
@@ -1021,9 +1118,29 @@ export function KitabMateriOverlay({
             </defs>
           </svg>
 
-          {/* Cover-Matched Stage Container: Locked 1:1 with 1920x1080 Canvas Geometry */}
+          {/* Cover-Matched Stage Container: Locked 1:1 with 1920x1080 Canvas Geometry (Pans Smoothly on Mobile Portrait) */}
           <div
-            className="pointer-events-none fixed overflow-hidden"
+            onTouchStart={(e) => {
+              if (!mobileCamera.active || e.touches.length !== 1) return;
+              const t = e.touches[0];
+              if (!t) return;
+              touchStartRef.current = { x: t.clientX, y: t.clientY };
+              didSwipeRef.current = false;
+            }}
+            onTouchEnd={(e) => {
+              if (!mobileCamera.active || !touchStartRef.current) return;
+              const t = e.changedTouches[0];
+              if (!t) return;
+              const dx = t.clientX - touchStartRef.current.x;
+              const dy = t.clientY - touchStartRef.current.y;
+              touchStartRef.current = null;
+              if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                didSwipeRef.current = true;
+                playPageFlip();
+                setActive3dSide(dx < 0 ? "right" : "left");
+              }
+            }}
+            className="pointer-events-none fixed overflow-hidden transition-[left,top] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{
               left: `${stageMetrics.offsetX}px`,
               top: `${stageMetrics.offsetY}px`,
@@ -1035,6 +1152,10 @@ export function KitabMateriOverlay({
             <div
               onClick={() => {
                 if (isCalibrating) return;
+                if (didSwipeRef.current) {
+                  didSwipeRef.current = false;
+                  return;
+                }
                 playPageFlip();
                 onSetBookFocused(true);
               }}
@@ -1048,7 +1169,7 @@ export function KitabMateriOverlay({
                   onSetBookFocused(true);
                 }
               }}
-              aria-label="Klik halaman kiri buku untuk membuka Mode Fokus Membaca Buku 2D"
+              aria-label="Klik halaman kiri buku untuk membuka tampilan baca penuh"
               className={`parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex cursor-pointer flex-col justify-between overflow-hidden select-none focus:outline-none ${
                 isPageFlipping ? "opacity-0" : ""
               }`}
@@ -1076,7 +1197,7 @@ export function KitabMateriOverlay({
                 >
                   <span>
                     {isShowingIntroSpread
-                      ? "GULUNGAN PEMBUKA"
+                      ? "PEMBUKA KITAB"
                       : activeChapterMeta.shortLabel}
                   </span>
                   <span>
@@ -1098,16 +1219,15 @@ export function KitabMateriOverlay({
                       className="font-serif text-[#2f1a09]/92"
                       style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
                     >
-                      Cerita fantasi adalah kisah fiksi imajinatif yang
-                      menghadirkan keajaiban, lintas waktu, atau dunia paralel
-                      yang tidak mungkin terjadi di dunia nyata, namun tetap
-                      memiliki hukum sebab-akibat dan amanat.
+                      Yuk bertualang mengenal rahasia cerita fantasi! Meski penuh
+                      keajaiban dan lintas waktu, ceritanya tetap punya urutan
+                      kejadian yang masuk akal dan pesan kebaikan.
                     </p>
                     <p
                       className="font-serif font-bold text-[#3f230b]/92 italic"
                       style={{ fontSize: scalePx(14.8), paddingTop: scalePx(8), lineHeight: 1.48 }}
                     >
-                      Teks Model: &ldquo;Bola-Bola Waktu&rdquo;, &ldquo;Sihir
+                      3 Kisah Seru: &ldquo;Bola-Bola Waktu&rdquo;, &ldquo;Sihir
                       Unik Mao&rdquo; &amp; &ldquo;Keberanian Emas&rdquo;
                     </p>
                   </div>
@@ -1117,7 +1237,7 @@ export function KitabMateriOverlay({
                       className="font-serif font-bold text-[#241306]/92"
                       style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
                     >
-                      Kisah &ldquo;Bola-Bola Waktu&rdquo; (Hlm. 52–58)
+                      Kisah &ldquo;Bola-Bola Waktu&rdquo;
                     </p>
                     <p
                       className="font-serif text-[#2f1a09]/92"
@@ -1129,16 +1249,16 @@ export function KitabMateriOverlay({
                       className="font-serif font-semibold text-[#4b2e13]/92"
                       style={{ fontSize: scalePx(14.5), paddingTop: scalePx(6), lineHeight: 1.45 }}
                     >
-                      Era Aktif: {selectedOrb.eraLabel} ({selectedOrb.location})
+                      Waktu Cerita: {selectedOrb.eraLabel} ({selectedOrb.location})
                     </p>
                     <p
                       className="font-serif text-[#3f230b]/92 italic"
                       style={{ fontSize: scalePx(14.5), lineHeight: 1.45 }}
                     >
-                      Status Segel I:{" "}
+                      Misi Segel 1:{" "}
                       {state.sealAlurUnlocked
-                        ? "Terbuka (Gunung Alur & Amanat Tuntas)"
-                        : `Gunung Alur ${plotCorrectCount}/5 Tahap`}
+                        ? "Selesai! (Gunung Alur & Pesan Cerita Beres)"
+                        : `Urutan Kejadian ${plotCorrectCount}/5`}
                     </p>
                   </div>
                 ) : activeChapter === "watak" ? (
@@ -1147,21 +1267,21 @@ export function KitabMateriOverlay({
                       className="font-serif font-bold text-[#241306]/92"
                       style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
                     >
-                      Watak Mao &amp; Yari, 4 Kantong Emas &amp; 5 Indera
+                      Sifat Mao &amp; Yari, 4 Kantong Emas &amp; Panca Indera
                     </p>
                     <p
                       className="font-serif text-[#2f1a09]/92"
                       style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
                     >
                       Mao pantang menyerah di Sekolah Peri Juara, sementara Emas
-                      lolos dari kejaran Raksasa berkat eskalasi 4 kantong
-                      keajaiban (Biji Timun, Jarum, Garam, Terasi).
+                      lolos dari kejaran Raksasa berkat 4 kantong ajaibnya (Biji
+                      Timun, Jarum, Garam, Terasi).
                     </p>
                     <p
                       className="font-serif font-semibold text-[#4b2e13]/92"
                       style={{ fontSize: scalePx(14.5), paddingTop: scalePx(6), lineHeight: 1.45 }}
                     >
-                      Eskalasi Kantong Emas: {state.pouchOrderIds.length}/4 Tahap
+                      Urutan Kantong Emas: {state.pouchOrderIds.length}/4 Kantong
                     </p>
                   </div>
                 ) : (
@@ -1170,22 +1290,21 @@ export function KitabMateriOverlay({
                       className="font-serif font-bold text-[#241306]/92"
                       style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
                     >
-                      Kaidah Bahasa: Majas Asosiasi &amp; Dialog EYD V
+                      Gaya Bahasa: Perumpamaan &amp; Dialog Tokoh
                     </p>
                     <p
                       className="font-serif text-[#2f1a09]/92"
                       style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
                     >
-                      Majas Asosiasi membandingkan dua hal secara eksplisit
-                      menggunakan kata pembanding (seperti, bagaikan, laksana),
-                      sedangkan transmutasi dialog mengubah petikan langsung ke
-                      tak langsung.
+                      Gunakan kata perumpamaan (seperti, bagaikan, laksana) agar
+                      ceritamu indah, dan pelajari cara mengubah dialog tokoh
+                      menjadi kalimat cerita!
                     </p>
                     <p
                       className="font-serif font-semibold text-[#4b2e13]/92"
                       style={{ fontSize: scalePx(14.5), paddingTop: scalePx(6), lineHeight: 1.45 }}
                     >
-                      Kategori Leksikon: {selectedLexiconCategory.category}
+                      Kamus Kata: {selectedLexiconCategory.category}
                     </p>
                   </div>
                 )}
@@ -1205,6 +1324,10 @@ export function KitabMateriOverlay({
             <div
               onClick={() => {
                 if (isCalibrating) return;
+                if (didSwipeRef.current) {
+                  didSwipeRef.current = false;
+                  return;
+                }
                 playPageFlip();
                 onSetBookFocused(true);
               }}
@@ -1218,7 +1341,7 @@ export function KitabMateriOverlay({
                   onSetBookFocused(true);
                 }
               }}
-              aria-label="Klik halaman kanan buku untuk membuka Mode Fokus Membaca Buku 2D"
+              aria-label="Klik halaman kanan buku untuk membuka tampilan baca penuh"
               className={`parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex cursor-pointer flex-col justify-between overflow-hidden select-none focus:outline-none ${
                 isPageFlipping ? "opacity-0" : ""
               }`}
@@ -1244,7 +1367,7 @@ export function KitabMateriOverlay({
                   className="book-ink-step-1 flex items-center justify-between border-b border-[#5c3d1e]/40 font-bold tracking-[0.14em] text-[#4b2e13]/90 uppercase"
                   style={{ fontSize: scalePx(12.5), paddingBottom: scalePx(5) }}
                 >
-                  <span>LAB INTERAKTIF &amp; SEGEL</span>
+                  <span>MISI &amp; 3 SEGEL CERITA</span>
                   <span>
                     Hal.{" "}
                     {isShowingIntroSpread ? 2 : activeChapterMeta.rightPageNo}
@@ -1266,31 +1389,31 @@ export function KitabMateriOverlay({
                     className="font-bold text-[#241306]/95"
                     style={{ fontSize: scalePx(18.5), lineHeight: 1.3 }}
                   >
-                    Capaian Penguasaan Materi: {masteryPercentage}% (
-                    {totalSealsUnlocked}/3 Segel)
+                    Segel yang Sudah Kamu Kumpulkan: {totalSealsUnlocked}/3 (
+                    {masteryPercentage}%)
                   </p>
                   <p className="text-[#2f1a09]/92">
-                    • Segel I (Alur &amp; Amanat):{" "}
+                    • Segel 1 (Alur &amp; Pesan):{" "}
                     <span className="font-bold">
                       {state.sealAlurUnlocked
-                        ? "TERBUKA"
-                        : `${plotCorrectCount}/5 Alur · ${isAmanatDone ? "Amanat Tuntas" : "Amanat Belum"}`}
+                        ? "SELESAI ✓"
+                        : `${plotCorrectCount}/5 Alur · ${isAmanatDone ? "Pesan Beres" : "Pesan Belum"}`}
                     </span>
                   </p>
                   <p className="text-[#2f1a09]/92">
-                    • Segel II (Watak &amp; Indera):{" "}
+                    • Segel 2 (Tokoh &amp; Indera):{" "}
                     <span className="font-bold">
                       {state.sealWatakUnlocked
-                        ? "TERBUKA"
-                        : `Watak ${charDone ? "Tuntas" : "Belum"} · Kantong ${state.pouchOrderIds.length}/4`}
+                        ? "SELESAI ✓"
+                        : `Tokoh ${charDone ? "Beres" : "Belum"} · Kantong ${state.pouchOrderIds.length}/4`}
                     </span>
                   </p>
                   <p className="text-[#2f1a09]/92">
-                    • Segel III (Majas &amp; Dialog):{" "}
+                    • Segel 3 (Perumpamaan &amp; Dialog):{" "}
                     <span className="font-bold">
                       {state.sealBahasaUnlocked
-                        ? "TERBUKA"
-                        : `Majas ${majasDone ? "Tuntas" : "Belum"} · Dialog ${dialogueDone ? "Tuntas" : "Belum"}`}
+                        ? "SELESAI ✓"
+                        : `Perumpamaan ${majasDone ? "Beres" : "Belum"} · Dialog ${dialogueDone ? "Beres" : "Belum"}`}
                     </span>
                   </p>
                 </div>
@@ -1300,25 +1423,134 @@ export function KitabMateriOverlay({
                 className="book-ink-step-4 border-t border-[#5c3d1e]/30 text-right font-semibold text-[#5a3918]/85"
                 style={{ fontSize: scalePx(12.2), paddingTop: scalePx(5) }}
               >
-                Klik buku untuk membaca &amp; membedah materi
+                Klik halaman buku untuk mulai bermain!
               </div>
               </div>
             </div>
           </div>
 
-          {/* Non-obstructing Call-to-Action Pill at Lower Book Center */}
+          {/* ================================================================= */}
+          {/* UNIFIED BOTTOM 3D THUMB STACK (CTA + ACTION DOCK BAR — ZERO COLLISION) */}
+          {/* ================================================================= */}
           {!isCalibrating && (
-            <div className="pointer-events-none fixed inset-x-0 bottom-16 z-30 flex justify-center sm:bottom-18">
-              <button
-                type="button"
-                onClick={() => {
-                  playPageFlip();
-                  onSetBookFocused(true);
-                }}
-                className="pointer-events-auto cursor-pointer rounded-full border border-[#f3d89b]/80 bg-slate-950/88 px-4 py-1.5 text-[11px] font-bold tracking-wider text-[#ffe8b6] shadow-[0_12px_30px_rgba(0,0,0,0.85)] backdrop-blur-md transition-transform duration-300 hover:scale-105 hover:bg-slate-900 sm:px-5 sm:py-2 sm:text-xs"
-              >
-                Klik Buku untuk Membaca &amp; Bedah Materi -&gt;
-              </button>
+            <div className="pointer-events-none fixed inset-x-0 bottom-2.5 sm:bottom-4 z-30 flex flex-col items-center gap-2 px-3 sm:px-6">
+              {mobileCamera.active && (
+                <div className="pointer-events-auto grid grid-cols-2 gap-1 rounded-full border border-[#cda250]/55 bg-slate-950/92 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.85)] backdrop-blur-md">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playPageFlip();
+                      setActive3dSide("left");
+                    }}
+                    className={`min-h-[34px] rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      active3dSide === "left"
+                        ? "bg-[#f3d89b] text-slate-950 shadow"
+                        : "text-amber-100/85 hover:text-white"
+                    }`}
+                  >
+                    &lt;- Hal. Kiri
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playPageFlip();
+                      setActive3dSide("right");
+                    }}
+                    className={`min-h-[34px] rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      active3dSide === "right"
+                        ? "bg-[#f3d89b] text-slate-950 shadow"
+                        : "text-amber-100/85 hover:text-white"
+                    }`}
+                  >
+                    Hal. Kanan -&gt;
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-col items-center gap-1">
+                {totalSealsUnlocked === 0 && (
+                  <span className="hidden sm:inline-block rounded-full border border-[#f4d993]/75 bg-[#040915]/92 px-3 py-0.5 text-[10px] font-bold text-[#f4d993] shadow-lg animate-float-gentle text-center">
+                    Petunjuk: Klik buku atau tombol di bawah buat mulai Misi 1!
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    playPageFlip();
+                    onSetBookFocused(true);
+                  }}
+                  className="pointer-events-auto cursor-pointer min-h-[44px] sm:min-h-0 rounded-full border border-[#f3d89b]/85 bg-slate-950/92 px-5 py-2 text-xs font-bold tracking-wider text-[#ffe8b6] shadow-[0_12px_30px_rgba(0,0,0,0.85)] backdrop-blur-md transition-transform duration-300 hover:scale-105 hover:bg-slate-900"
+                >
+                  Buka Kitab &amp; Mulai Misi Cerita! -&gt;
+                </button>
+              </div>
+
+              <div className="pointer-events-auto flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto md:flex-wrap md:justify-between md:overflow-visible rounded-2xl border border-[#d6b26f]/35 bg-slate-950/85 px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] backdrop-blur-md">
+                <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                  <span className="text-[11px] font-medium text-amber-100/85 whitespace-nowrap">
+                    Segel:{" "}
+                    <strong className="font-bold text-[#ffe8b6]">
+                      {totalSealsUnlocked}/3 ({masteryPercentage}%)
+                    </strong>
+                  </span>
+
+                  <div className="mx-1 hidden h-3.5 w-px bg-[#d6b26f]/30 md:block" />
+
+                  {CHAPTER_ORDER.map((chap) => {
+                    const isCurrent =
+                      activeChapter === chap.id && !isShowingIntroSpread;
+                    const isUnlocked =
+                      (chap.id === "alur" && state.sealAlurUnlocked) ||
+                      (chap.id === "watak" && state.sealWatakUnlocked) ||
+                      (chap.id === "bahasa" && state.sealBahasaUnlocked);
+
+                    return (
+                      <button
+                        key={chap.id}
+                        type="button"
+                        disabled={isPageFlipping}
+                        onClick={() => switchToChapter(chap.id)}
+                        className={`cursor-pointer whitespace-nowrap rounded-full border px-2.5 py-1.5 md:py-1 text-[10.5px] font-bold tracking-wide transition-all disabled:opacity-40 sm:text-[11px] ${
+                          isCurrent
+                            ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950 shadow-[0_0_12px_rgba(243,216,155,0.4)]"
+                            : isUnlocked
+                              ? "border-emerald-400/50 bg-emerald-950/70 text-emerald-200 hover:border-emerald-300"
+                              : "border-[#d6b26f]/40 bg-slate-900/90 text-amber-100/85 hover:border-[#f3d89b]/70 hover:text-white"
+                        }`}
+                      >
+                        {chap.shortLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={onOpenPetaModal}
+                    className="cursor-pointer whitespace-nowrap rounded-full border border-[#d6b26f]/45 bg-slate-900/90 px-3 py-1.5 md:py-1 text-[11px] font-semibold text-[#f5ddab] transition hover:border-[#f3d89b] hover:bg-slate-800"
+                  >
+                    Peta &amp; LKS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playPageFlip();
+                      onSetBookFocused(true);
+                    }}
+                    className="cursor-pointer whitespace-nowrap rounded-full border border-[#f3d89b]/70 bg-amber-950/80 px-3.5 py-1.5 md:py-1 text-[11px] font-bold text-[#ffe8b6] transition hover:border-[#f3d89b] hover:bg-amber-900/90"
+                  >
+                    Baca Penuh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onNavigateToStudioTulis}
+                    className="cursor-pointer whitespace-nowrap rounded-full border border-emerald-400/60 bg-emerald-900/85 px-3.5 py-1.5 md:py-1 text-[11px] font-bold text-emerald-100 shadow-[0_0_15px_rgba(16,185,129,0.25)] transition hover:border-emerald-300 hover:bg-emerald-800"
+                  >
+                    Studio Tulis -&gt;
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1338,78 +1570,6 @@ export function KitabMateriOverlay({
               onClose={() => setIsCalibrating(false)}
             />
           )}
-
-          {/* ================================================================= */}
-          {/* BOTTOM 3D MODE FLOATING ACTION DOCK BAR                           */}
-          {/* ================================================================= */}
-          <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30 flex justify-center px-3 sm:bottom-4 sm:px-6">
-            <div className="pointer-events-auto flex w-full max-w-[1180px] flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#d6b26f]/35 bg-slate-950/80 px-3.5 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] backdrop-blur-md">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <span className="text-[11px] font-medium text-amber-100/80">
-                  Segel Kitab:{" "}
-                  <strong className="font-bold text-[#ffe8b6]">
-                    {totalSealsUnlocked}/3 Terbuka ({masteryPercentage}%)
-                  </strong>
-                </span>
-
-                <div className="mx-1 hidden h-3.5 w-px bg-[#d6b26f]/30 sm:block" />
-
-                {CHAPTER_ORDER.map((chap) => {
-                  const isCurrent =
-                    activeChapter === chap.id && !isShowingIntroSpread;
-                  const isUnlocked =
-                    (chap.id === "alur" && state.sealAlurUnlocked) ||
-                    (chap.id === "watak" && state.sealWatakUnlocked) ||
-                    (chap.id === "bahasa" && state.sealBahasaUnlocked);
-
-                  return (
-                    <button
-                      key={chap.id}
-                      type="button"
-                      disabled={isPageFlipping}
-                      onClick={() => switchToChapter(chap.id)}
-                      className={`cursor-pointer rounded-full border px-2.5 py-1 text-[10px] font-bold tracking-wide transition-all disabled:opacity-40 sm:text-[11px] ${
-                        isCurrent
-                          ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950 shadow-[0_0_12px_rgba(243,216,155,0.4)]"
-                          : isUnlocked
-                            ? "border-emerald-400/50 bg-emerald-950/70 text-emerald-200 hover:border-emerald-300"
-                            : "border-[#d6b26f]/40 bg-slate-900/90 text-amber-100/85 hover:border-[#f3d89b]/70 hover:text-white"
-                      }`}
-                    >
-                      {chap.shortLabel}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <button
-                  type="button"
-                  onClick={onOpenPetaModal}
-                  className="cursor-pointer rounded-full border border-[#d6b26f]/45 bg-slate-900/90 px-3 py-1 text-[11px] font-semibold text-[#f5ddab] transition hover:border-[#f3d89b] hover:bg-slate-800"
-                >
-                  Peta Belajar &amp; LKS
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playPageFlip();
-                    onSetBookFocused(true);
-                  }}
-                  className="cursor-pointer rounded-full border border-[#f3d89b]/70 bg-amber-950/80 px-3.5 py-1 text-[11px] font-bold text-[#ffe8b6] transition hover:border-[#f3d89b] hover:bg-amber-900/90"
-                >
-                  Buka Buku 2D
-                </button>
-                <button
-                  type="button"
-                  onClick={onNavigateToStudioTulis}
-                  className="cursor-pointer rounded-full border border-emerald-400/60 bg-emerald-900/85 px-3.5 py-1 text-[11px] font-bold text-emerald-100 shadow-[0_0_15px_rgba(16,185,129,0.25)] transition hover:border-emerald-300 hover:bg-emerald-800"
-                >
-                  Lanjut ke Studio Tulis -&gt;
-                </button>
-              </div>
-            </div>
-          </div>
         </>
       )}
 
@@ -1417,7 +1577,10 @@ export function KitabMateriOverlay({
       {/* STATE B: MODE FOKUS BUKU 2D (PURE FLOATING BOOK ON THIN BLUR)       */}
       {/* =================================================================== */}
       {isBookFocused && (
-        <div className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-center gap-1.5 bg-black/10 px-2 py-1.5 backdrop-blur-[6px] transition-all duration-300 sm:gap-2 sm:px-4 sm:py-2">
+        <div
+          data-lenis-prevent
+          className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-center gap-2 overscroll-none bg-black/15 px-2.5 py-2.5 backdrop-blur-[6px] transition-all duration-300 sm:px-4 sm:py-2.5"
+        >
           <svg
             width="0"
             height="0"
@@ -1495,24 +1658,59 @@ export function KitabMateriOverlay({
             </defs>
           </svg>
           {/* --------------------------------------------------------------- */}
-          {/* TOP FLOATING CONTROLS (1 BARIS RINGKAS DI LUAR BUKU 2D)         */}
+          {/* TOP FLOATING CONTROLS (COMPACT THUMB BAR DI HP, 1 BARIS DI DESKTOP) */}
           {/* --------------------------------------------------------------- */}
-          <div className="flex w-full max-w-[1180px] flex-wrap items-center justify-between gap-1.5 px-1">
-            {/* Left Group: Chapter & Intro Tabs */}
-            <div className="flex flex-wrap items-center gap-1.5">
+          <div className="relative z-40 flex w-full max-w-[1180px] shrink-0 flex-col gap-1.5 md:flex-row md:flex-wrap md:items-center md:justify-between px-0.5 sm:px-1">
+            {/* Mobile Row 1: Utility Badge & Actions | Desktop Right Group */}
+            <div className="flex items-center justify-between gap-1.5 md:order-2">
+              <div className="rounded-full border border-[#d6b26f]/45 bg-slate-950/85 px-3 py-1.5 md:py-1 text-[11px] font-bold text-[#ffe8b6] shadow-md backdrop-blur-md whitespace-nowrap">
+                Segel: {totalSealsUnlocked}/3{" "}
+                <span className="mx-1 text-[#d6b26f]/50">|</span>
+                <span className="text-emerald-300">{masteryPercentage}%</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onOpenPetaModal}
+                  className="cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-[#d6b26f]/45 bg-slate-950/85 px-3 py-1 text-[11px] font-semibold text-[#f5ddab] shadow-md backdrop-blur-md transition hover:border-[#f3d89b] hover:text-white whitespace-nowrap"
+                >
+                  Peta &amp; LKS
+                </button>
+                <button
+                  type="button"
+                  onClick={onNavigateToStudioTulis}
+                  className="cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-emerald-400/55 bg-emerald-950/85 px-3 py-1 text-[11px] font-bold text-emerald-200 shadow-md backdrop-blur-md transition hover:border-emerald-300 hover:bg-emerald-900/90 whitespace-nowrap"
+                >
+                  Studio Tulis -&gt;
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSetBookFocused(false)}
+                  aria-label="Tutup tampilan baca penuh"
+                  className="cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-rose-300/50 bg-slate-950/85 px-3 py-1 text-[11px] font-bold text-rose-200 shadow-md backdrop-blur-md transition hover:border-rose-300 hover:bg-rose-950/80 whitespace-nowrap"
+                >
+                  <span className="md:hidden">[ X ]</span>
+                  <span className="hidden md:inline">[ X ] Kembali ke Meja</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Chapter & Intro Tabs (Horizontal swipeable strip on mobile) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 md:order-1 md:flex-wrap md:overflow-visible md:pb-0">
               <button
                 type="button"
                 onClick={handleOpenIntroSpread}
-                className={`cursor-pointer rounded-full border px-3 py-1 text-[11px] font-bold tracking-wide shadow-md backdrop-blur-md transition-all ${
+                className={`cursor-pointer shrink-0 min-h-[34px] md:min-h-0 rounded-full border px-2.5 md:px-3 py-1 text-[11px] font-bold tracking-wide shadow-md backdrop-blur-md transition-all whitespace-nowrap ${
                   isShowingIntroSpread
                     ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
-                    : "border-[#d6b26f]/45 bg-slate-950/75 text-amber-100/90 hover:border-[#f3d89b]/70 hover:text-white"
+                    : "border-[#d6b26f]/45 bg-slate-950/80 text-amber-100/90 hover:border-[#f3d89b]/70 hover:text-white"
                 }`}
               >
-                Pengantar Kitab
+                <span className="md:hidden">Pembuka</span>
+                <span className="hidden md:inline">Pembuka Kitab</span>
               </button>
 
-              {CHAPTER_ORDER.map((chap) => {
+              {CHAPTER_ORDER.map((chap, idx) => {
                 const isActive =
                   activeChapter === chap.id && !isShowingIntroSpread;
                 const isSealDone =
@@ -1525,94 +1723,96 @@ export function KitabMateriOverlay({
                     key={chap.id}
                     type="button"
                     onClick={() => switchToChapter(chap.id)}
-                    className={`cursor-pointer rounded-full border px-3 py-1 text-[11px] font-bold tracking-wide shadow-md backdrop-blur-md transition-all ${
+                    className={`cursor-pointer shrink-0 min-h-[34px] md:min-h-0 rounded-full border px-2.5 md:px-3 py-1 text-[11px] font-bold tracking-wide shadow-md backdrop-blur-md transition-all whitespace-nowrap ${
                       isActive
                         ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
                         : isSealDone
                           ? "border-emerald-400/55 bg-emerald-950/75 text-emerald-200 hover:border-emerald-300"
-                          : "border-[#d6b26f]/45 bg-slate-950/75 text-amber-100/90 hover:border-[#f3d89b]/70 hover:text-white"
+                          : "border-[#d6b26f]/45 bg-slate-950/80 text-amber-100/90 hover:border-[#f3d89b]/70 hover:text-white"
                     }`}
                   >
-                    {chap.shortLabel}{" "}
+                    <span className="md:hidden">Misi {idx + 1}</span>
+                    <span className="hidden md:inline">{chap.shortLabel}</span>{" "}
                     <span className="ml-0.5 text-[10px] opacity-85">
-                      {isSealDone ? "[Segel Terbuka]" : ""}
+                      {isSealDone ? "✓" : ""}
                     </span>
                   </button>
                 );
               })}
             </div>
-
-            {/* Right Group: Mastery Badge, Peta & LKS, Studio Tulis, Exit to 3D */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <div className="rounded-full border border-[#d6b26f]/45 bg-slate-950/75 px-3 py-1 text-[11px] font-bold text-[#ffe8b6] shadow-md backdrop-blur-md">
-                Segel: {totalSealsUnlocked}/3{" "}
-                <span className="mx-1 text-[#d6b26f]/50">|</span>
-                <span className="text-emerald-300">{masteryPercentage}%</span>
-              </div>
-              <button
-                type="button"
-                onClick={onOpenPetaModal}
-                className="cursor-pointer rounded-full border border-[#d6b26f]/45 bg-slate-950/75 px-3 py-1 text-[11px] font-semibold text-[#f5ddab] shadow-md backdrop-blur-md transition hover:border-[#f3d89b] hover:text-white"
-              >
-                Peta &amp; LKS
-              </button>
-              <button
-                type="button"
-                onClick={onNavigateToStudioTulis}
-                className="cursor-pointer rounded-full border border-emerald-400/55 bg-emerald-950/80 px-3 py-1 text-[11px] font-bold text-emerald-200 shadow-md backdrop-blur-md transition hover:border-emerald-300 hover:bg-emerald-900/90"
-              >
-                Studio Tulis -&gt;
-              </button>
-              <button
-                type="button"
-                onClick={() => onSetBookFocused(false)}
-                className="cursor-pointer rounded-full border border-rose-300/50 bg-slate-950/80 px-3 py-1 text-[11px] font-bold text-rose-200 shadow-md backdrop-blur-md transition hover:border-rose-300 hover:bg-rose-950/80"
-              >
-                [ X ] Kembali ke Buku 3D
-              </button>
-            </div>
           </div>
 
           {/* --------------------------------------------------------------- */}
-          {/* FLOATING 2D BOOK WRAPPER — LOCKED TO ORIGINAL 946:603 RATIO     */}
+          {/* BOOK SPREAD (DESKTOP) OR SINGLE-PAGE PARCHMENT SHEET (MOBILE)   */}
           {/* --------------------------------------------------------------- */}
           <div
             style={{
-              perspective: "1800px",
+              perspective: isMobileBook ? undefined : "1800px",
             }}
-            className="relative my-auto flex w-full flex-1 items-center justify-center overflow-visible"
+            className={`relative z-10 my-auto flex w-full flex-1 min-h-0 items-center justify-center ${
+              isMobileBook ? "overflow-hidden" : "overflow-visible"
+            }`}
           >
             <div
               ref={book2dContainerRef}
-              className="relative drop-shadow-[0_28px_55px_rgba(0,0,0,0.9)] transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
-              style={{
-                width: "min(94vw, 1180px, calc((100dvh - 4.4rem) * 946 / 603))",
-                aspectRatio: "946 / 603",
-                transform: "rotateX(0deg) scale(1) translateY(0px)",
-                transformOrigin: "50% 70%",
-              }}
+              className={
+                isMobileBook
+                  ? "relative h-full w-full max-w-[480px] overflow-hidden rounded-2xl border-2 border-[#cda250]/65 bg-[#eed8b0] shadow-[0_8px_20px_rgba(0,0,0,0.55)]"
+                  : "relative drop-shadow-[0_28px_55px_rgba(0,0,0,0.9)] transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              }
+              style={
+                isMobileBook
+                  ? undefined
+                  : {
+                      width: "min(94vw, 1180px, calc((100dvh - 4.4rem) * 946 / 603))",
+                      aspectRatio: "946 / 603",
+                      transform: "rotateX(0deg) scale(1) translateY(0px)",
+                      transformOrigin: "50% 70%",
+                    }
+              }
             >
-              {/* Layer 1: Book Base Cover (Leather & Spine) */}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 bg-no-repeat"
-                style={{
-                  backgroundImage: "url('/assets/studio/book-base.webp')",
-                  backgroundSize: "145.45% 127.36%",
-                  backgroundPosition: "50% 55.15%",
-                }}
-              />
+              {isMobileBook ? (
+                <>
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 bg-no-repeat"
+                    style={{
+                      backgroundImage: "url('/assets/studio/single-page.webp')",
+                      backgroundSize: "415% 152%",
+                      backgroundPosition:
+                        mobilePageSide === "left" ? "28.8% 53.5%" : "70% 53.5%",
+                    }}
+                  />
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 shadow-[inset_0_0_28px_rgba(92,61,30,0.22)]"
+                  />
+                </>
+              ) : (
+                <>
+                  {/* Layer 1: Book Base Cover (Leather & Spine) */}
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 bg-no-repeat"
+                    style={{
+                      backgroundImage: "url('/assets/studio/book-base.webp')",
+                      backgroundSize: "145.45% 127.36%",
+                      backgroundPosition: "50% 55.15%",
+                    }}
+                  />
 
-              {/* Layer 2: Open Parchment Spread */}
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 bg-no-repeat"
-                style={{
-                  backgroundImage: "url('/assets/studio/single-page.webp')",
-                  backgroundSize: "145.45% 127.36%",
-                  backgroundPosition: "50% 55.15%",
-                }}
-              />
+                  {/* Layer 2: Open Parchment Spread */}
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 bg-no-repeat"
+                    style={{
+                      backgroundImage: "url('/assets/studio/single-page.webp')",
+                      backgroundSize: "145.45% 127.36%",
+                      backgroundPosition: "50% 55.15%",
+                    }}
+                  />
+                </>
+              )}
 
               {/* Layer 3: Calibrated Homography Page Spread (NO transform/z-index wrapper so .parchment-ink multiplies directly into single-page.webp) */}
               <div className="pointer-events-none absolute inset-0">
@@ -1622,87 +1822,83 @@ export function KitabMateriOverlay({
               {isShowingIntroSpread && (
                 <>
                   {/* LEFT PAGE: PENGANTAR KONSEP CERITA FANTASI */}
-                  <div style={book2dLeftPageStyle} className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5">
+                  <div style={get2dPageStyle("left")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                       <div className="mb-2 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
                         <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
-                          GULUNGAN PEMBUKA · PENGANTAR KITAB
+                          PEMBUKA KITAB · MULAI DARI SINI
                         </span>
                         <span className="font-serif text-[10px] font-semibold text-[#6b4826] italic">
-                          TP 1 s.d. TP 4
+                          Panduan Awal
                         </span>
                       </div>
 
                       <div className="space-y-2.5 font-serif text-[#2b1a0c]">
                         <h2 className="parchment-contour-warp text-sm leading-snug font-bold text-[#2b1a0c] sm:text-base">
-                          Membedah Rahasia Teks Cerita Fantasi (Hlm. 52–70)
+                          Apa Rahasia Cerita Fantasi yang Seru?
                         </h2>
                         <p className="text-[11px] leading-relaxed text-[#3a2512] sm:text-xs">
-                          Selamat datang di <strong>Kitab Aksaraloka</strong>.
-                          Sebelum kamu menulis naskah cerita fantasimu sendiri
-                          di Meja Studio Tulis, pelajari dan bedah terlebih
-                          dahulu unsur intrinsik, struktur alur, dan kaidah
-                          kebahasaan melalui tiga teks model:
-                          <strong> &ldquo;Bola-Bola Waktu&rdquo;</strong>,{" "}
+                          Selamat datang di <strong>Kitab Aksaraloka</strong>!
+                          Sebelum mengarang ceritamu sendiri di{" "}
+                          <strong>Studio Tulis</strong>, yuk kumpulkan{" "}
+                          <strong>3 Segel Rahasia</strong> lewat tiga kisah seru:{" "}
+                          <strong>&ldquo;Bola-Bola Waktu&rdquo;</strong>,{" "}
                           <strong>&ldquo;Sihir Unik Mao&rdquo;</strong>, dan{" "}
                           <strong>&ldquo;Keberanian Emas&rdquo;</strong>.
                         </p>
 
                         <div className="border-t border-b border-[#5c3d1e]/30 py-2">
                           <p className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase sm:text-[11px]">
-                            Apa Itu Teks Cerita Fantasi?
+                            Apa Itu Cerita Fantasi?
                           </p>
                           <p className="mt-1 text-[11px] leading-relaxed text-[#2b1a0c]">
-                            Cerita fantasi adalah teks narasi fiksi yang
-                            menampilkan peristiwa, tokoh, latar, atau kekuatan
-                            ajaib yang melampaui kenyataan sehari-hari, namun
-                            tetap dibangun di atas{" "}
+                            Cerita fantasi adalah cerita khayalan yang penuh
+                            keajaiban, benda sakti, atau pindah waktu, tapi{" "}
                             <strong>
-                              rangkaian alur sebab-akibat yang logis
+                              kejadiannya tetap berurutan masuk akal
                             </strong>{" "}
-                            dan mengandung <strong>amanat kehidupan</strong>.
+                            dan punya <strong>pesan kebaikan (amanat)</strong>.
                           </p>
                         </div>
 
                         <div className="space-y-1.5 pt-0.5">
                           <p className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase sm:text-[11px]">
-                            3 Ciri Utama Cerita Fantasi yang Kuat:
+                            3 Kunci Supaya Ceritamu Keren:
                           </p>
                           <p className="text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            <strong>1. Keajaiban Beraturan (Bukan Instan):</strong>{" "}
-                            Setiap benda atau kekuatan magis memiliki syarat dan
-                            konsekuensi (contoh: bola waktu Ivan membawa harga
-                            mahal yang menyadarkan dirinya).
+                            <strong>1. Keajaiban Punya Aturan:</strong> Benda
+                            atau kekuatan ajaib tidak boleh menang gampang, tapi
+                            punya syarat dan akibat (seperti bola waktu Ivan!).
                           </p>
                           <p className="text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            <strong>2. Bukti Watak Lewat Tindakan:</strong>{" "}
-                            Sifat tokoh dibuktikan lewat keputusan saat krisis,
-                            bukan sekadar klaim sifat.
+                            <strong>2. Sifat Tokoh Terlihat dari Aksi:</strong>{" "}
+                            Tunjukkan sifat baik atau sombong tokoh lewat
+                            perbuatan dan ucapannya.
                           </p>
                           <p className="text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            <strong>3. Citraan 5 Indera, Majas &amp; Dialog:</strong>{" "}
-                            Pembaca diajak melihat, mendengar, dan merasakan
-                            suasana dunia ajaib secara hidup.
+                            <strong>3. Pakai Panca Indera &amp; Perumpamaan:</strong>{" "}
+                            Ajak pembaca ikut melihat cahaya, mendengar suara,
+                            dan merasakan suasana ceritamu!
                           </p>
                         </div>
                       </div>
                     </div>
 
                     <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
-                      <span>Pengantar Kitab Aksaraloka</span>
+                      <span>Pembuka Kitab Aksaraloka</span>
                       <span className="font-semibold">Halaman Pengantar I</span>
                     </div>
                   </div>
 
                   {/* RIGHT PAGE: PETA 3 BABAK & TOMBOL BUKA SEGEL GULUNGAN */}
-                  <div style={book2dRightPageStyle} className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5">
+                  <div style={get2dPageStyle("right")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                       <div className="mb-2 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
                         <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
-                          PETA TIGA BABAK &amp; SEGEL NARATIF
+                          MISI 3 SEGEL RAHASIA CERITA
                         </span>
                         <span className="font-serif text-[10px] font-semibold text-[#6b4826]">
-                          Segel Terbuka: {totalSealsUnlocked}/3
+                          Segel Terkumpul: {totalSealsUnlocked}/3
                         </span>
                       </div>
 
@@ -1710,54 +1906,54 @@ export function KitabMateriOverlay({
                         <div className="border-b border-[#5c3d1e]/30 pb-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-bold text-[#2b1a0c] sm:text-xs">
-                              Babak I — Alur, Lintas Waktu &amp; Amanat (TP 1 &amp; TP 2)
+                              Misi 1 — Jalan Cerita &amp; Pesan Kebaikan
                             </span>
                             <span className="text-[10px] font-bold text-[#14532d]">
                               {state.sealAlurUnlocked
-                                ? "[Segel I Terbuka]"
-                                : "[Segel I]"}
+                                ? "[Segel 1 Selesai ✓]"
+                                : "[Segel 1]"}
                             </span>
                           </div>
                           <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            Telusuri 3 Bola Waktu dalam kisah{" "}
-                            <em>Bola-Bola Waktu</em>, susun 5 tahap Gunung Alur,
-                            uji simulasi Tanpa Klimaks, dan simpulkan amanat.
+                            Ikuti perjalanan waktu Ivan di kisah{" "}
+                            <em>Bola-Bola Waktu</em>, susun 5 kejadian Gunung
+                            Alur, dan tebak pesan kebaikannya!
                           </p>
                         </div>
 
                         <div className="border-b border-[#5c3d1e]/30 pb-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-bold text-[#2b1a0c] sm:text-xs">
-                              Babak II — Penokohan, 4 Kantong Emas &amp; 5 Indera (TP 1 &amp; TP 3)
+                              Misi 2 — Sifat Tokoh, 4 Kantong Emas &amp; Panca Indera
                             </span>
                             <span className="text-[10px] font-bold text-[#14532d]">
                               {state.sealWatakUnlocked
-                                ? "[Segel II Terbuka]"
-                                : "[Segel II]"}
+                                ? "[Segel 2 Selesai ✓]"
+                                : "[Segel 2]"}
                             </span>
                           </div>
                           <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            Bedah bukti watak Mao dan Yari (<em>Sihir Unik Mao</em>),
-                            urutkan eskalasi 4 Kantong Keajaiban Emas (<em>Keberanian Emas</em>),
-                            dan latih kepekaan deskripsi pancaindra.
+                            Tebak bukti sifat Mao &amp; Yari (<em>Sihir Unik Mao</em>),
+                            urutkan 4 kantong ajaib Emas (<em>Keberanian Emas</em>),
+                            dan pilih kalimat panca indera yang hidup!
                           </p>
                         </div>
 
                         <div className="border-b border-[#5c3d1e]/30 pb-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-bold text-[#2b1a0c] sm:text-xs">
-                              Babak III — Leksikon Magis, Majas &amp; Dialog (TP 4)
+                              Misi 3 — Kamus Kata, Perumpamaan &amp; Dialog
                             </span>
                             <span className="text-[10px] font-bold text-[#14532d]">
                               {state.sealBahasaUnlocked
-                                ? "[Segel III Terbuka]"
-                                : "[Segel III]"}
+                                ? "[Segel 3 Selesai ✓]"
+                                : "[Segel 3]"}
                             </span>
                           </div>
                           <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            Kuasai bank kata fantasi, racik Majas Asosiasi
-                            (perumpamaan), serta ubah kalimat langsung menjadi
-                            kalimat tak langsung sesuai EYD V.
+                            Intip kamus kata fantasi, pasangkan perumpamaan
+                            (seperti/bagaikan), dan ubah dialog tokoh jadi
+                            kalimat cerita yang rapi!
                           </p>
                         </div>
                       </div>
@@ -1768,7 +1964,7 @@ export function KitabMateriOverlay({
                           onClick={handleOpenGrimoireScroll}
                           className="cursor-pointer rounded-full border-2 border-[#14532d]/80 bg-[#14532d]/12 px-4 py-1.5 font-serif text-[11px] font-bold text-[#14532d] transition hover:bg-[#14532d]/22"
                         >
-                          Buka Segel Gulungan &amp; Mulai Babak I -&gt;
+                          Ayo Mulai Misi 1 Sekarang! -&gt;
                         </button>
                       </div>
                     </div>
@@ -1782,7 +1978,7 @@ export function KitabMateriOverlay({
                         onClick={handleOpenGrimoireScroll}
                         className="cursor-pointer font-bold text-[#2b1a0c] underline decoration-[#5c3d1e]/50 underline-offset-2 transition hover:text-black"
                       >
-                        Masuk ke Babak I -&gt;
+                        Mulai Misi 1 -&gt;
                       </button>
                     </div>
                   </div>
@@ -1795,7 +1991,7 @@ export function KitabMateriOverlay({
               {!isShowingIntroSpread && activeChapter === "alur" && (
                 <>
                   {/* LEFT PAGE (HALAMAN 1): 3 BOLA WAKTU & INTI CERITA */}
-                  <div style={book2dLeftPageStyle} className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5">
+                  <div style={get2dPageStyle("left")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                       <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
                         <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
@@ -1807,22 +2003,21 @@ export function KitabMateriOverlay({
                           className="cursor-pointer font-serif text-[10px] font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950"
                         >
                           {isNarrating
-                            ? "[Hentikan Sulih Suara]"
-                            : "[Dengarkan Ringkasan]"}
+                            ? "[Matikan Suara Cerita]"
+                            : "[Dengarkan Suara Cerita]"}
                         </button>
                       </div>
 
                       <div className="space-y-2 font-serif text-[#2b1a0c]">
                         <div>
                           <h2 className="parchment-contour-warp text-xs leading-snug font-bold text-[#2b1a0c] sm:text-sm">
-                            Teks Model: &ldquo;Bola-Bola Waktu&rdquo; (Hlm. 52–58)
+                            Kisah Contoh: &ldquo;Bola-Bola Waktu&rdquo;
                           </h2>
                           <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            Cerita fantasi lintas waktu membawa tokoh berpindah
-                            antara <strong>Masa Kini</strong> dan{" "}
-                            <strong>Masa Depan / Lampau</strong>. Pilih ketiga
-                            Bola Waktu di bawah untuk menelusuri jejak perjalanan
-                            Ivan:
+                            Petunjuk: Klik <strong>3 tombol waktu</strong> di
+                            bawah secara berurutan untuk melihat bagaimana kisah
+                            Ivan berjalan dari pagi hari sampai melompat ke
+                            tahun 2022!
                           </p>
                         </div>
 
@@ -1867,7 +2062,7 @@ export function KitabMateriOverlay({
                             {selectedOrb.summary}
                           </p>
                           <p className="mt-1 text-[10px] leading-snug text-[#4a2f15] italic">
-                            <strong>Fokus Unsur Intrinsik:</strong>{" "}
+                            <strong>Bagian Alur:</strong>{" "}
                             {selectedOrb.evidenceFocus}
                           </p>
                         </div>
@@ -1875,17 +2070,16 @@ export function KitabMateriOverlay({
                         {/* Ringkasan Struktur Alur Cerita Fantasi */}
                         <div className="space-y-1">
                           <p className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            Kaidah Struktur Alur Cerita Fantasi:
+                            Urutan Jalan Cerita (Alur) yang Seru:
                           </p>
                           <p className="text-[10px] leading-relaxed text-[#3a2512] sm:text-[10.5px]">
-                            Alur bergerak menanjak secara berurutan dari{" "}
-                            <strong>1. Orientasi (Awal)</strong> -&gt;{" "}
-                            <strong>2. Pemantik Masalah</strong> -&gt;{" "}
-                            <strong>3. Komplikasi (Tengah)</strong> -&gt;{" "}
-                            <strong>4. Klimaks (Puncak)</strong> -&gt;{" "}
-                            <strong>5. Resolusi (Akhir)</strong>. Tanpa klimaks
-                            yang menguji keputusan tokoh, resolusi cerita akan
-                            terasa datar dan tidak logis.
+                            Cerita yang bagus berjalan naik seperti mendaki
+                            gunung:{" "}
+                            <strong>1. Awal Cerita (Orientasi)</strong> -&gt;{" "}
+                            <strong>2. Muncul Masalah</strong> -&gt;{" "}
+                            <strong>3. Masalah Membesar (Komplikasi)</strong>{" "}
+                            -&gt; <strong>4. Puncak Masalah (Klimaks)</strong>{" "}
+                            -&gt; <strong>5. Akhir Cerita (Resolusi)</strong>.
                           </p>
                         </div>
                       </div>
@@ -1897,23 +2091,23 @@ export function KitabMateriOverlay({
                         onClick={handleOpenIntroSpread}
                         className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
                       >
-                        &lt;- Pengantar Kitab
+                        &lt;- Pembuka Kitab
                       </button>
                       <span className="font-semibold">Halaman 1</span>
                     </div>
                   </div>
 
                   {/* RIGHT PAGE (HALAMAN 2): GUNUNG ALUR INTERAKTIF & AMANAT */}
-                  <div style={book2dRightPageStyle} className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5">
+                  <div style={get2dPageStyle("right")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                       <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
                         <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
-                          HALAMAN 2 · GUNUNG ALUR &amp; UJI AMANAT
+                          HALAMAN 2 · TANTANGAN SEGEL 1
                         </span>
                         <span className="font-serif text-[10px] font-bold text-[#14532d]">
                           {state.sealAlurUnlocked
-                            ? "Segel I Terbuka"
-                            : `Alur: ${plotCorrectCount}/5`}
+                            ? "Segel 1 Selesai ✓"
+                            : `Urutan: ${plotCorrectCount}/5`}
                         </span>
                       </div>
 
@@ -1922,7 +2116,7 @@ export function KitabMateriOverlay({
                         <div className="border-b border-[#5c3d1e]/30 pb-1.5">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                              1. Peta Gunung Alur ({plotCorrectCount}/5 Tahap)
+                              1. Gunung Alur ({plotCorrectCount}/5 Kejadian)
                             </span>
                             <div className="flex items-center gap-2">
                               <button
@@ -1934,7 +2128,7 @@ export function KitabMateriOverlay({
                                 }
                                 className="cursor-pointer text-[9.5px] font-bold text-[#7f1d1d] underline decoration-[#7f1d1d]/50 underline-offset-2 hover:text-red-950"
                               >
-                                Uji Tanpa Klimaks
+                                Coba Hapus Puncak Masalah!
                               </button>
                               <button
                                 type="button"
@@ -1943,14 +2137,14 @@ export function KitabMateriOverlay({
                                 }
                                 className="cursor-pointer text-[9.5px] font-bold text-[#14532d] underline decoration-[#14532d]/50 underline-offset-2 hover:text-emerald-950"
                               >
-                                Uji Alur Utuh
+                                Lihat Alur Utuh
                               </button>
                               <button
                                 type="button"
                                 onClick={handleResetPlotMountain}
                                 className="cursor-pointer text-[9.5px] font-semibold text-[#5c3d1e] underline hover:text-black"
                               >
-                                Reset
+                                Ulangi
                               </button>
                             </div>
                           </div>
@@ -2023,8 +2217,8 @@ export function KitabMateriOverlay({
                         <div className="border-b border-[#5c3d1e]/30 pb-2">
                           <p className="text-[10px] font-bold text-[#2b1a0c]">
                             {isPlotComplete
-                              ? "Seluruh 5 Tahap Gunung Alur telah tersusun runtut!"
-                              : `Klik peristiwa untuk memasang Tahap ke-${plotCorrectCount + 1} (${BOLA_WAKTU_PLOT_BEATS[plotCorrectCount]?.stagePosition ?? "Selesai"}):`}
+                              ? "Hebat! Semua 5 kejadian Gunung Alur sudah urut!"
+                              : `Misi A: Klik kalimat kejadian untuk mengisi titik ke-${plotCorrectCount + 1} (${BOLA_WAKTU_PLOT_BEATS[plotCorrectCount]?.stageLabel ?? "Selesai"}):`}
                           </p>
 
                           <div className="mt-1 space-y-1">
@@ -2048,7 +2242,7 @@ export function KitabMateriOverlay({
                                   }`}
                                 >
                                   {isPlaced
-                                    ? `[Tahap ${placedIndex + 1} · ${beat.stagePosition}] `
+                                    ? `[✓ Titik ${placedIndex + 1}] `
                                     : "○ "}
                                   {beat.summary}
                                 </button>
@@ -2060,7 +2254,7 @@ export function KitabMateriOverlay({
                         {/* Uji Amanat & Refleksi */}
                         <div className="space-y-1.5">
                           <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            2. Simpulkan Amanat Utama &ldquo;Bola-Bola Waktu&rdquo;:
+                            2. Misi B: Pilih Pesan Kebaikan (Amanat) Kisah Ivan:
                           </span>
                           {BOLA_WAKTU_AMANAT_OPTIONS.map((opt) => {
                             const isChosen =
@@ -2080,8 +2274,8 @@ export function KitabMateriOverlay({
                               >
                                 {isChosen
                                   ? opt.isCorrect
-                                    ? "[Tepat] "
-                                    : "[Kurang Tepat] "
+                                    ? "[Tepat ✓] "
+                                    : "[Coba Lagi] "
                                   : "○ "}
                                 {opt.text}
                               </button>
@@ -2093,7 +2287,7 @@ export function KitabMateriOverlay({
                               htmlFor="amanat-reflection-input"
                               className="block text-[9.5px] font-bold tracking-wider text-[#4a2f15] uppercase"
                             >
-                              Catatan Refleksi Amanatmu (Goresan Tinta Siswa):
+                              Tulis Pesan Kebaikan Versimu Sendiri (Opsional):
                             </label>
                             <input
                               id="amanat-reflection-input"
@@ -2102,7 +2296,7 @@ export function KitabMateriOverlay({
                               onChange={(e) =>
                                 handleCustomAmanatChange(e.target.value)
                               }
-                              placeholder="Goreskan kalimat amanat versimu di atas lembaran ini..."
+                              placeholder="Contoh: Aku ingin selalu bersyukur dan membantu orang tua..."
                               className="parchment-pen-input mt-0.5 w-full px-1 py-1 font-serif text-[10.5px] italic placeholder:text-[#6b4826]/60"
                             />
                           </div>
@@ -2117,7 +2311,7 @@ export function KitabMateriOverlay({
                         onClick={() => switchToChapter("watak")}
                         className="cursor-pointer font-bold text-[#2b1a0c] underline decoration-[#5c3d1e]/50 underline-offset-2 transition hover:text-black"
                       >
-                        Babak II: Watak &amp; Indera -&gt;
+                        Lanjut Misi 2: Tokoh &amp; Indera -&gt;
                       </button>
                     </div>
                   </div>
@@ -2130,14 +2324,14 @@ export function KitabMateriOverlay({
               {!isShowingIntroSpread && activeChapter === "watak" && (
                 <>
                   {/* LEFT PAGE (HALAMAN 3): TOKOH, 4 KANTONG EMAS & 5 INDERA */}
-                  <div style={book2dLeftPageStyle} className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5">
+                  <div style={get2dPageStyle("left")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                       <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
                         <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
                           HALAMAN 3 · {CHAPTER_ORDER[1]!.tpTag}
                         </span>
                         <span className="font-serif text-[10px] font-semibold text-[#6b4826] italic">
-                          Bukti Naskah &amp; Citraan
+                          Pilih 3 Tab di Bawah!
                         </span>
                       </div>
 
@@ -2152,7 +2346,7 @@ export function KitabMateriOverlay({
                               : "border-transparent text-[#6b4826] hover:text-[#2b1a0c]"
                           }`}
                         >
-                          1. Tokoh &amp; Bukti
+                          1. Sifat Tokoh
                         </button>
                         <button
                           type="button"
@@ -2174,50 +2368,47 @@ export function KitabMateriOverlay({
                               : "border-transparent text-[#6b4826] hover:text-[#2b1a0c]"
                           }`}
                         >
-                          3. Peta 5 Indera
+                          3. Panca Indera
                         </button>
                       </div>
 
                       {watakLeftTab === "mao" && (
                         <div className="space-y-2 font-serif text-[#2b1a0c]">
                           <p className="text-[10.5px] leading-relaxed text-[#3a2512]">
-                            Dalam cerita fantasi yang baik, watak tokoh{" "}
+                            Di cerita yang seru, sifat tokoh{" "}
                             <strong>
-                              ditunjukkan lewat tindakan dan dialog
-                            </strong>{" "}
-                            (<em>show, don&apos;t tell</em>). Perhatikan profil
-                            tokoh dalam komik{" "}
-                            <strong>&ldquo;Sihir Unik Mao&rdquo;</strong> (hlm.
-                            59–62) dan{" "}
-                            <strong>&ldquo;Keberanian Emas&rdquo;</strong> (hlm.
-                            64–67):
+                              ditunjukkan lewat perbuatan dan ucapannya
+                            </strong>
+                            , bukan cuma disebut &ldquo;ia anak baik&rdquo;.
+                            Yuk kenali 3 tokoh komik{" "}
+                            <strong>&ldquo;Sihir Unik Mao&rdquo;</strong>:
                           </p>
                           <div className="border-b border-[#5c3d1e]/30 pb-1.5">
                             <p className="text-[10px] font-bold text-[#4a2f15]">
-                              1. Mao (Protagonis — Sihir Unik Mao)
+                              1. Mao (Tokoh Utama / Protagonis)
                             </p>
                             <p className="mt-0.5 text-[10px] leading-snug text-[#2b1a0c]">
-                              Sering gagal merapal mantra terbang dasar, tetapi
-                              tekun berlatih hingga mahir menyihir makanan manis
-                              yang mendamaikan teman-temannya.
+                              Sering gagal mantra terbang, tapi rajin berlatih
+                              sampai bisa menyihir makanan manis yang
+                              mendamaikan teman-temannya.
                             </p>
                           </div>
                           <div className="border-b border-[#5c3d1e]/30 pb-1.5">
                             <p className="text-[10px] font-bold text-[#4a2f15]">
-                              2. Piru (Sahabat Pendukung — Sihir Unik Mao)
+                              2. Piru (Sahabat Baik)
                             </p>
                             <p className="mt-0.5 text-[10px] leading-snug text-[#2b1a0c]">
-                              Setia menemani Mao berlatih dan selalu membesarkan
-                              hati Mao ketika diejek di kelas.
+                              Setia menemani Mao berlatih dan selalu menyemangati
+                              Mao saat diejek di kelas.
                             </p>
                           </div>
                           <div className="border-b border-[#5c3d1e]/30 pb-1.5">
                             <p className="text-[10px] font-bold text-[#4a2f15]">
-                              3. Yari (Antagonis — Sihir Unik Mao)
+                              3. Yari (Tokoh Lawan / Antagonis)
                             </p>
                             <p className="mt-0.5 text-[10px] leading-snug text-[#2b1a0c]">
-                              Cepat menguasai mantra dasar namun angkuh dan suka
-                              meremehkan Mao di depan peri lain.
+                              Pintar sihir dasar tapi sombong dan suka mengejek
+                              Mao di depan peri lain.
                             </p>
                           </div>
                         </div>
@@ -2227,20 +2418,20 @@ export function KitabMateriOverlay({
                         <div className="space-y-2 font-serif text-[#2b1a0c]">
                           <div className="flex items-center justify-between">
                             <p className="text-[10.5px] font-bold text-[#2b1a0c]">
-                              Urutkan Eskalasi 4 Kantong Emas (
-                              {state.pouchOrderIds.length}/4):
+                              Misi Kantong Ajaib ({state.pouchOrderIds.length}/4):
                             </p>
                             <button
                               type="button"
                               onClick={handleResetPouchOrder}
                               className="cursor-pointer text-[9.5px] font-bold text-[#5c3d1e] underline hover:text-black"
                             >
-                              Atur Ulang
+                              Ulangi
                             </button>
                           </div>
                           <p className="text-[10px] leading-relaxed text-[#3a2512]">
-                            Klik ke-4 kantong keajaiban Emas (hlm. 64–67) secara
-                            berurutan dari rintangan awal hingga klimaks puncak:
+                            Petunjuk: Klik keempat kantong ajaib Emas
+                            secara berurutan dari bahaya kecil sampai Raksasa
+                            kalah!
                           </p>
                           <div className="space-y-1.5 pt-0.5">
                             {EMAS_POUCH_STEPS.map((step) => {
@@ -2262,7 +2453,7 @@ export function KitabMateriOverlay({
                                 >
                                   <div className="flex items-center justify-between text-[10.5px] font-bold">
                                     <span>
-                                      {isUnlocked ? "[Terurut] " : "○ "}
+                                      {isUnlocked ? "[✓ Urut] " : "○ "}
                                       {step.itemName}
                                     </span>
                                     <span className="text-[9.5px] italic">
@@ -2287,8 +2478,9 @@ export function KitabMateriOverlay({
                       {watakLeftTab === "indera" && (
                         <div className="space-y-1.5 font-serif text-[#2b1a0c]">
                           <p className="text-[10.5px] leading-relaxed text-[#3a2512]">
-                            Deskripsi latar yang memikat mengaktifkan{" "}
-                            <strong>Pancaindra</strong> pembaca:
+                            Bandingkan <strong>Kalimat Biasa</strong> dengan{" "}
+                            <strong>Kalimat Panca Indera</strong> yang bikin
+                            pembaca ikut merasakan suasananya:
                           </p>
                           {FIVE_SENSES_GUIDE.map((gem) => (
                             <div
@@ -2302,10 +2494,10 @@ export function KitabMateriOverlay({
                                 </span>
                               </div>
                               <p className="mt-0.5 text-[9.5px] text-[#6b4826]">
-                                Kalimat Datar: &ldquo;{gem.weakExample}&rdquo;
+                                Kalimat Biasa: &ldquo;{gem.weakExample}&rdquo;
                               </p>
                               <p className="mt-0.5 text-[10px] font-semibold text-[#14532d]">
-                                Kalimat Imajinatif: &ldquo;{gem.vividExample}
+                                Kalimat Hidup: &ldquo;{gem.vividExample}
                                 &rdquo;
                               </p>
                             </div>
@@ -2320,23 +2512,23 @@ export function KitabMateriOverlay({
                         onClick={() => switchToChapter("alur")}
                         className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
                       >
-                        &lt;- Babak I: Alur &amp; Waktu
+                        &lt;- Misi 1: Alur Cerita
                       </button>
                       <span className="font-semibold">Halaman 3</span>
                     </div>
                   </div>
 
                   {/* RIGHT PAGE (HALAMAN 4): TANTANGAN BUKTI WATAK & CITRAAN INDERA */}
-                  <div style={book2dRightPageStyle} className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5">
+                  <div style={get2dPageStyle("right")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                       <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
                         <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
-                          HALAMAN 4 · UJI BUKTI WATAK &amp; CITRAAN
+                          HALAMAN 4 · TANTANGAN SEGEL 2
                         </span>
                         <span className="font-serif text-[10px] font-bold text-[#14532d]">
                           {state.sealWatakUnlocked
-                            ? "Segel II Terbuka"
-                            : `Watak ${charDone ? "Tuntas" : "Belum"} · Indera ${sensoryDone ? "Tuntas" : "Belum"}`}
+                            ? "Segel 2 Selesai ✓"
+                            : `Tokoh ${charDone ? "Beres" : "Belum"} · Indera ${sensoryDone ? "Beres" : "Belum"}`}
                         </span>
                       </div>
 
@@ -2344,7 +2536,7 @@ export function KitabMateriOverlay({
                         {/* Bagian A: Bukti Watak Tokoh */}
                         <div className="space-y-1.5 border-b border-[#5c3d1e]/35 pb-2">
                           <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            A. Pilih Kutipan Bukti Watak yang Tepat:
+                            A. Misi Sifat Tokoh (Pilih Bukti Perbuatan/Ucapan):
                           </span>
                           {CHARACTER_EVIDENCE_CHALLENGES.map((chal) => {
                             const selectedOptId =
@@ -2360,7 +2552,7 @@ export function KitabMateriOverlay({
                                   </span>
                                 </div>
                                 <p className="mt-0.5 text-[9.5px] leading-snug text-[#4a2f15] italic">
-                                  Watak: {chal.traitClaim}
+                                  Sifat: {chal.traitClaim}
                                 </p>
                                 <div className="mt-1 space-y-0.5">
                                   {chal.options.map((opt) => {
@@ -2385,8 +2577,8 @@ export function KitabMateriOverlay({
                                       >
                                         {isChosen
                                           ? opt.isValidEvidence
-                                            ? "[Bukti Valid] "
-                                            : "[Kurang Tepat] "
+                                            ? "[Tepat ✓] "
+                                            : "[Coba Lagi] "
                                           : "○ "}
                                         {opt.quote}
                                       </button>
@@ -2401,7 +2593,7 @@ export function KitabMateriOverlay({
                         {/* Bagian B: Transformasi Kalimat Datar ke 5 Indera */}
                         <div className="space-y-1.5">
                           <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            B. Ubah Kalimat Datar Menjadi Citraan Indera:
+                            B. Misi Panca Indera (Pilih Kalimat yang Paling Hidup):
                           </span>
                           {SENSORY_UPGRADE_CHALLENGES.map((sens) => {
                             const selectedOptId =
@@ -2440,8 +2632,8 @@ export function KitabMateriOverlay({
                                       >
                                         {isChosen
                                           ? opt.isRichSensory
-                                            ? "[Imajinatif] "
-                                            : "[Masih Datar] "
+                                            ? "[Hidup ✓] "
+                                            : "[Masih Biasa] "
                                           : "○ "}
                                         {opt.text}
                                       </button>
@@ -2455,8 +2647,7 @@ export function KitabMateriOverlay({
 
                         {!pouchDone && (
                           <p className="border-t border-[#5c3d1e]/25 pt-1 text-[9.5px] font-semibold text-[#5a1818] italic">
-                            Catatan Segel II: Pastikan kamu juga telah
-                            mengurutkan 4 Kantong Emas pada Halaman 3 (Tab 2)!
+                            Petunjuk Segel 2: Jangan lupa klik juga tab &ldquo;2. 4 Kantong Emas&rdquo; di Halaman 3 (kiri) lalu urutkan kantongnya ya!
                           </p>
                         )}
                       </div>
@@ -2469,7 +2660,7 @@ export function KitabMateriOverlay({
                         onClick={() => switchToChapter("bahasa")}
                         className="cursor-pointer font-bold text-[#2b1a0c] underline decoration-[#5c3d1e]/50 underline-offset-2 transition hover:text-black"
                       >
-                        Babak III: Bahasa &amp; Dialog -&gt;
+                        Lanjut Misi 3: Gaya Bahasa -&gt;
                       </button>
                     </div>
                   </div>
@@ -2482,14 +2673,14 @@ export function KitabMateriOverlay({
               {!isShowingIntroSpread && activeChapter === "bahasa" && (
                 <>
                   {/* LEFT PAGE (HALAMAN 5): KAIDAH MAJAS ASOSIASI, DIALOG & LEKSIKON */}
-                  <div style={book2dLeftPageStyle} className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5">
+                  <div style={get2dPageStyle("left")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                       <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
                         <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
                           HALAMAN 5 · {CHAPTER_ORDER[2]!.tpTag}
                         </span>
                         <span className="font-serif text-[10px] font-semibold text-[#6b4826] italic">
-                          Majas &amp; Kalimat Langsung
+                          Perumpamaan &amp; Dialog
                         </span>
                       </div>
 
@@ -2497,11 +2688,11 @@ export function KitabMateriOverlay({
                         {/* 1. Majas Asosiasi */}
                         <div className="pb-1.5">
                           <h3 className="parchment-contour-warp text-[11px] font-bold text-[#2b1a0c]">
-                            1. Majas Asosiasi (Perumpamaan — Hlm. 63)
+                            1. Kalimat Perumpamaan (Majas Asosiasi)
                           </h3>
                           <p className="mt-0.5 text-[10px] leading-relaxed text-[#3a2512]">
-                            Membandingkan dua hal yang berbeda secara eksplisit
-                            menggunakan kata penghubung pembanding:{" "}
+                            Membandingkan dua hal supaya cerita lebih hidup
+                            dengan memakai kata:{" "}
                             <strong>
                               seperti, bagaikan, bak, laksana, ibarat
                             </strong>
@@ -2517,20 +2708,20 @@ export function KitabMateriOverlay({
                         {/* 2. Kalimat Langsung vs Tak Langsung */}
                         <div className="pb-1.5">
                           <h3 className="parchment-contour-warp text-[11px] font-bold text-[#2b1a0c]">
-                            2. Transmutasi Kalimat Langsung &amp; Tak Langsung (Hlm. 69–70)
+                            2. Kalimat Langsung &amp; Tak Langsung
                           </h3>
                           <p className="mt-0.5 text-[10px] leading-relaxed text-[#3a2512]">
-                            • <strong>Kalimat Langsung:</strong> Mengutip ucapan
-                            tokoh persis dengan{" "}
+                            • <strong>Kalimat Langsung:</strong> Ucapan tokoh
+                            ditulis di dalam{" "}
                             <strong>tanda petik dua (&ldquo;...&rdquo;)</strong>{" "}
-                            dan kata ganti orang pertama/kedua (<em>aku, kau</em>).
+                            dan memakai kata <em>aku / kau</em>.
                           </p>
                           <p className="mt-0.5 text-[10px] leading-relaxed text-[#14532d]">
                             • <strong>Kalimat Tak Langsung:</strong>{" "}
-                            Menghilangkan tanda petik dua, menggunakan kata
-                            hubung (<em>bahwa, agar, untuk</em>), dan mengubah
-                            kata ganti menjadi sudut pandang orang ketiga (
-                            <em>ia, -nya</em>).
+                            Menceritakan ulang ucapan tokoh{" "}
+                            <strong>tanpa tanda petik dua</strong>, memakai kata{" "}
+                            <em>bahwa / agar</em>, dan kata gantinya berubah
+                            jadi <em>ia / -nya</em>.
                           </p>
                           <hr className="parchment-ink-rule mt-1.5" />
                         </div>
@@ -2538,7 +2729,7 @@ export function KitabMateriOverlay({
                         {/* 3. Bank Kata & Frasa Fantasi */}
                         <div className="space-y-1">
                           <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            3. Bank Kata &amp; Frasa Fantasi:
+                            3. Kamus Kata Fantasi (Klik Kategori):
                           </span>
                           <div className="flex flex-wrap gap-1.5 pt-0.5">
                             {FANTASY_LEXICON_BANK.map((cat) => {
@@ -2593,23 +2784,23 @@ export function KitabMateriOverlay({
                         onClick={() => switchToChapter("watak")}
                         className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
                       >
-                        &lt;- Babak II: Watak &amp; Indera
+                        &lt;- Misi 2: Tokoh &amp; Indera
                       </button>
                       <span className="font-semibold">Halaman 5</span>
                     </div>
                   </div>
 
                   {/* RIGHT PAGE (HALAMAN 6): TANTANGAN MAJAS & KONVERSI DIALOG */}
-                  <div style={book2dRightPageStyle} className="parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5">
+                  <div style={get2dPageStyle("right")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                       <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
                         <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
-                          HALAMAN 6 · RACIK MAJAS &amp; TRANSMUTASI DIALOG
+                          HALAMAN 6 · TANTANGAN SEGEL 3
                         </span>
                         <span className="font-serif text-[10px] font-bold text-[#14532d]">
                           {state.sealBahasaUnlocked
-                            ? "Segel III Terbuka"
-                            : `Majas ${majasDone ? "Tuntas" : "Belum"} · Dialog ${dialogueDone ? "Tuntas" : "Belum"}`}
+                            ? "Segel 3 Selesai ✓"
+                            : `Perumpamaan ${majasDone ? "Beres" : "Belum"} · Dialog ${dialogueDone ? "Beres" : "Belum"}`}
                         </span>
                       </div>
 
@@ -2617,7 +2808,7 @@ export function KitabMateriOverlay({
                         {/* Tantangan A: Kawah Peracik Majas Asosiasi */}
                         <div className="space-y-1.5 border-b border-[#5c3d1e]/35 pb-2">
                           <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            A. Racik Penanda &amp; Perumpamaan Majas Asosiasi:
+                            A. Misi Perumpamaan (Pilih Pasangan Kata yang Cocok):
                           </span>
                           {MAJAS_ASOSIASI_CHALLENGES.map((majas) => {
                             const pair = state.majasAnswers[majas.id] ?? {
@@ -2639,72 +2830,52 @@ export function KitabMateriOverlay({
                                 <p className="mt-0.5 text-[9.5px] text-[#4a2f15] italic">
                                   {majas.blankPrompt}
                                 </p>
-                                <div className="mt-1 grid grid-cols-2 gap-2">
+                                <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   <div>
                                     <label className="block text-[8.5px] font-bold text-[#5c3d1e] uppercase">
                                       Kata Pembanding:
                                     </label>
-                                    <select
-                                      aria-label={`Kata pembanding untuk ${majas.id}`}
+                                    <ParchmentSelect
+                                      ariaLabel={`Kata pembanding untuk ${majas.id}`}
                                       value={pair.connector}
-                                      onChange={(e) =>
+                                      placeholder="-- Pilih Penanda --"
+                                      size="sm"
+                                      options={majas.connectorChoices.map((c) => ({
+                                        value: c,
+                                        label: c,
+                                      }))}
+                                      onChange={(nextVal) =>
                                         handleUpdateMajasPair(
                                           majas.id,
                                           "connector",
-                                          e.target.value
+                                          nextVal
                                         )
                                       }
-                                      className="parchment-pen-input mt-0.5 w-full cursor-pointer py-0.5 font-serif text-[10px] font-bold italic"
-                                    >
-                                      <option
-                                        value=""
-                                        className="bg-[#f3e5c8] text-[#2b1a0c]"
-                                      >
-                                        -- Pilih Penanda --
-                                      </option>
-                                      {majas.connectorChoices.map((c) => (
-                                        <option
-                                          key={c}
-                                          value={c}
-                                          className="bg-[#f3e5c8] text-[#2b1a0c]"
-                                        >
-                                          {c}
-                                        </option>
-                                      ))}
-                                    </select>
+                                      triggerClassName="mt-0.5 font-serif font-bold italic"
+                                    />
                                   </div>
                                   <div>
                                     <label className="block text-[8.5px] font-bold text-[#5c3d1e] uppercase">
                                       Citraan Perumpamaan:
                                     </label>
-                                    <select
-                                      aria-label={`Perumpamaan untuk ${majas.id}`}
+                                    <ParchmentSelect
+                                      ariaLabel={`Perumpamaan untuk ${majas.id}`}
                                       value={pair.comparison}
-                                      onChange={(e) =>
+                                      placeholder="-- Pilih Perumpamaan --"
+                                      size="sm"
+                                      options={majas.comparisonChoices.map((comp) => ({
+                                        value: comp,
+                                        label: comp,
+                                      }))}
+                                      onChange={(nextVal) =>
                                         handleUpdateMajasPair(
                                           majas.id,
                                           "comparison",
-                                          e.target.value
+                                          nextVal
                                         )
                                       }
-                                      className="parchment-pen-input mt-0.5 w-full cursor-pointer py-0.5 font-serif text-[10px] font-bold italic"
-                                    >
-                                      <option
-                                        value=""
-                                        className="bg-[#f3e5c8] text-[#2b1a0c]"
-                                      >
-                                        -- Pilih Perumpamaan --
-                                      </option>
-                                      {majas.comparisonChoices.map((comp) => (
-                                        <option
-                                          key={comp}
-                                          value={comp}
-                                          className="bg-[#f3e5c8] text-[#2b1a0c]"
-                                        >
-                                          {comp}
-                                        </option>
-                                      ))}
-                                    </select>
+                                      triggerClassName="mt-0.5 font-serif font-bold italic"
+                                    />
                                   </div>
                                 </div>
                                 {isSolved && (
@@ -2720,7 +2891,7 @@ export function KitabMateriOverlay({
                         {/* Tantangan B: Transmutasi Kalimat Langsung -> Tak Langsung */}
                         <div className="space-y-1.5">
                           <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            B. Ubah ke Kalimat Tak Langsung (EYD V):
+                            B. Misi Dialog (Pilih Kalimat Tak Langsung yang Benar):
                           </span>
                           {DIALOGUE_TRANSMUTATION_CHALLENGES.map((dlg) => {
                             const selectedOptId =
@@ -2759,8 +2930,8 @@ export function KitabMateriOverlay({
                                       >
                                         {isChosen
                                           ? opt.isCorrect
-                                            ? "[Baku & Tepat] "
-                                            : "[Salah Kaidah] "
+                                            ? "[Tepat ✓] "
+                                            : "[Coba Lagi] "
                                           : "○ "}
                                         {opt.text}
                                       </button>
@@ -2781,7 +2952,7 @@ export function KitabMateriOverlay({
                         onClick={onNavigateToStudioTulis}
                         className="cursor-pointer font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950"
                       >
-                        Lanjut Menulis di Studio Tulis -&gt;
+                        Ayo Mengarang di Studio Tulis -&gt;
                       </button>
                     </div>
                   </div>
@@ -2789,11 +2960,10 @@ export function KitabMateriOverlay({
               )}
             </div>
 
-            {/* Layer 4: Spine Gutter Shadow & Outer Paper Edge Vignette Overlay */}
-            <ParchmentSpineShadowOverlay />
+            {/* Layer 4 & 5: Desktop Book Spine Shadow & 3D Hinge Flipper */}
+            {!isMobileBook && <ParchmentSpineShadowOverlay />}
 
-            {/* Layer 5: 3D HINGE PAGE-FLIPPER OVERLAY (Terkunci 1:1 ke koordinat kertas 946:603) */}
-            {flipDirection !== null && (
+            {!isMobileBook && flipDirection !== null && (
               <div
                 style={{
                   left: flipDirection === "next" ? "49.05%" : "6.55%",
@@ -2824,6 +2994,42 @@ export function KitabMateriOverlay({
             )}
           </div>
         </div>
+
+          {/* Mobile Thumb-Zone Page Switcher (Materi <-> Tantangan) */}
+          {isMobileBook && !isCalibrating && (
+            <div className="relative z-30 grid w-full max-w-[480px] shrink-0 grid-cols-2 gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  playPageFlip();
+                  setMobilePageSide("left");
+                }}
+                className={`min-h-[44px] rounded-full border px-3 py-2 text-xs font-bold shadow-[0_8px_22px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all cursor-pointer ${
+                  mobilePageSide === "left"
+                    ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
+                    : "border-[#d6b26f]/55 bg-slate-950/92 text-amber-100"
+                }`}
+              >
+                {isShowingIntroSpread ? "1. Panduan Awal" : "1. Baca Materi"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playPageFlip();
+                  setMobilePageSide("right");
+                }}
+                className={`min-h-[44px] rounded-full border px-3 py-2 text-xs font-bold shadow-[0_8px_22px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all cursor-pointer ${
+                  mobilePageSide === "right"
+                    ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
+                    : "border-emerald-400/60 bg-emerald-950/92 text-emerald-100"
+                }`}
+              >
+                {isShowingIntroSpread
+                  ? "2. Daftar 3 Misi ->"
+                  : "2. Main Tantangan ->"}
+              </button>
+            </div>
+          )}
 
           {isCalibrating && (
             <BookHomographyCalibrator

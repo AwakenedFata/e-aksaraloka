@@ -400,3 +400,144 @@ export function buildPageDisplacementSpec(
     filterScale,
   };
 }
+
+export type Mobile3dCameraTarget =
+  | "none"
+  | "kitab-left"
+  | "kitab-right"
+  | "studio";
+
+export interface Mobile3dCameraTransform {
+  readonly active: boolean;
+  readonly zoom: number;
+  readonly panX: number;
+  readonly panY: number;
+  readonly transformOrigin: string;
+  readonly transformCss: string;
+}
+
+const IDENTITY_MOBILE_3D_CAMERA: Mobile3dCameraTransform = {
+  active: false,
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  transformOrigin: "50% 50%",
+  transformCss: "translate3d(0px, 0px, 0px) scale(1)",
+};
+
+const KITAB_UNIFORM_SPAN_X = 0.323;
+const KITAB_UNIFORM_SPAN_Y = 0.66;
+
+const MOBILE_3D_TARGET_SPECS: Record<
+  Exclude<Mobile3dCameraTarget, "none">,
+  {
+    readonly centerX: number;
+    readonly centerY: number;
+    readonly spanX: number;
+    readonly spanY: number;
+  }
+> = {
+  "kitab-left": {
+    centerX: 0.3165,
+    centerY: 0.505,
+    spanX: KITAB_UNIFORM_SPAN_X,
+    spanY: KITAB_UNIFORM_SPAN_Y,
+  },
+  "kitab-right": {
+    centerX: 0.638,
+    centerY: 0.505,
+    spanX: KITAB_UNIFORM_SPAN_X,
+    spanY: KITAB_UNIFORM_SPAN_Y,
+  },
+  studio: {
+    centerX: 0.49,
+    centerY: 0.515,
+    spanX: 0.396,
+    spanY: 0.54,
+  },
+};
+
+/**
+ * Computes synchronized camera zoom & pan on mobile portrait (< 768px & vw < vh)
+ * so 16:9 3D book perspectives remain 100% unclipped and centered between Navbar and bottom Dock.
+ * Desktop, tablet, and landscape viewports always keep identity transform.
+ */
+export function computeMobile3dCameraTransform(
+  viewportWidth: number,
+  viewportHeight: number,
+  target: Mobile3dCameraTarget,
+  sourceWidth = STAGE_SOURCE_WIDTH,
+  sourceHeight = STAGE_SOURCE_HEIGHT
+): Mobile3dCameraTransform {
+  if (
+    target === "none" ||
+    !Number.isFinite(viewportWidth) ||
+    !Number.isFinite(viewportHeight) ||
+    viewportWidth >= 768 ||
+    viewportWidth >= viewportHeight
+  ) {
+    return IDENTITY_MOBILE_3D_CAMERA;
+  }
+
+  const base = computeCoverStageMetrics(
+    viewportWidth,
+    viewportHeight,
+    sourceWidth,
+    sourceHeight
+  );
+  const spec = MOBILE_3D_TARGET_SPECS[target];
+
+  const topSafePx = 104;
+  const bottomSafePx = 162;
+  const safeHeight = Math.max(160, viewportHeight - topSafePx - bottomSafePx);
+  const safeCenterY = topSafePx + safeHeight / 2;
+
+  const widthFitZoom = (viewportWidth * 0.94) / (spec.spanX * base.width);
+  const heightFitZoom = safeHeight / (spec.spanY * base.height);
+  const zoom = Math.max(0.25, Math.min(1, widthFitZoom, heightFitZoom));
+
+  const panX = (0.5 - spec.centerX) * base.width * zoom;
+  const panY =
+    safeCenterY -
+    viewportHeight / 2 +
+    (0.5 - spec.centerY) * base.height * zoom;
+
+  return {
+    active: true,
+    zoom,
+    panX,
+    panY,
+    transformOrigin: "50% 50%",
+    transformCss: `translate3d(${panX.toFixed(2)}px, ${panY.toFixed(2)}px, 0px) scale(${zoom.toFixed(5)})`,
+  };
+}
+
+/**
+ * Applies a mobile 3D camera transform directly into `CoverStageMetrics` so homography
+ * overlays stay pixel-locked to the transformed <canvas> without creating a CSS transform isolation group.
+ */
+export function computeEffectiveCoverStageMetrics(
+  viewportWidth: number,
+  viewportHeight: number,
+  camera: Mobile3dCameraTransform,
+  sourceWidth = STAGE_SOURCE_WIDTH,
+  sourceHeight = STAGE_SOURCE_HEIGHT
+): CoverStageMetrics {
+  const base = computeCoverStageMetrics(
+    viewportWidth,
+    viewportHeight,
+    sourceWidth,
+    sourceHeight
+  );
+  if (!camera.active) return base;
+
+  const width = base.width * camera.zoom;
+  const height = base.height * camera.zoom;
+  return {
+    width,
+    height,
+    scale: base.scale * camera.zoom,
+    offsetX: (viewportWidth - width) / 2 + camera.panX,
+    offsetY: (viewportHeight - height) / 2 + camera.panY,
+  };
+}

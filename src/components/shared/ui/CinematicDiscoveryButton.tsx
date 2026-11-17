@@ -134,8 +134,8 @@ export function CinematicDiscoveryButton({
       >
         {children}
 
-        {/* Floating Tooltip Label positioned above the button */}
-        <span className="absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-200 rounded-md bg-[#030712]/95 border border-[#cda250]/40 px-2.5 py-0.5 text-[10px] sm:text-xs font-brand tracking-widest uppercase text-[#f4d993] shadow-lg whitespace-nowrap group-hover:-translate-y-1">
+        {/* Floating Tooltip Label positioned above the button (always visible on mobile touch screens) */}
+        <span className="absolute -top-9 left-1/2 -translate-x-1/2 opacity-100 md:opacity-0 pointer-events-none md:group-hover:opacity-100 transition-all duration-200 rounded-md bg-[#030712]/95 border border-[#cda250]/45 px-2.5 py-0.5 text-[10px] sm:text-xs font-brand tracking-widest uppercase text-[#f4d993] shadow-lg whitespace-nowrap md:group-hover:-translate-y-1">
           {label}
         </span>
       </button>

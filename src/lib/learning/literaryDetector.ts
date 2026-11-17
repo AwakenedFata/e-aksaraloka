@@ -131,39 +131,39 @@ export interface LiteraryAnalysisResult {
 export interface SelfRevisionChecklistItem {
   readonly id: string;
   readonly label: string;
-  readonly category: "Struktur & Logika" | "Detail & Tokoh" | "Bahasa & EYD V";
+  readonly category: "Struktur & Logika" | "Detail & Tokoh" | "Bahasa & Ejaan";
 }
 
 export const SELF_REVISION_CHECKLIST: readonly SelfRevisionChecklistItem[] = [
   {
     id: "rev-struktur",
     label:
-      "Ceritaku sudah memiliki bagian Awal (Orientasi), Tengah (Komplikasi-Klimaks), dan Akhir (Resolusi) yang tidak melompat-lompat.",
+      "Ceritaku sudah punya bagian Awal, Masalah, Puncak, dan Akhir yang berurutan.",
     category: "Struktur & Logika",
   },
   {
     id: "rev-aturan",
     label:
-      "Penyelesaian masalah di bagian Klimaks mematuhi aturan dunia fantasi yang kubuat (tidak selesai secara instan tanpa usaha).",
+      "Cara tokohku menyelesaikan masalah sudah sesuai dengan aturan keajaiban ceritaku.",
     category: "Struktur & Logika",
   },
   {
     id: "rev-watak-indera",
     label:
-      "Watak tokoh sudah tampak dari tindakan/dialognya dan latar tempat melibatkan detail pancaindra (penglihatan, suara, atau aroma/suhu).",
+      "Sifat tokohku sudah terlihat dari perbuatannya dan ada gambaran panca indera (cahaya, suara, atau aroma/suhu).",
     category: "Detail & Tokoh",
   },
   {
     id: "rev-majas-dialog",
     label:
-      "Aku sudah menyisipkan minimal satu majas asosiasi (seperti/bagaikan/laksana) serta variasi kalimat langsung dan tak langsung.",
-    category: "Bahasa & EYD V",
+      "Aku sudah memakai perumpamaan (seperti/bagaikan/laksana) dan kalimat dialog tokoh.",
+    category: "Bahasa & Ejaan",
   },
   {
     id: "rev-eyd",
     label:
-      "Aku sudah memeriksa penulisan kata depan 'di' (dipisah untuk tempat) dan meletakkan tanda baca sebelum tanda petik penutup dialog.",
-    category: "Bahasa & EYD V",
+      "Kata depan tempat ('di atas', 'di dalam') sudah kupisah dan tanda baca dialog sudah rapi.",
+    category: "Bahasa & Ejaan",
   },
 ];
 
@@ -478,7 +478,7 @@ export function auditEydAndLexicon(fullText: string): readonly EydAndLexiconIssu
         foundText: found,
         suggestion: `${prefix} ${rest}`,
         explanation: `Kata depan '${prefix}' yang menunjukkan tempat atau arah wajib ditulis terpisah dari kata '${rest}'.`,
-        ruleReference: "EYD Edisi V · Bab II Penulisan Kata (Kata Depan di, ke, dari)",
+        ruleReference: "Aturan Penulisan Kata Depan ('di' dipisah)",
         referenceUrl: "https://ejaan.kemendikdasmen.go.id/eyd/penulisan-kata/kata-depan/",
         verificationStatus: "deterministic_rule",
       });
@@ -496,7 +496,7 @@ export function auditEydAndLexicon(fullText: string): readonly EydAndLexiconIssu
       suggestion: `${punct}"`,
       explanation:
         "Pada kalimat langsung, tanda baca penutup kalimat (titik, koma, tanda seru, atau tanda tanya) diletakkan di dalam (sebelum) tanda petik penutup.",
-      ruleReference: "EYD Edisi V · Bab III Penggunaan Tanda Baca (Tanda Petik)",
+      ruleReference: "Aturan Tanda Baca Dialog (\"...\")",
       referenceUrl: "https://ejaan.kemendikdasmen.go.id/eyd/penggunaan-tanda-baca/tanda-petik/",
       verificationStatus: "deterministic_rule",
     });
@@ -512,7 +512,7 @@ export function auditEydAndLexicon(fullText: string): readonly EydAndLexiconIssu
         foundText: match[0],
         suggestion: entry.standard,
         explanation: `${entry.note} (Verifikasi: ${entry.verifiedDate}).`,
-        ruleReference: `KBBI VI Daring · Entri '${entry.standard}'`,
+        ruleReference: `Cek Kata Baku '${entry.standard}' di Kamus`,
         referenceUrl: buildKbbiReferenceUrl(entry.standard),
         verificationStatus: "authority_verified",
       });
@@ -770,75 +770,75 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   const indicators: readonly LiteraryIndicatorStatus[] = [
     {
       id: "struktur",
-      title: "1. Struktur 3 Babak, Aturan Dunia, & Amanat",
+      title: "1. Kelengkapan Cerita, Aturan Ajaib & Pesan",
       tpCode: "TP 1 & TP 2",
       passed: strukturPassed,
       scoreWeight: 20,
       earnedScore: strukturPassed ? 20 : strukturPartialScore,
       summary: strukturPassed
-        ? `Lengkap (${totalWords} kata total) disertai Aturan Dunia Fantasi dan Amanat.`
-        : "Pastikan ketiga paragraf (Orientasi, Klimaks, Resolusi) masing-masing minimal 12 kata serta Judul, Aturan Dunia, dan Amanat telah terisi.",
+        ? `Hebat! Semua bagian ceritamu sudah lengkap (${totalWords} kata) beserta aturan keajaiban dan pesan kebaikan.`
+        : "Yuk lengkapi dulu! Pastikan bagian Awal, Puncak, dan Akhir masing-masing minimal 12 kata, serta Judul, Aturan Keajaiban, dan Pesan Cerita sudah diisi.",
       detectedSnippets: strukturSnippets,
       improvementHint:
-        "Tulis minimal 12 kata pada setiap kotak paragraf (Awal, Tengah, Akhir) dan lengkapi kolom Aturan Dunia serta Amanat.",
+        "Tulis minimal 12 kata di tiap halaman cerita (Awal, Puncak, Akhir), lalu isi juga Judul, Aturan Keajaiban, dan Pesan Kebaikan.",
     },
     {
       id: "konsistensi_indera",
-      title: "2. Konsistensi Tokoh, Latar, & Detail 5 Indera",
+      title: "2. Nama Tokoh, Tempat, & Kata Panca Indera",
       tpCode: "TP 3",
       passed: konsistensiPassed,
       scoreWeight: 20,
       earnedScore: konsistensiEarned,
       summary: konsistensiPassed
-        ? "Nama tokoh, latar tempat, dan kosakata pancaindra telah menyatu di dalam cerita."
-        : "Masukkan nama Protagonis, Antagonis/Latar yang kamu rancang ke dalam paragraf cerita beserta minimal 2 kata pancaindra.",
+        ? "Mantap! Nama tokoh, tempat kejadian, dan kata-kata panca indera sudah hidup di dalam ceritamu."
+        : "Sebutkan nama Tokoh Utama dan Lawan/Tempat dari Lembar 1 di dalam ceritamu, lalu tambahkan minimal 2 kata panca indera.",
       detectedSnippets: konsistensiSnippets,
       improvementHint:
-        "Gunakan nama tokoh dan latar dari Halaman Kiri di dalam paragrafmu, lalu tambahkan kata indera seperti 'berpendar', 'gemuruh', 'harum', atau 'dingin'.",
+        "Pakai nama tokoh dan tempat yang kamu tulis di Lembar 1, lalu tambahkan kata suasana seperti 'berpendar', 'gemuruh', 'harum', atau 'dingin'.",
     },
     {
       id: "majas_asosiasi",
-      title: "3. Pemakaian Majas Asosiasi / Perumpamaan",
+      title: "3. Kalimat Perumpamaan (Majas Asosiasi)",
       tpCode: "TP 4 (Hlm. 63)",
       passed: majasPassed,
       scoreWeight: 20,
       earnedScore: majasPassed ? 20 : 0,
       summary: majasPassed
-        ? `Terdeteksi ${uniqueMajas.length} ungkapan majas asosiasi di dalam naskah.`
-        : "Belum terdeteksi majas asosiasi di dalam paragraf cerita.",
+        ? `Keren! Ditemukan ${uniqueMajas.length} kalimat perumpamaan di dalam ceritamu.`
+        : "Belum ada kalimat perumpamaan di dalam ceritamu.",
       detectedSnippets: uniqueMajas,
       improvementHint:
-        "Sisipkan perbandingan dengan kata 'seperti', 'bagaikan', 'laksana', atau 'bak' (contoh: 'berlari kencang seperti anak panah').",
+        "Coba tambahkan perumpamaan dengan kata 'seperti', 'bagaikan', 'laksana', atau 'bak' (atau klik tombol '+ Perumpamaan' di Lembar 3!).",
     },
     {
       id: "dialog_langsung",
-      title: "4. Kalimat Langsung / Dialog Tokoh (EYD V)",
+      title: "4. Dialog Tokoh Bertanda Petik (\"...\")",
       tpCode: "TP 4 (Hlm. 69)",
       passed: dialogPassed,
       scoreWeight: 20,
       earnedScore: dialogEarned,
       summary: dialogPassed
-        ? "Dialog bertanda petik dua beserta tanda baca akhir di dalam petik telah sesuai kaidah EYD V."
+        ? "Bagus sekali! Dialog tokohmu sudah memakai tanda petik dua dan tanda baca yang rapi."
         : dialogMatches.length >= 1
-          ? "Dialog ditemukan, namun pastikan tanda seru/tanya/koma berada di dalam sebelum tanda petik penutup."
-          : "Belum ada dialog kalimat langsung bertanda petik (\"...\") di dalam naskah.",
+          ? "Dialog sudah ada, tapi pastikan tanda seru/tanya/titik ditaruh DI DALAM sebelum tanda petik penutup ya!"
+          : "Belum ada ucapan langsung tokoh yang memakai tanda petik dua (\"...\").",
       detectedSnippets: dialogMatches,
       improvementHint:
-        'Tambahkan minimal satu dialog tokoh menggunakan tanda petik dua, misalnya: Raksasa berseru, "Jangan lari!"',
+        'Tambahkan obrolan tokoh memakai tanda petik dua, contohnya: Raksasa berseru, "Jangan lari!" (atau klik tombol "+ Dialog" di Lembar 3).',
     },
     {
       id: "tak_langsung_konjungsi",
-      title: "5. Kalimat Tak Langsung & Konjungsi Kronologis",
+      title: "5. Kalimat Tak Langsung & Kata Penghubung Waktu",
       tpCode: "TP 4 & TP 5",
       passed: takLangsungPassed,
       scoreWeight: 20,
       earnedScore: takLangsungEarned,
       summary: takLangsungPassed
-        ? "Kalimat tak langsung dan kata penghubung alur waktu telah digunakan secara efektif."
-        : "Tambahkan kalimat tak langsung (misal: 'mengatakan bahwa...') dan konjungsi alur ('tiba-tiba', 'namun', 'akhirnya').",
+        ? "Lengkap! Kamu sudah memakai kalimat tak langsung dan kata penghubung waktu dengan baik."
+        : "Tambahkan kalimat tak langsung (contoh: 'mengatakan bahwa...') dan kata penghubung waktu ('tiba-tiba', 'namun', 'akhirnya').",
       detectedSnippets: detectedMarkers,
       improvementHint:
-        "Gunakan frasa tak langsung seperti 'mengatakan bahwa' / 'menyadari bahwa' serta konjungsi waktu 'tiba-tiba', 'seketika', atau 'akhirnya'.",
+        "Gunakan kalimat seperti 'mengatakan bahwa' / 'menyadari bahwa' serta kata 'tiba-tiba', 'seketika', atau 'akhirnya' (bisa klik tombol bantu di Lembar 2 & 3!).",
     },
   ];
 
