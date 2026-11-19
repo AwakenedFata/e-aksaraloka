@@ -95,10 +95,12 @@ interface ScrollCanvasSequenceProps {
 }
 
 interface ActiveAutoplay {
+  mode: "canvas" | "video";
   sequence: SequenceType;
   startFrame: number;
   targetFrame: number;
   startTime: number;
+  startedAtMs: number;
   durationMs: number;
   primingStartTime: number | null;
   primeTargetCount: number;
@@ -107,10 +109,27 @@ interface ActiveAutoplay {
   stalledFrame: number;
   currentFrameStallMs: number;
   totalStallMs: number;
+  videoSessionId: number;
+  videoStartedAt: number;
+  videoStartTimeSec: number;
+  videoTargetTimeSec: number;
+  videoSeekReady: boolean;
+  videoHasPaintedFrame: boolean;
+  videoLastTime: number;
+  videoLastProgressAt: number;
+  videoFallbackTriggered: boolean;
   interruptible: boolean;
   syncScrollOnComplete: boolean;
   onComplete?: () => void;
 }
+
+const SEQUENCE_VIDEO_URLS: Readonly<Record<SequenceType, string>> = {
+  hero: "/seq-videos/hero.mp4",
+  materi: "/seq-videos/materi.mp4",
+  reading: "/seq-videos/reading.mp4",
+  latihan: "/seq-videos/latihan.mp4",
+};
+const SEQUENCE_VIDEO_FPS = 48;
 
 const TOTAL_HERO_FRAMES_DEFAULT = 240;
 const TOTAL_MATERI_FRAMES_DEFAULT = 299;
@@ -122,6 +141,40 @@ const MANUAL_LERP_SCRUB_JUMP_60HZ = 0.48;
 const HERO_EXIT_START_FRAME = 20;
 const SOURCE_WIDTH = 1920;
 const SOURCE_HEIGHT = 1080;
+
+function getRuntimeLookahead(budget: AdaptiveCacheBudget): number {
+  if (budget.tier === "low") return 48;
+  if (budget.tier === "balanced") return 60;
+  return 72;
+}
+
+function getRuntimeWarmBlocks(
+  cache: FrameCacheManager<ImageBitmap>,
+  totalMateriFrames: number,
+  totalLatihanFrames: number,
+  stride: number
+): void {
+  const blockSize = 48;
+  const maxTotal = Math.max(totalMateriFrames, totalLatihanFrames);
+  for (let start = 1; start <= maxTotal; start += blockSize) {
+    if (start <= totalMateriFrames) {
+      cache.queueBlobWarmup(
+        "materi",
+        start,
+        Math.min(totalMateriFrames, start + blockSize - 1),
+        stride
+      );
+    }
+    if (start <= totalLatihanFrames) {
+      cache.queueBlobWarmup(
+        "latihan",
+        start,
+        Math.min(totalLatihanFrames, start + blockSize - 1),
+        stride
+      );
+    }
+  }
+}
 
 export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
   isMateriUnlocked = false,
@@ -232,6 +285,11 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
   const lastScrollYRef = useRef<number>(0);
 
   const autoplayRef = useRef<ActiveAutoplay | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoSessionIdRef = useRef<number>(0);
+  const isVideoActiveRef = useRef<boolean>(false);
+  const lastViewportRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+  const pendingResizeAfterAutoplayRef = useRef<boolean>(false);
   const suppressScrollReadRef = useRef<boolean>(false);
   const lastHeroExitWrittenRef = useRef<string>("");
   const lastDiscreteRef = useRef<DiscreteSequenceState | null>(null);
@@ -241,12 +299,32 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
   const prevTickTimeRef = useRef<number>(0);
   const cacheManagerRef = useRef<FrameCacheManager<ImageBitmap> | null>(null);
   const cacheBudgetRef = useRef<AdaptiveCacheBudget>(detectAdaptiveCacheBudget());
-  const warmupTriggeredRef = useRef<{ heroToMateri: boolean; materiToReading: boolean }>({
+  const warmupTriggeredRef = useRef<{
+    heroToMateri: boolean;
+    materiToReading: boolean;
+    readingPageFlip: boolean;
+  }>({
     heroToMateri: false,
     materiToReading: false,
+    readingPageFlip: false,
   });
 
   const [isFirstFrameReady, setIsFirstFrameReady] = useState<boolean>(false);
+  const [isVideoVisible, setIsVideoVisible] = useState<boolean>(false);
+
+  const stopHardwareVideo = useCallback(() => {
+    videoSessionIdRef.current++;
+    isVideoActiveRef.current = false;
+    setIsVideoVisible(false);
+    const video = videoRef.current;
+    if (video && !video.paused) {
+      try {
+        video.pause();
+      } catch {
+        // Ignore media teardown interruptions
+      }
+    }
+  }, []);
 
   const getMaxFrames = useCallback(
     (seq: SequenceType): number => {
@@ -261,26 +339,18 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
   const measureScrollableHeights = useCallback(() => {
     const vh = Math.max(1, window.innerHeight || 900);
     viewportHeightRef.current = vh;
+    const docMaxScroll = Math.max(1, document.documentElement.scrollHeight - vh);
 
-    const heroEl = containerRef.current;
-    scrollableHeightsRef.current.hero = heroEl
-      ? Math.max(1, heroEl.offsetHeight - vh)
-      : Math.round(vh * 1.5);
+    const clampActiveTrack = (el: HTMLElement | null | undefined, fallbackMult: number) => {
+      if (!el || el.offsetHeight <= 0) return Math.round(vh * fallbackMult);
+      const raw = Math.max(1, el.offsetHeight - vh);
+      return Math.min(raw, docMaxScroll);
+    };
 
-    const materiEl = materiContainerRef?.current;
-    scrollableHeightsRef.current.materi = materiEl
-      ? Math.max(1, materiEl.offsetHeight - vh)
-      : Math.round(vh * 1.5);
-
-    const readingEl = readingContainerRef?.current;
-    scrollableHeightsRef.current.reading = readingEl
-      ? Math.max(1, readingEl.offsetHeight - vh)
-      : Math.round(vh * 2.5);
-
-    const latihanEl = latihanContainerRef?.current;
-    scrollableHeightsRef.current.latihan = latihanEl
-      ? Math.max(1, latihanEl.offsetHeight - vh)
-      : Math.round(vh * 2.8);
+    scrollableHeightsRef.current.hero = clampActiveTrack(containerRef.current, 2.0);
+    scrollableHeightsRef.current.materi = clampActiveTrack(materiContainerRef?.current, 2.2);
+    scrollableHeightsRef.current.reading = clampActiveTrack(readingContainerRef?.current, 3.4);
+    scrollableHeightsRef.current.latihan = clampActiveTrack(latihanContainerRef?.current, 3.6);
   }, [containerRef, materiContainerRef, readingContainerRef, latihanContainerRef]);
 
   const drawBackdropBitmap = useCallback((bitmap: ImageBitmap | null) => {
@@ -289,7 +359,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
 
     const backdropCanvas = backdropCanvasRef.current;
     if (!backdropCanvas) return;
-    if (!backdropCtxRef.current) {
+    if (!backdropCtxRef.current || backdropCtxRef.current.canvas !== backdropCanvas) {
       backdropCtxRef.current = backdropCanvas.getContext("2d", {
         alpha: false,
       });
@@ -458,23 +528,50 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       const warmStride = budget.isConstrainedNetwork ? 4 : 1;
       if (cache && seq === "hero" && isHeroAtEnd && !warmupTriggeredRef.current.heroToMateri) {
         warmupTriggeredRef.current.heroToMateri = true;
-        cache.warmSequenceHead("materi", headBudget, false);
-        cache.warmSequenceHead("latihan", headBudget, true);
-        void cache.loadFrame("materi", totalMateriFrames, false);
-        void cache.loadFrame("reading", 1, false);
-        void cache.loadFrame("latihan", LATIHAN_SEGMENT_COUNTS.latihan, false);
-        void cache.loadFrame("latihan", LATIHAN_SEGMENT_COUNTS.latihan + 1, false);
-        void cache.loadFrame("latihan", totalLatihanFrames, false);
-        cache.queueBlobWarmup("materi", 1, totalMateriFrames, warmStride);
-        cache.queueBlobWarmup("latihan", 1, totalLatihanFrames, warmStride);
+        // Always pin crisp 1080p endpoints directly (<1MB total) without starving mobile MP4 playback
+        void cache.loadFrame("materi", totalMateriFrames, false, true);
+        void cache.loadFrame("reading", 1, false, true);
+        void cache.loadFrame("latihan", LATIHAN_SEGMENT_COUNTS.latihan, false, true);
+        void cache.loadFrame("latihan", LATIHAN_SEGMENT_COUNTS.latihan + 1, false, true);
+        void cache.loadFrame("latihan", totalLatihanFrames, false, true);
+        if (budget.tier !== "low") {
+          cache.warmSequenceHead("materi", headBudget, false);
+          cache.warmSequenceHead("latihan", headBudget, true);
+          getRuntimeWarmBlocks(cache, totalMateriFrames, totalLatihanFrames, warmStride);
+        }
       } else if (cache && seq === "materi" && isMateriAtEnd && !warmupTriggeredRef.current.materiToReading) {
         warmupTriggeredRef.current.materiToReading = true;
-        cache.warmSequenceHead(
-          "reading",
-          Math.min(42, Math.max(headBudget, Math.round(budget.maxActiveBitmaps * 0.4)))
-        );
-        void cache.loadFrame("reading", totalReadingFrames, false);
-        cache.queueBlobWarmup("reading", 1, totalReadingFrames, warmStride);
+        void cache.loadFrame("reading", totalReadingFrames, false, true);
+        const videoEl = videoRef.current;
+        if (
+          videoEl &&
+          !budget.isConstrainedNetwork &&
+          !isVideoActiveRef.current &&
+          autoplayRef.current === null &&
+          videoEl.getAttribute("data-seq") !== "reading"
+        ) {
+          videoEl.setAttribute("data-seq", "reading");
+          videoEl.preload = "auto";
+          videoEl.src = SEQUENCE_VIDEO_URLS.reading;
+        }
+        if (budget.tier !== "low") {
+          cache.warmSequenceHead(
+            "reading",
+            Math.min(42, Math.max(headBudget, Math.round(budget.maxActiveBitmaps * 0.4)))
+          );
+          cache.queueBlobWarmup("reading", 1, totalReadingFrames, warmStride);
+        }
+      } else if (
+        cache &&
+        seq === "reading" &&
+        isReadingAtEnd &&
+        !warmupTriggeredRef.current.readingPageFlip
+      ) {
+        warmupTriggeredRef.current.readingPageFlip = true;
+        if (!budget.isConstrainedNetwork) {
+          // Warm only the compact 3D page-turn clip (~1.2 MB) so book page flips stay instant even on mobile
+          cache.queueBlobWarmup("reading", 355, Math.min(445, totalReadingFrames), budget.tier === "low" ? 2 : 1);
+        }
       }
     },
     [heroMaxFrame, totalHeroFrames, totalMateriFrames, totalReadingFrames, totalLatihanFrames]
@@ -496,7 +593,9 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       lenisRef.current.resize();
       lenisRef.current.scrollTo(targetY, { immediate: true, force: true });
       requestAnimationFrame(() => {
-        suppressScrollReadRef.current = false;
+        requestAnimationFrame(() => {
+          suppressScrollReadRef.current = false;
+        });
       });
     },
     [measureScrollableHeights, getMaxFrames, heroMaxFrame]
@@ -586,13 +685,12 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     }
     lastScrollYRef.current = scrollY;
 
-    const nextTarget = scrollYToFrame(
-      seq,
-      scrollY,
-      scrollableHeightsRef.current[seq],
-      getMaxFrames(seq),
-      heroMaxFrame
-    );
+    const scrollable = scrollableHeightsRef.current[seq];
+    const maxFrames = getMaxFrames(seq);
+    const nextTarget =
+      scrollable > 100 && scrollY >= scrollable - 28
+        ? maxFrames
+        : scrollYToFrame(seq, scrollY, scrollable, maxFrames, heroMaxFrame);
     targetFramesRef.current[seq] = nextTarget;
   }, [getMaxFrames, heroMaxFrame]);
 
@@ -602,6 +700,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
 
     const controller: ScrollCanvasController = {
       playTo(sequence, rawTargetFrame, options) {
+        stopHardwareVideo();
         const cache = cacheManagerRef.current;
         const maxFrames = getMaxFrames(sequence);
         const clampedTarget = Math.max(1, Math.min(maxFrames, rawTargetFrame));
@@ -630,41 +729,184 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
 
         const now = performance.now();
         const spanFrames = Math.ceil(Math.abs(clampedTarget - startFrame));
-        const primeTargetCount = Math.min(8, Math.max(1, spanFrames));
+        const videoEl = videoRef.current;
+        const isShortBookFlip =
+          sequence === "reading" && startFrame >= 340 && clampedTarget <= 460;
+        const useHardwareVideo =
+          Boolean(videoEl) &&
+          !prefersReducedMotionRef.current &&
+          direction === 1 &&
+          spanFrames > 15 &&
+          !isShortBookFlip;
+
+        const expectedDurationSec = maxFrames / SEQUENCE_VIDEO_FPS;
+        const estStartSec = ((startFrame - 1) / Math.max(1, maxFrames - 1)) * expectedDurationSec;
+        const estTargetSec =
+          ((clampedTarget - 1) / Math.max(1, maxFrames - 1)) * expectedDurationSec;
+        const sessionId = useHardwareVideo ? ++videoSessionIdRef.current : videoSessionIdRef.current;
+
+        const primeTargetCount = Math.min(12, Math.max(1, spanFrames));
         const readyAhead = cache
           ? cache.countContiguousReady(sequence, Math.round(startFrame), direction, primeTargetCount)
           : primeTargetCount;
 
         autoplayRef.current = {
+          mode: useHardwareVideo ? "video" : "canvas",
           sequence,
           startFrame,
           targetFrame: clampedTarget,
           startTime: now,
+          startedAtMs: now,
           durationMs: Math.max(16, options.durationMs),
-          primingStartTime: readyAhead >= primeTargetCount ? null : now,
+          primingStartTime: useHardwareVideo || readyAhead >= primeTargetCount ? null : now,
           primeTargetCount,
-          maxPrimeWaitMs: 180,
+          maxPrimeWaitMs: 900,
           lastClockTime: now,
           stalledFrame: -1,
           currentFrameStallMs: 0,
           totalStallMs: 0,
+          videoSessionId: sessionId,
+          videoStartedAt: now,
+          videoStartTimeSec: estStartSec,
+          videoTargetTimeSec: estTargetSec,
+          videoSeekReady: false,
+          videoHasPaintedFrame: false,
+          videoLastTime: estStartSec,
+          videoLastProgressAt: now,
+          videoFallbackTriggered: false,
           interruptible: options.interruptible ?? true,
           syncScrollOnComplete: options.syncScrollOnComplete ?? true,
           onComplete: options.onComplete,
         };
 
+        // Always pre-fetch the single crisp 1080p destination endpoint directly so handoff is instant
         if (cache) {
-          const budget = cacheBudgetRef.current;
           cache.setPlaybackActive(true);
-          cache.queueBlobWarmup(sequence, 1, maxFrames, 1);
-          cache.reprioritizeBlobWarmup(sequence);
-          cache.requestWindow(
-            sequence,
-            Math.round(startFrame),
-            direction,
-            budget.lookahead,
-            budget.lookbehind
+          void cache.loadFrame(sequence, Math.round(clampedTarget), true, true);
+          if (!useHardwareVideo) {
+            const budget = cacheBudgetRef.current;
+            cache.queueBlobWarmup(sequence, 1, maxFrames, 1);
+            cache.reprioritizeBlobWarmup(sequence);
+            cache.requestWindow(
+              sequence,
+              Math.round(startFrame),
+              direction,
+              getRuntimeLookahead(budget),
+              budget.lookbehind
+            );
+          }
+        }
+
+        if (useHardwareVideo && videoEl) {
+          isVideoActiveRef.current = true;
+          const videoUrl = SEQUENCE_VIDEO_URLS[sequence];
+          const desiredRate = Math.max(
+            0.5,
+            Math.min(
+              2.0,
+              (Math.max(0.05, estTargetSec - estStartSec) * 1000) / Math.max(100, options.durationMs)
+            )
           );
+
+          if (videoEl.getAttribute("data-seq") !== sequence) {
+            videoEl.setAttribute("data-seq", sequence);
+            videoEl.preload = "auto";
+            videoEl.src = videoUrl;
+            videoEl.load();
+          }
+          videoEl.muted = true;
+          videoEl.defaultMuted = true;
+          videoEl.playsInline = true;
+          videoEl.loop = false;
+          videoEl.playbackRate = desiredRate;
+
+          const triggerFallbackToCanvas = () => {
+            const active = autoplayRef.current;
+            if (
+              videoSessionIdRef.current !== sessionId ||
+              !active ||
+              active.mode !== "video" ||
+              active.videoFallbackTriggered
+            ) {
+              return;
+            }
+            active.videoFallbackTriggered = true;
+            active.mode = "canvas";
+            active.startTime = performance.now();
+            active.lastClockTime = performance.now();
+            active.startFrame = currentFramesRef.current[sequence];
+            active.primingStartTime = null;
+            stopHardwareVideo();
+            if (cache) {
+              const budget = cacheBudgetRef.current;
+              cache.queueBlobWarmup(sequence, 1, maxFrames, 1);
+              cache.reprioritizeBlobWarmup(sequence);
+              cache.requestWindow(
+                sequence,
+                Math.round(active.startFrame),
+                1,
+                getRuntimeLookahead(budget),
+                budget.lookbehind
+              );
+            }
+          };
+
+          const startVideoAtOffset = () => {
+            if (videoSessionIdRef.current !== sessionId) return;
+            const realDur =
+              Number.isFinite(videoEl.duration) && videoEl.duration > 0.1
+                ? videoEl.duration
+                : expectedDurationSec;
+            const exactStartSec = ((startFrame - 1) / Math.max(1, maxFrames - 1)) * realDur;
+            const exactTargetSec = ((clampedTarget - 1) / Math.max(1, maxFrames - 1)) * realDur;
+            const active = autoplayRef.current;
+            if (active && active.videoSessionId === sessionId) {
+              active.videoStartTimeSec = exactStartSec;
+              active.videoTargetTimeSec = exactTargetSec;
+              active.videoLastTime = exactStartSec;
+            }
+            const rate = Math.max(
+              0.5,
+              Math.min(
+                2.0,
+                (Math.max(0.05, exactTargetSec - exactStartSec) * 1000) /
+                  Math.max(100, options.durationMs)
+              )
+            );
+            videoEl.playbackRate = rate;
+            if (Math.abs(videoEl.currentTime - exactStartSec) > 0.08) {
+              if (active && active.videoSessionId === sessionId) {
+                active.videoSeekReady = false;
+              }
+              try {
+                videoEl.currentTime = exactStartSec;
+              } catch {
+                // Seek retried automatically once data loads
+              }
+            }
+            const playResult = videoEl.play();
+            if (playResult && typeof playResult.catch === "function") {
+              playResult.catch(() => {
+                triggerFallbackToCanvas();
+              });
+            }
+          };
+
+          const onVideoError = () => {
+            triggerFallbackToCanvas();
+          };
+          videoEl.addEventListener("error", onVideoError, { once: true });
+
+          if (videoEl.readyState >= 1) {
+            startVideoAtOffset();
+          } else {
+            const onMeta = () => {
+              startVideoAtOffset();
+            };
+            videoEl.addEventListener("loadedmetadata", onMeta, { once: true });
+            // Unlock media element synchronously inside the user click gesture (critical for iOS Safari)
+            void videoEl.play().catch(() => {});
+          }
         }
 
         const roundedStart = Math.round(startFrame);
@@ -677,6 +919,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       },
 
       snapTo(sequence, rawFrame, suppressScrollSync = false) {
+        stopHardwareVideo();
         autoplayRef.current = null;
         suppressScrollReadRef.current = suppressScrollSync;
         lastDisplayedSourceSeqRef.current = sequence;
@@ -698,7 +941,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
             sequence,
             Math.round(frame),
             scrollDirectionRef.current,
-            budget.lookahead,
+            getRuntimeLookahead(budget),
             budget.lookbehind
           );
         }
@@ -737,6 +980,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       },
 
       cancelAutoplay(keepScrollLocked = false) {
+        stopHardwareVideo();
         autoplayRef.current = null;
         cacheManagerRef.current?.setPlaybackActive(false);
         emitDiscreteStateIfChanged(false);
@@ -769,6 +1013,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     emitDiscreteStateIfChanged,
     ensureLoopActive,
     measureScrollableHeights,
+    stopHardwareVideo,
   ]);
 
   const syncBackdropCanvasSize = useCallback((displayWidth: number, displayHeight: number) => {
@@ -787,7 +1032,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       lastBackdropBitmapRef.current = null;
     }
 
-    if (!backdropCtxRef.current) {
+    if (!backdropCtxRef.current || backdropCtxRef.current.canvas !== backdropCanvas) {
       backdropCtxRef.current = backdropCanvas.getContext("2d", {
         alpha: false,
       });
@@ -818,6 +1063,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
 
     const displayWidth = Math.max(1, window.innerWidth);
     const displayHeight = Math.max(1, window.innerHeight);
+    lastViewportRef.current = { width: displayWidth, height: displayHeight };
     setViewportSize((prev) =>
       prev.width === displayWidth && prev.height === displayHeight
         ? prev
@@ -825,8 +1071,9 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     );
     const rawDpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    // Size canvas to the full unclipped 16:9 cover stage (capped at 1920x1080) so CSS camera
-    // pan/zoom reveals off-screen artwork smoothly instead of exposing black letterbox voids.
+    // Cap mobile physical backing store to 1280x720 (2.25x lighter GPU fillrate than 1920x1080 on 390px screens)
+    const maxPhysicalW = displayWidth < 768 ? 1280 : SOURCE_WIDTH;
+    const maxPhysicalH = displayWidth < 768 ? 720 : SOURCE_HEIGHT;
     const baseStage = computeCoverStageMetrics(
       displayWidth,
       displayHeight,
@@ -835,8 +1082,8 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     );
     const physicalScale = Math.min(
       rawDpr,
-      SOURCE_WIDTH / Math.max(1, baseStage.width),
-      SOURCE_HEIGHT / Math.max(1, baseStage.height)
+      maxPhysicalW / Math.max(1, baseStage.width),
+      maxPhysicalH / Math.max(1, baseStage.height)
     );
 
     const physicalWidth = Math.max(1, Math.round(baseStage.width * physicalScale));
@@ -908,6 +1155,12 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     const budget = detectAdaptiveCacheBudget();
     cacheBudgetRef.current = budget;
 
+    const runtimeMaxBitmaps =
+      budget.tier === "low" ? 60 : budget.tier === "balanced" ? 90 : 120;
+    const runtimeMaxBlobs =
+      budget.tier === "low" ? 720 : budget.tier === "balanced" ? 1400 : 1800;
+    const runtimeMaxDecodes = budget.tier === "low" ? 3 : 4;
+
     const cache = new FrameCacheManager<ImageBitmap>(
       {
         totalHeroFrames,
@@ -915,9 +1168,9 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
         totalReadingFrames,
         totalLatihanFrames,
         packChunks: SEQUENCE_PACK_CHUNKS,
-        maxActiveBitmaps: budget.maxActiveBitmaps,
-        maxCachedBlobs: budget.maxCachedBlobs,
-        maxConcurrentDecodes: budget.maxConcurrentDecodes,
+        maxActiveBitmaps: runtimeMaxBitmaps,
+        maxCachedBlobs: runtimeMaxBlobs,
+        maxConcurrentDecodes: runtimeMaxDecodes,
         maxConcurrentFetches: budget.maxConcurrentFetches,
         maxBackgroundWarms: budget.isConstrainedNetwork ? 2 : 4,
       },
@@ -955,6 +1208,114 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
           autoplayRef.current = null;
           cache.setPlaybackActive(false);
           completedAutoplay = autoplay;
+          isMoving = false;
+        } else if (autoplay.mode === "video") {
+          const videoEl = videoRef.current;
+          const fallbackToCanvas = () => {
+            autoplay.videoFallbackTriggered = true;
+            autoplay.mode = "canvas";
+            autoplay.startFrame = currentFramesRef.current[seq];
+            autoplay.startTime = now;
+            autoplay.lastClockTime = now;
+            autoplay.primingStartTime = null;
+            stopHardwareVideo();
+            const curBudget = cacheBudgetRef.current;
+            cache.queueBlobWarmup(seq, 1, maxSeqFrames, 1);
+            cache.reprioritizeBlobWarmup(seq);
+            cache.requestWindow(
+              seq,
+              Math.round(autoplay.startFrame),
+              1,
+              getRuntimeLookahead(curBudget),
+              curBudget.lookbehind
+            );
+          };
+
+          if (!videoEl || videoEl.error !== null) {
+            fallbackToCanvas();
+          } else if (videoEl.readyState >= 2) {
+            if (!autoplay.videoSeekReady) {
+              const needSeekGuard =
+                autoplay.videoTargetTimeSec - autoplay.videoStartTimeSec > 0.25;
+              const seekMatchesStart =
+                !videoEl.seeking &&
+                videoEl.currentTime >= autoplay.videoStartTimeSec - 0.12 &&
+                (!needSeekGuard || videoEl.currentTime < autoplay.videoTargetTimeSec - 0.12);
+              if (seekMatchesStart) {
+                autoplay.videoSeekReady = true;
+                autoplay.videoLastTime = videoEl.currentTime;
+                autoplay.videoLastProgressAt = now;
+              }
+            }
+
+            if (autoplay.videoSeekReady) {
+              const realDur =
+                Number.isFinite(videoEl.duration) && videoEl.duration > 0.1
+                  ? videoEl.duration
+                  : maxSeqFrames / SEQUENCE_VIDEO_FPS;
+
+              if (videoEl.currentTime > autoplay.videoLastTime + 0.005) {
+                autoplay.videoLastTime = videoEl.currentTime;
+                autoplay.videoLastProgressAt = now;
+              }
+
+              if (
+                !autoplay.videoHasPaintedFrame &&
+                (videoEl.currentTime > autoplay.videoStartTimeSec + 0.008 ||
+                  videoEl.currentTime > 0.01 ||
+                  videoEl.ended)
+              ) {
+                autoplay.videoHasPaintedFrame = true;
+                setIsVideoVisible(true);
+              }
+
+              const progress = Math.max(0, Math.min(1, videoEl.currentTime / Math.max(0.05, realDur)));
+              const videoFrame = 1 + progress * (maxSeqFrames - 1);
+              const nextFrame = Math.max(
+                currentFramesRef.current[seq],
+                Math.min(autoplay.targetFrame, videoFrame)
+              );
+              currentFramesRef.current[seq] = nextFrame;
+              targetFramesRef.current[seq] = nextFrame;
+
+              const reachedEnd =
+                videoEl.ended ||
+                videoEl.currentTime >= autoplay.videoTargetTimeSec - 0.03 ||
+                nextFrame >= autoplay.targetFrame - 0.25;
+
+              if (reachedEnd) {
+                if (!videoEl.paused) {
+                  try {
+                    videoEl.pause();
+                  } catch {
+                    // Ignore media pause error
+                  }
+                }
+                currentFramesRef.current[seq] = autoplay.targetFrame;
+                targetFramesRef.current[seq] = autoplay.targetFrame;
+                autoplayRef.current = null;
+                cache.setPlaybackActive(false);
+                completedAutoplay = autoplay;
+                isMoving = false;
+              } else if (
+                autoplay.videoHasPaintedFrame &&
+                videoEl.paused &&
+                !videoEl.ended &&
+                now - autoplay.videoLastProgressAt > 1200
+              ) {
+                fallbackToCanvas();
+              }
+            }
+          }
+
+          if (
+            autoplay.mode === "video" &&
+            !completedAutoplay &&
+            !autoplay.videoHasPaintedFrame &&
+            now - autoplay.videoStartedAt > 3500
+          ) {
+            fallbackToCanvas();
+          }
         } else {
           // Soft Pre-Buffer Priming: allow initial decode workers a brief runway before advancing
           if (autoplay.primingStartTime !== null) {
@@ -988,33 +1349,52 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
             autoplay.currentFrameStallMs = 0;
           }
 
-          // Fluid Buffer Pacing: gently dilate timeline progression while urgent frame decodes instead of hard 0-fps freezing
-          const needsDecodeWait =
+          // Buffer-Aware Velocity Pacing: hold cleanly until 450KB micro-chunk unpacks and gently cushion
+          // cruise cadence to ~0.58x when ahead runway drops below 4 decoded frames so playback never jumps
+          const direction: 1 | -1 = autoplay.targetFrame >= autoplay.startFrame ? 1 : -1;
+          const isTargetReady = cache.hasBitmap(seq, candidateRounded);
+          const aheadReady = isTargetReady
+            ? cache.countContiguousReady(seq, candidateRounded, direction, 8)
+            : 0;
+
+          if (
             autoplay.primingStartTime === null &&
             rawT < 1 &&
-            (!lastDrawWasExactRef.current || candidateRounded !== lastDrawnFrameRef.current) &&
-            !cache.hasBitmap(seq, candidateRounded) &&
-            cache.isFrameBusy(seq, candidateRounded) &&
-            autoplay.currentFrameStallMs < 110 &&
-            autoplay.totalStallMs < 2400;
-
-          if (needsDecodeWait) {
-            autoplay.startTime += stepDt * 0.78;
-            autoplay.currentFrameStallMs += stepDt;
-            autoplay.totalStallMs += stepDt;
-            rawT = Math.min(1, (now - autoplay.startTime) / autoplay.durationMs);
-            easedT = rawT >= 1 ? 1 : easeSmoothCruise(rawT);
-            exactFrame =
-              autoplay.startFrame + (autoplay.targetFrame - autoplay.startFrame) * easedT;
+            autoplay.totalStallMs < 4000
+          ) {
+            if (
+              !isTargetReady &&
+              cache.isFrameBusy(seq, candidateRounded) &&
+              autoplay.currentFrameStallMs < 650
+            ) {
+              autoplay.startTime += stepDt;
+              autoplay.currentFrameStallMs += stepDt;
+              autoplay.totalStallMs += stepDt;
+              rawT = Math.min(1, (now - autoplay.startTime) / autoplay.durationMs);
+              easedT = rawT >= 1 ? 1 : easeSmoothCruise(rawT);
+              exactFrame =
+                autoplay.startFrame + (autoplay.targetFrame - autoplay.startFrame) * easedT;
+            } else if (aheadReady < 4 && autoplay.currentFrameStallMs < 650) {
+              const cushion = stepDt * 0.42;
+              autoplay.startTime += cushion;
+              autoplay.totalStallMs += cushion;
+              rawT = Math.min(1, (now - autoplay.startTime) / autoplay.durationMs);
+              easedT = rawT >= 1 ? 1 : easeSmoothCruise(rawT);
+              exactFrame =
+                autoplay.startFrame + (autoplay.targetFrame - autoplay.startFrame) * easedT;
+            }
           }
 
           currentFramesRef.current[seq] = exactFrame;
           targetFramesRef.current[seq] = exactFrame;
 
           if (rawT >= 1) {
+            currentFramesRef.current[seq] = autoplay.targetFrame;
+            targetFramesRef.current[seq] = autoplay.targetFrame;
             autoplayRef.current = null;
             cache.setPlaybackActive(false);
             completedAutoplay = autoplay;
+            isMoving = false;
           }
         }
       } else {
@@ -1043,45 +1423,101 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       }
 
       const activeSeq = activeSequenceRef.current;
+      const maxActiveFrames = getMaxFrames(activeSeq);
       const currentFrame = currentFramesRef.current[activeSeq];
-      const roundedFrame = Math.max(
-        1,
-        Math.min(getMaxFrames(activeSeq), Math.round(currentFrame))
-      );
+      const roundedFrame = Math.max(1, Math.min(maxActiveFrames, Math.round(currentFrame)));
 
       syncHeroCssVar(activeSeq, currentFramesRef.current.hero);
 
-      if (
-        lastDrawnSeqRef.current !== activeSeq ||
-        lastDrawnFrameRef.current !== roundedFrame ||
-        !lastDrawWasExactRef.current
-      ) {
-        drawFrame(activeSeq, roundedFrame);
+      // Skip canvas WebP decode/draw while hardware <video> owns forward playback
+      const videoOwnsPlayback =
+        autoplayRef.current?.mode === "video" || completedAutoplay?.mode === "video";
+
+      if (!videoOwnsPlayback) {
+        const isLowTierCanvasAutoplay =
+          autoplayRef.current?.mode === "canvas" &&
+          cacheBudgetRef.current.tier === "low" &&
+          roundedFrame > 2 &&
+          roundedFrame < maxActiveFrames - 2;
+        const drawTargetFrame =
+          isLowTierCanvasAutoplay && roundedFrame % 2 !== 0 ? roundedFrame - 1 : roundedFrame;
 
         if (
-          lastWindowSeqRef.current !== activeSeq ||
-          Math.abs(roundedFrame - lastWindowCenterRef.current) >= 2
+          lastDrawnSeqRef.current !== activeSeq ||
+          lastDrawnFrameRef.current !== drawTargetFrame ||
+          !lastDrawWasExactRef.current
         ) {
-          const budget = cacheBudgetRef.current;
-          lastWindowSeqRef.current = activeSeq;
-          lastWindowCenterRef.current = roundedFrame;
-          cache.requestWindow(
-            activeSeq,
-            roundedFrame,
-            scrollDirectionRef.current,
-            budget.lookahead,
-            budget.lookbehind
-          );
+          drawFrame(activeSeq, drawTargetFrame);
+
+          if (
+            lastWindowSeqRef.current !== activeSeq ||
+            Math.abs(drawTargetFrame - lastWindowCenterRef.current) >= 2
+          ) {
+            const curBudget = cacheBudgetRef.current;
+            lastWindowSeqRef.current = activeSeq;
+            lastWindowCenterRef.current = drawTargetFrame;
+            cache.requestWindow(
+              activeSeq,
+              drawTargetFrame,
+              scrollDirectionRef.current,
+              getRuntimeLookahead(curBudget),
+              curBudget.lookbehind
+            );
+          }
         }
       }
 
-      emitDiscreteStateIfChanged(isMoving);
-
       if (completedAutoplay) {
+        const doneSeq = completedAutoplay.sequence;
+        const doneTarget = Math.max(
+          1,
+          Math.min(getMaxFrames(doneSeq), Math.round(completedAutoplay.targetFrame))
+        );
+        const doneSessionId = completedAutoplay.videoSessionId;
+
+        if (completedAutoplay.mode === "video") {
+          if (cache.hasBitmap(doneSeq, doneTarget)) {
+            drawFrame(doneSeq, doneTarget);
+            stopHardwareVideo();
+          } else {
+            // Keep video frozen on its final frame until crisp 1080p WebP endpoint paints atomically
+            void cache.loadFrame(doneSeq, doneTarget, true, true).then((bmp) => {
+              if (videoSessionIdRef.current !== doneSessionId) return;
+              if (bmp && activeSequenceRef.current === doneSeq) {
+                drawFrame(doneSeq, doneTarget);
+              } else if (activeSequenceRef.current === doneSeq) {
+                drawFrame(doneSeq, doneTarget);
+              }
+              stopHardwareVideo();
+            });
+          }
+        } else if (cache.hasBitmap(doneSeq, doneTarget)) {
+          drawFrame(doneSeq, doneTarget);
+        } else {
+          void cache.loadFrame(doneSeq, doneTarget, true, true).then((bmp) => {
+            if (
+              bmp &&
+              activeSequenceRef.current === doneSeq &&
+              Math.round(currentFramesRef.current[doneSeq]) === doneTarget
+            ) {
+              drawFrame(doneSeq, doneTarget);
+            }
+          });
+        }
+
+        emitDiscreteStateIfChanged(false);
+
         if (completedAutoplay.syncScrollOnComplete) {
-          syncDomScrollInstant(completedAutoplay.sequence, completedAutoplay.targetFrame);
+          syncDomScrollInstant(doneSeq, completedAutoplay.targetFrame);
         }
         completedAutoplay.onComplete?.();
+
+        if (pendingResizeAfterAutoplayRef.current) {
+          pendingResizeAfterAutoplayRef.current = false;
+          handleResize();
+        }
+      } else {
+        emitDiscreteStateIfChanged(isMoving);
       }
 
       const activeSeqNow = activeSequenceRef.current;
@@ -1120,16 +1556,27 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       startSeq,
       initialFrame,
       1,
-      budget.lookahead,
+      getRuntimeLookahead(budget),
       Math.max(6, budget.lookbehind - 4)
     );
     void cache.loadFrame("hero", totalHeroFrames, false, true);
     void cache.loadFrame("materi", 1, false, true);
     void cache.loadFrame("latihan", 1, false, true);
     cache.queueBlobWarmup("hero", 1, totalHeroFrames, 1);
-    if (budget.tier !== "low" && !budget.isConstrainedNetwork) {
-      cache.queueBlobWarmup("materi", 1, totalMateriFrames, 4);
-      cache.queueBlobWarmup("latihan", 1, totalLatihanFrames, 4);
+
+    // Prime hero.mp4 metadata/buffer silently in background so first CTA auto-scroll starts in 0ms
+    const mountVideoEl = videoRef.current;
+    if (mountVideoEl && !budget.isConstrainedNetwork && !mountVideoEl.getAttribute("data-seq")) {
+      mountVideoEl.setAttribute("data-seq", "hero");
+      mountVideoEl.preload = budget.tier === "low" ? "metadata" : "auto";
+      mountVideoEl.src = SEQUENCE_VIDEO_URLS.hero;
+    }
+
+    if (!budget.isConstrainedNetwork && budget.tier !== "low") {
+      // Desktop/high-tier: also warm WebP chunks behind Hero for instant manual reverse/scrub
+      cache.queueBlobWarmup("materi", 1, Math.min(36, totalMateriFrames), 1);
+      cache.queueBlobWarmup("latihan", 1, Math.min(36, totalLatihanFrames), 1);
+      getRuntimeWarmBlocks(cache, totalMateriFrames, totalLatihanFrames, 1);
     }
 
     syncHeroCssVar(startSeq, initialFrame);
@@ -1152,8 +1599,28 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
 
       const seq = activeAuto.sequence;
       const curFrame = currentFramesRef.current[seq];
+      const wasVideo = activeAuto.mode === "video";
+      stopHardwareVideo();
       autoplayRef.current = null;
       cache.setPlaybackActive(false);
+
+      if (wasVideo) {
+        const rounded = Math.max(1, Math.min(getMaxFrames(seq), Math.round(curFrame)));
+        const curBudget = cacheBudgetRef.current;
+        cache.requestWindow(
+          seq,
+          rounded,
+          scrollDirectionRef.current,
+          getRuntimeLookahead(curBudget),
+          curBudget.lookbehind
+        );
+        void cache.loadFrame(seq, rounded, true, true).then((bmp) => {
+          if (bmp && activeSequenceRef.current === seq) {
+            drawFrame(seq, rounded);
+          }
+        });
+      }
+
       syncDomScrollInstant(seq, curFrame);
       emitDiscreteStateIfChanged(false);
       ensureLoopActive();
@@ -1167,6 +1634,18 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
         touchStartPos = null;
         return;
       }
+      // Prevent button-tap finger drift or release during the first 500ms from aborting autoplay
+      if (performance.now() - activeAuto.startedAtMs < 500) {
+        touchStartPos = null;
+        return;
+      }
+      if (
+        e.target instanceof Element &&
+        e.target.closest("button, a, input, select, textarea, [role='button']")
+      ) {
+        touchStartPos = null;
+        return;
+      }
       const t = e.touches[0]!;
       touchStartPos = { x: t.clientX, y: t.clientY };
     };
@@ -1174,8 +1653,10 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     const handleTouchMoveInterrupt = (e: TouchEvent) => {
       if (!touchStartPos || e.touches.length !== 1) return;
       const t = e.touches[0]!;
-      const moved = Math.hypot(t.clientX - touchStartPos.x, t.clientY - touchStartPos.y);
-      if (moved > 10) {
+      const dx = Math.abs(t.clientX - touchStartPos.x);
+      const dy = Math.abs(t.clientY - touchStartPos.y);
+      // Require an intentional vertical scroll swipe (>48px) before cancelling autoplay
+      if (dy > 48 && dy > dx * 1.5) {
         touchStartPos = null;
         handleManualInterrupt();
       }
@@ -1217,6 +1698,15 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     };
 
     const onResize = () => {
+      // Ignore mobile browser URL-bar height-only resize jitter during autoplay so canvas is never wiped
+      if (
+        (autoplayRef.current !== null || isVideoActiveRef.current) &&
+        window.innerWidth === lastViewportRef.current.width &&
+        Math.abs(window.innerHeight - lastViewportRef.current.height) < 180
+      ) {
+        pendingResizeAfterAutoplayRef.current = true;
+        return;
+      }
       handleResize();
       if (!autoplayRef.current && !isScrollLockedRef.current) {
         syncTargetFromWindowScroll();
@@ -1235,6 +1725,16 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
 
     return () => {
       unsubscribeLenisScroll();
+      stopHardwareVideo();
+      if (mountVideoEl) {
+        mountVideoEl.removeAttribute("src");
+        mountVideoEl.removeAttribute("data-seq");
+        try {
+          mountVideoEl.load();
+        } catch {
+          // Ignore media reset error on unmount
+        }
+      }
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
@@ -1263,6 +1763,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     emitDiscreteStateIfChanged,
     syncDomScrollInstant,
     ensureLoopActive,
+    stopHardwareVideo,
   ]);
 
   const baseStage = useMemo(
@@ -1297,6 +1798,9 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     if (hasMobileAmbientBackdrop) {
       syncBackdropCanvasSize(viewportSize.width, viewportSize.height);
       drawBackdropBitmap(lastDrawnBitmapRef.current);
+    } else {
+      backdropCtxRef.current = null;
+      lastBackdropBitmapRef.current = null;
     }
   }, [
     drawBackdropBitmap,
@@ -1333,15 +1837,26 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     WebkitMaskImage: verticalFadeMask,
   };
 
+  const videoStageStyle: React.CSSProperties = {
+    left: `${baseStage.offsetX}px`,
+    top: `${baseStage.offsetY}px`,
+    width: `${baseStage.width}px`,
+    height: `${baseStage.height}px`,
+    transformOrigin: mobileCamera?.active ? mobileCamera.transformOrigin : "50% 50%",
+    transform: mobileCamera?.active
+      ? mobileCamera.transformCss
+      : "translate3d(0px, 0px, 0px) scale(1)",
+  };
+
   return (
     <div
       className="fixed inset-0 z-0 h-screen w-screen overflow-hidden select-none bg-[#030712] pointer-events-none"
       aria-hidden="true"
     >
-      {isMobilePortrait && (
+      {isMobilePortrait && hasMobileAmbientBackdrop && (
         <div
           className={`absolute inset-0 overflow-hidden transition-opacity duration-500 ease-out ${
-            hasMobileAmbientBackdrop && isFirstFrameReady ? "opacity-100" : "opacity-0"
+            isFirstFrameReady ? "opacity-100" : "opacity-0"
           }`}
         >
           {/* Downsampled full-bleed ambient scene extension behind letterboxed 16:9 3D stages */}
@@ -1365,6 +1880,19 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
           style={canvasCameraStyle}
           className={`absolute block max-w-none transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
             isFirstFrameReady ? "opacity-100" : "opacity-0"
+          }`}
+        />
+        {/* Hardware-accelerated H.264 video layer for silky 60 FPS forward autoplay across all devices */}
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          preload="metadata"
+          disableRemotePlayback
+          aria-hidden="true"
+          style={videoStageStyle}
+          className={`absolute z-[1] block max-w-none object-fill pointer-events-none ${
+            isVideoVisible ? "opacity-100" : "opacity-0"
           }`}
         />
       </div>

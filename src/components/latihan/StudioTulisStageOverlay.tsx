@@ -9,7 +9,7 @@ import {
 import { BookHomographyCalibrator } from "@/components/shared/BookHomographyCalibrator";
 import { ParchmentSelect } from "@/components/shared/ui/ParchmentSelect";
 import {
-  computeEffectiveCoverStageMetrics,
+  computeCoverStageMetrics,
   computeMobile3dCameraTransform,
   computeSpreadQuadProjection,
   READING_2D_DEFAULT_CALIBRATION,
@@ -179,12 +179,11 @@ export function StudioTulisStageOverlay({
 
   const stageMetrics: CoverStageMetrics = useMemo(
     () =>
-      computeEffectiveCoverStageMetrics(
+      computeCoverStageMetrics(
         viewportSize.width,
-        viewportSize.height,
-        mobileCamera
+        viewportSize.height
       ),
-    [mobileCamera, viewportSize.height, viewportSize.width]
+    [viewportSize.height, viewportSize.width]
   );
 
   useEffect(() => {
@@ -994,24 +993,32 @@ export function StudioTulisStageOverlay({
       {/* ===================================================================== */}
       {!isBookFocused && (
         <>
-          <BookPageDisplacementDefs
-            prefix="studio-3d"
-            leftWidth={studio3dBaseWidth}
-            rightWidth={studio3dBaseWidth}
-            pageHeight={studio3dBaseHeight}
-            leftDisp={studio3dProj.leftDisp}
-            rightDisp={studio3dProj.rightDisp}
-            inkAbsorption
-          />
+          {!isMobileBook && (
+            <BookPageDisplacementDefs
+              prefix="studio-3d"
+              leftWidth={studio3dBaseWidth}
+              rightWidth={studio3dBaseWidth}
+              pageHeight={studio3dBaseHeight}
+              leftDisp={studio3dProj.leftDisp}
+              rightDisp={studio3dProj.rightDisp}
+              inkAbsorption
+            />
+          )}
 
-          {/* Cover-Matched Stage Container: Locked 1:1 with 1920x1080 Canvas Geometry */}
+          {/* Cover-Matched Stage Container: GPU-locked 1:1 with Canvas transform on Mobile Portrait, non-isolated on Desktop */}
           <div
-            className="pointer-events-none fixed overflow-hidden transition-[left,top] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            className={`pointer-events-none fixed overflow-hidden ${
+              mobileCamera.active
+                ? "mix-blend-multiply transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform"
+                : ""
+            }`}
             style={{
               left: `${stageMetrics.offsetX}px`,
               top: `${stageMetrics.offsetY}px`,
               width: `${stageMetrics.width}px`,
               height: `${stageMetrics.height}px`,
+              transformOrigin: mobileCamera.active ? mobileCamera.transformOrigin : undefined,
+              transform: mobileCamera.active ? mobileCamera.transformCss : undefined,
             }}
           >
             {/* Left 3D Desk Page: Calibrated 4-Point Homography + Page Arch Curve */}
@@ -1037,7 +1044,7 @@ export function StudioTulisStageOverlay({
                 padding: `${scalePx(22)} ${scalePx(16)} ${scalePx(18)} ${scalePx(20)}`,
                 transformOrigin: "0 0",
                 transform: studio3dProj.leftMatrixCss,
-                filter: "url(#studio-3d-curve-left)",
+                filter: isMobileBook ? undefined : "url(#studio-3d-curve-left)",
                 maskImage:
                   "radial-gradient(ellipse 90% 90% at 62% 39%, black 63%, rgba(0,0,0,0.5) 84%, transparent 98%)",
                 WebkitMaskImage:
@@ -1098,7 +1105,7 @@ export function StudioTulisStageOverlay({
                 padding: `${scalePx(22)} ${scalePx(22)} ${scalePx(18)} ${scalePx(15)}`,
                 transformOrigin: "0 0",
                 transform: studio3dProj.rightMatrixCss,
-                filter: "url(#studio-3d-curve-right)",
+                filter: isMobileBook ? undefined : "url(#studio-3d-curve-right)",
                 maskImage:
                   "radial-gradient(ellipse 90% 90% at 38% 39%, black 63%, rgba(0,0,0,0.5) 84%, transparent 98%)",
                 WebkitMaskImage:

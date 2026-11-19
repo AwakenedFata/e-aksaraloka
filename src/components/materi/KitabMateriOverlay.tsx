@@ -9,7 +9,7 @@ import { BookHomographyCalibrator } from "@/components/shared/BookHomographyCali
 import { ParchmentSelect } from "@/components/shared/ui/ParchmentSelect";
 import {
   buildPageDisplacementSpec,
-  computeEffectiveCoverStageMetrics,
+  computeCoverStageMetrics,
   computeHomographyMatrix3d,
   computeMobile3dCameraTransform,
   READING_2D_DEFAULT_CALIBRATION,
@@ -303,12 +303,11 @@ export function KitabMateriOverlay({
 
   const stageMetrics: CoverStageMetrics = useMemo(
     () =>
-      computeEffectiveCoverStageMetrics(
+      computeCoverStageMetrics(
         viewportSize.width,
-        viewportSize.height,
-        mobileCamera
+        viewportSize.height
       ),
-    [mobileCamera, viewportSize.height, viewportSize.width]
+    [viewportSize.height, viewportSize.width]
   );
 
   useEffect(() => {
@@ -1055,70 +1054,72 @@ export function KitabMateriOverlay({
       {/* =================================================================== */}
       {!isBookFocused && (
         <>
-          <svg
-            width="0"
-            height="0"
-            aria-hidden="true"
-            className="pointer-events-none absolute overflow-hidden"
-          >
-            <defs>
-              <filter
-                id="reading-3d-curve-left"
-                filterUnits="userSpaceOnUse"
-                colorInterpolationFilters="sRGB"
-                x={-leftFilterPad}
-                y={-leftFilterPad}
-                width={basePageWidth + leftFilterPad * 2}
-                height={basePageHeight + leftFilterPad * 2}
-              >
-                <feImage
-                  href={leftDisp.dataUri}
-                  x={0}
-                  y={0}
-                  width={basePageWidth}
-                  height={basePageHeight}
-                  preserveAspectRatio="none"
-                  result="leftDispMap"
-                />
-                <feDisplacementMap
-                  in="SourceGraphic"
-                  in2="leftDispMap"
-                  scale={leftDisp.filterScale}
-                  xChannelSelector="R"
-                  yChannelSelector="G"
-                />
-              </filter>
+          {!isMobileBook && (
+            <svg
+              width="0"
+              height="0"
+              aria-hidden="true"
+              className="pointer-events-none absolute overflow-hidden"
+            >
+              <defs>
+                <filter
+                  id="reading-3d-curve-left"
+                  filterUnits="userSpaceOnUse"
+                  colorInterpolationFilters="sRGB"
+                  x={-leftFilterPad}
+                  y={-leftFilterPad}
+                  width={basePageWidth + leftFilterPad * 2}
+                  height={basePageHeight + leftFilterPad * 2}
+                >
+                  <feImage
+                    href={leftDisp.dataUri}
+                    x={0}
+                    y={0}
+                    width={basePageWidth}
+                    height={basePageHeight}
+                    preserveAspectRatio="none"
+                    result="leftDispMap"
+                  />
+                  <feDisplacementMap
+                    in="SourceGraphic"
+                    in2="leftDispMap"
+                    scale={leftDisp.filterScale}
+                    xChannelSelector="R"
+                    yChannelSelector="G"
+                  />
+                </filter>
 
-              <filter
-                id="reading-3d-curve-right"
-                filterUnits="userSpaceOnUse"
-                colorInterpolationFilters="sRGB"
-                x={-rightFilterPad}
-                y={-rightFilterPad}
-                width={basePageWidth + rightFilterPad * 2}
-                height={basePageHeight + rightFilterPad * 2}
-              >
-                <feImage
-                  href={rightDisp.dataUri}
-                  x={0}
-                  y={0}
-                  width={basePageWidth}
-                  height={basePageHeight}
-                  preserveAspectRatio="none"
-                  result="rightDispMap"
-                />
-                <feDisplacementMap
-                  in="SourceGraphic"
-                  in2="rightDispMap"
-                  scale={rightDisp.filterScale}
-                  xChannelSelector="R"
-                  yChannelSelector="G"
-                />
-              </filter>
-            </defs>
-          </svg>
+                <filter
+                  id="reading-3d-curve-right"
+                  filterUnits="userSpaceOnUse"
+                  colorInterpolationFilters="sRGB"
+                  x={-rightFilterPad}
+                  y={-rightFilterPad}
+                  width={basePageWidth + rightFilterPad * 2}
+                  height={basePageHeight + rightFilterPad * 2}
+                >
+                  <feImage
+                    href={rightDisp.dataUri}
+                    x={0}
+                    y={0}
+                    width={basePageWidth}
+                    height={basePageHeight}
+                    preserveAspectRatio="none"
+                    result="rightDispMap"
+                  />
+                  <feDisplacementMap
+                    in="SourceGraphic"
+                    in2="rightDispMap"
+                    scale={rightDisp.filterScale}
+                    xChannelSelector="R"
+                    yChannelSelector="G"
+                  />
+                </filter>
+              </defs>
+            </svg>
+          )}
 
-          {/* Cover-Matched Stage Container: Locked 1:1 with 1920x1080 Canvas Geometry (Pans Smoothly on Mobile Portrait) */}
+          {/* Cover-Matched Stage Container: GPU-locked 1:1 with Canvas transform on Mobile Portrait, non-isolated on Desktop */}
           <div
             onTouchStart={(e) => {
               if (!mobileCamera.active || e.touches.length !== 1) return;
@@ -1140,12 +1141,18 @@ export function KitabMateriOverlay({
                 setActive3dSide(dx < 0 ? "right" : "left");
               }
             }}
-            className="pointer-events-none fixed overflow-hidden transition-[left,top] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            className={`pointer-events-none fixed overflow-hidden ${
+              mobileCamera.active
+                ? "mix-blend-multiply transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform"
+                : ""
+            }`}
             style={{
               left: `${stageMetrics.offsetX}px`,
               top: `${stageMetrics.offsetY}px`,
               width: `${stageMetrics.width}px`,
               height: `${stageMetrics.height}px`,
+              transformOrigin: mobileCamera.active ? mobileCamera.transformOrigin : undefined,
+              transform: mobileCamera.active ? mobileCamera.transformCss : undefined,
             }}
           >
             {/* Left 3D Page: Calibrated 4-Point Homography + Smooth Page Arch Curve */}
@@ -1179,7 +1186,7 @@ export function KitabMateriOverlay({
                 padding: `${scalePx(20)} ${scalePx(22)} ${scalePx(26)} ${scalePx(22)}`,
                 transformOrigin: "0 0",
                 transform: leftMatrixCss,
-                filter: "url(#reading-3d-curve-left)",
+                filter: isMobileBook ? undefined : "url(#reading-3d-curve-left)",
                 maskImage:
                   "radial-gradient(ellipse 92% 90% at 58% 36%, black 60%, rgba(0,0,0,0.45) 82%, transparent 98%)",
                 WebkitMaskImage:
@@ -1351,7 +1358,7 @@ export function KitabMateriOverlay({
                 padding: `${scalePx(20)} ${scalePx(22)} ${scalePx(26)} ${scalePx(22)}`,
                 transformOrigin: "0 0",
                 transform: rightMatrixCss,
-                filter: "url(#reading-3d-curve-right)",
+                filter: isMobileBook ? undefined : "url(#reading-3d-curve-right)",
                 maskImage:
                   "radial-gradient(ellipse 92% 90% at 42% 36%, black 60%, rgba(0,0,0,0.45) 82%, transparent 98%)",
                 WebkitMaskImage:
