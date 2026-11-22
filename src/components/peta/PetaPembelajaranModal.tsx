@@ -9,6 +9,7 @@ import {
 import {
   useAksaralokaLearning,
   updateLearningState,
+  updateStudioDraft,
   resetLearningState,
 } from "@/lib/learning/learningStore";
 import {
@@ -37,6 +38,15 @@ type ModalTab = "peta" | "quest" | "luring";
 
 const TOUR_STORAGE_KEY = "aksaraloka:peta-tour-seen:v1";
 
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function PetaPembelajaranModal({
   isOpen,
   onClose,
@@ -55,8 +65,32 @@ export function PetaPembelajaranModal({
       return null;
     }
   });
-  const [studentName, setStudentName] = useState<string>("");
-  const [studentClass, setStudentClass] = useState<string>("VII-A");
+  const [isConfirmingReset, setIsConfirmingReset] = useState<boolean>(false);
+  const [lexiconCategoryFilter, setLexiconCategoryFilter] = useState<string>("all");
+  const [lexiconTypeFilter, setLexiconTypeFilter] = useState<
+    "Semua" | "Denotatif" | "Konotatif" | "Kiasan / Majas"
+  >("Semua");
+
+  const studentName = state.studioDraft.authorName;
+  const studentClass = state.studioDraft.authorClass;
+
+  useEffect(() => {
+    if (!isConfirmingReset) return;
+    const timer = window.setTimeout(() => setIsConfirmingReset(false), 4500);
+    return () => window.clearTimeout(timer);
+  }, [isConfirmingReset]);
+
+  const handleRequestReset = () => {
+    if (!isConfirmingReset) {
+      playErrorTone();
+      setIsConfirmingReset(true);
+      return;
+    }
+    playChime();
+    setIsConfirmingReset(false);
+    setUserSelectedNodeId(null);
+    resetLearningState();
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -151,9 +185,14 @@ export function PetaPembelajaranModal({
     const win = window.open("", "_blank", "width=920,height=860");
     if (!win) return;
 
-    const safeName =
-      studentName.trim() || "................................................";
-    const safeClass = studentClass.trim() || "VII-....";
+    const safeName = escapeHtml(
+      studentName.trim() || "................................................"
+    );
+    const safeClass = escapeHtml(studentClass.trim() || "VII-....");
+    const safeCustomAmanat = escapeHtml(
+      state.customAmanatReflection.trim() ||
+        "Pelajaran kebaikan yang dipetik dari perubahan tokoh utama: ......................................................................................"
+    );
 
     const html = `<!DOCTYPE html>
 <html lang="id">
@@ -211,7 +250,7 @@ export function PetaPembelajaranModal({
     }
     .score-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 8px;
       margin-top: 10px;
     }
@@ -280,25 +319,29 @@ export function PetaPembelajaranModal({
   <div class="meta-grid">
     <div><strong>Nama Siswa:</strong> ${safeName}</div>
     <div><strong>Kelas:</strong> ${safeClass}</div>
-    <div><strong>Status Penguasaan:</strong> ${metrics.overallPercentage}% (${metrics.kelayakanCategory})</div>
+    <div><strong>Skor Holistik:</strong> ${metrics.holisticTotalPercentage}% (${escapeHtml(metrics.kelayakanCategory)})</div>
   </div>
 
   <div class="score-grid">
     <div class="score-box">
-      <div>Segel I · Alur & Struktur</div>
+      <div>Segel I · Alur &amp; Struktur</div>
       <div class="score-val">${metrics.babak1Score}/100</div>
     </div>
     <div class="score-box">
-      <div>Segel II · Watak & 5 Indera</div>
+      <div>Segel II · Watak &amp; 5 Indera</div>
       <div class="score-val">${metrics.babak2Score}/100</div>
     </div>
     <div class="score-box">
-      <div>Segel III · Majas & Dialog</div>
+      <div>Segel III · Majas &amp; Dialog</div>
       <div class="score-val">${metrics.babak3Score}/100</div>
     </div>
     <div class="score-box">
       <div>Kuis Tantangan Logika</div>
       <div class="score-val">${metrics.questScore}/100</div>
+    </div>
+    <div class="score-box">
+      <div>Studio Tulis (Karya)</div>
+      <div class="score-val">${metrics.babak4Score}/100</div>
     </div>
   </div>
 
@@ -363,7 +406,7 @@ export function PetaPembelajaranModal({
       </tr>
       <tr>
         <th>5. Pesan Kebaikan (Amanat)</th>
-        <td>${state.customAmanatReflection.trim() || "Pelajaran kebaikan yang dipetik dari perubahan tokoh utama: ......................................................................................"}</td>
+        <td>${safeCustomAmanat}</td>
       </tr>
     </tbody>
   </table>
@@ -430,7 +473,7 @@ export function PetaPembelajaranModal({
 
             <span className="rounded-full border border-[#d6b26f]/40 bg-slate-950/88 px-2.5 py-1 text-[11px] font-bold text-[#ffe8b6] shadow-md">
               Segel {metrics.unlockedSealsCount}/3 ·{" "}
-              <span className="text-emerald-300">{metrics.overallPercentage}%</span>
+              <span className="text-emerald-300">{metrics.holisticTotalPercentage}%</span>
             </span>
 
             <div className="flex items-center gap-1">
@@ -444,14 +487,14 @@ export function PetaPembelajaranModal({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  playChime();
-                  setUserSelectedNodeId(null);
-                  resetLearningState();
-                }}
-                className="min-h-[38px] rounded-full border border-white/15 bg-slate-950/90 px-2.5 text-[10.5px] font-semibold text-stone-300 shadow-md cursor-pointer"
+                onClick={handleRequestReset}
+                className={`min-h-[38px] rounded-full border px-2.5 text-[10.5px] font-semibold shadow-md cursor-pointer transition-colors ${
+                  isConfirmingReset
+                    ? "border-rose-400 bg-rose-950/95 text-rose-100"
+                    : "border-white/15 bg-slate-950/90 text-stone-300"
+                }`}
               >
-                Ulangi
+                {isConfirmingReset ? "Yakin Reset?" : "Ulangi"}
               </button>
               <button
                 type="button"
@@ -534,7 +577,7 @@ export function PetaPembelajaranModal({
               </strong>{" "}
               <span className="mx-1 text-[#d6b26f]/40">|</span>
               <strong className="text-emerald-300">
-                Skor {metrics.overallPercentage}%
+                Total {metrics.holisticTotalPercentage}%
               </strong>
             </span>
 
@@ -550,14 +593,14 @@ export function PetaPembelajaranModal({
 
             <button
               type="button"
-              onClick={() => {
-                playChime();
-                setUserSelectedNodeId(null);
-                resetLearningState();
-              }}
-              className="px-1.5 text-[11px] text-stone-300 underline-offset-2 hover:text-amber-300 hover:underline cursor-pointer"
+              onClick={handleRequestReset}
+              className={`px-1.5 text-[11px] underline-offset-2 cursor-pointer transition-colors ${
+                isConfirmingReset
+                  ? "rounded-full border border-rose-400/70 bg-rose-950/85 px-2.5 py-0.5 font-bold text-rose-100"
+                  : "text-stone-300 hover:text-amber-300 hover:underline"
+              }`}
             >
-              Ulangi
+              {isConfirmingReset ? "Klik Lagi: Hapus Semua?" : "Ulangi"}
             </button>
 
             <button
@@ -715,7 +758,9 @@ export function PetaPembelajaranModal({
                       <input
                         type="text"
                         value={studentName}
-                        onChange={(e) => setStudentName(e.target.value)}
+                        onChange={(e) =>
+                          updateStudioDraft({ authorName: e.target.value })
+                        }
                         placeholder="Contoh: Aruna Pratama"
                         className="w-full rounded-lg border border-white/20 bg-[#030712] px-3 py-2 text-base sm:text-sm text-white placeholder:text-stone-500 focus:border-[#f4d993] focus:outline-none"
                       />
@@ -725,7 +770,9 @@ export function PetaPembelajaranModal({
                       <input
                         type="text"
                         value={studentClass}
-                        onChange={(e) => setStudentClass(e.target.value)}
+                        onChange={(e) =>
+                          updateStudioDraft({ authorClass: e.target.value })
+                        }
                         placeholder="VII-A"
                         className="w-full rounded-lg border border-white/20 bg-[#030712] px-3 py-2 text-base sm:text-sm text-white placeholder:text-stone-500 focus:border-[#f4d993] focus:outline-none"
                       />
@@ -742,42 +789,116 @@ export function PetaPembelajaranModal({
                   </div>
                 </div>
 
-                {/* Kamus Kata Fantasi */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {FANTASY_LEXICON_BANK.map((cat) => (
-                    <div
-                      key={cat.id}
-                      className="rounded-2xl border border-[#cda250]/35 bg-slate-950/92 p-4 space-y-2.5 shadow-2xl"
-                    >
-                      <div>
-                        <h4 className="font-serif text-base font-bold text-[#f4d993]">
-                          Kamus Kata: {cat.category}
-                        </h4>
-                        <p className="text-xs text-stone-400">{cat.subtitle}</p>
-                      </div>
-                      <div className="space-y-2">
-                        {cat.entries.map((entry) => (
-                          <div
-                            key={entry.word}
-                            className="rounded-lg border border-white/10 bg-white/5 p-2.5 text-xs space-y-1"
+                {/* Kamus Kata Fantasi (48 Entri Terkurasi + Filter Kategori & Makna) */}
+                <div className="rounded-2xl border border-[#cda250]/40 bg-slate-950/92 p-3.5 space-y-2.5 shadow-2xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-brand text-[11px] font-bold tracking-wider text-[#f4d993] uppercase">
+                      Kamus Kata Fantasi (6 Kategori · 48 Diksi Terkurasi)
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {(["Semua", "Denotatif", "Konotatif", "Kiasan / Majas"] as const).map(
+                        (typeOpt) => (
+                          <button
+                            key={typeOpt}
+                            type="button"
+                            onClick={() => {
+                              playChime();
+                              setLexiconTypeFilter(typeOpt);
+                            }}
+                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                              lexiconTypeFilter === typeOpt
+                                ? "bg-emerald-400 text-slate-950"
+                                : "border border-white/15 bg-white/5 text-stone-300 hover:border-emerald-400/50"
+                            }`}
                           >
-                            <div className="flex items-center justify-between">
-                              <strong className="text-white">
-                                {entry.word}
-                              </strong>
-                              <span className="rounded bg-[#cda250]/20 px-2 py-0.5 text-[10px] text-[#f4d993]">
-                                {entry.type}
-                              </span>
-                            </div>
-                            <p className="text-stone-300">{entry.meaning}</p>
-                            <p className="text-amber-200/85 italic">
-                              Contoh: &ldquo;{entry.example}&rdquo;
-                            </p>
-                          </div>
-                        ))}
-                      </div>
+                            {typeOpt}
+                          </button>
+                        )
+                      )}
                     </div>
-                  ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playChime();
+                        setLexiconCategoryFilter("all");
+                      }}
+                      className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${
+                        lexiconCategoryFilter === "all"
+                          ? "bg-[#f4d993] text-slate-950"
+                          : "border border-[#cda250]/35 bg-white/5 text-amber-100 hover:bg-white/10"
+                      }`}
+                    >
+                      Semua Kategori
+                    </button>
+                    {FANTASY_LEXICON_BANK.map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          playChime();
+                          setLexiconCategoryFilter(cat.id);
+                        }}
+                        className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${
+                          lexiconCategoryFilter === cat.id
+                            ? "bg-[#f4d993] text-slate-950"
+                            : "border border-[#cda250]/35 bg-white/5 text-amber-100 hover:bg-white/10"
+                        }`}
+                      >
+                        {cat.category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {FANTASY_LEXICON_BANK.filter(
+                    (cat) =>
+                      lexiconCategoryFilter === "all" ||
+                      cat.id === lexiconCategoryFilter
+                  ).map((cat) => {
+                    const filteredEntries = cat.entries.filter(
+                      (entry) =>
+                        lexiconTypeFilter === "Semua" ||
+                        entry.type === lexiconTypeFilter
+                    );
+                    if (filteredEntries.length === 0) return null;
+                    return (
+                      <div
+                        key={cat.id}
+                        className="rounded-2xl border border-[#cda250]/35 bg-slate-950/92 p-4 space-y-2.5 shadow-2xl"
+                      >
+                        <div>
+                          <h4 className="font-serif text-base font-bold text-[#f4d993]">
+                            Kamus Kata: {cat.category}
+                          </h4>
+                          <p className="text-xs text-stone-400">{cat.subtitle}</p>
+                        </div>
+                        <div className="space-y-2">
+                          {filteredEntries.map((entry) => (
+                            <div
+                              key={entry.word}
+                              className="rounded-lg border border-white/10 bg-white/5 p-2.5 text-xs space-y-1"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <strong className="text-white">
+                                  {entry.word}
+                                </strong>
+                                <span className="rounded bg-[#cda250]/20 px-2 py-0.5 text-[10px] text-[#f4d993] shrink-0">
+                                  {entry.type}
+                                </span>
+                              </div>
+                              <p className="text-stone-300">{entry.meaning}</p>
+                              <p className="text-amber-200/85 italic">
+                                Contoh: &ldquo;{entry.example}&rdquo;
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}

@@ -24,9 +24,11 @@ import {
   type GrimoireChapterId,
   BOLA_WAKTU_AMANAT_OPTIONS,
   BOLA_WAKTU_AUDIO_SCRIPT,
+  BOLA_WAKTU_DISPLAY_ORDER_IDS,
   BOLA_WAKTU_PLOT_BEATS,
   CHARACTER_EVIDENCE_CHALLENGES,
   DIALOGUE_TRANSMUTATION_CHALLENGES,
+  EMAS_POUCH_DISPLAY_ORDER_IDS,
   EMAS_POUCH_STEPS,
   FANTASY_LEXICON_BANK,
   MAJAS_ASOSIASI_CHALLENGES,
@@ -581,17 +583,17 @@ export function KitabMateriOverlay({
 
   const handleSimulateClimaxResolution = useCallback(
     (mode: "tanpa-klimaks" | "utuh") => {
-      const wasUnlocked = state.sealAlurUnlocked;
-      const nextState = updateLearningState((prev) => ({
-        ...prev,
-        climaxSimulationTested: true,
-      }));
-
-      if (nextState.sealAlurUnlocked && !wasUnlocked) {
-        window.setTimeout(() => playSealUnlock(), 120);
-      }
-
       if (mode === "tanpa-klimaks") {
+        const wasUnlocked = state.sealAlurUnlocked;
+        const nextState = updateLearningState((prev) => ({
+          ...prev,
+          climaxSimulationTested: true,
+        }));
+
+        if (nextState.sealAlurUnlocked && !wasUnlocked) {
+          window.setTimeout(() => playSealUnlock(), 120);
+        }
+
         playErrorTone();
         setClimaxWarningMessage(
           "SIMULASI TANPA KLIMAKS (CACAT LOGIKA ALUR): Jika Ivan melompat ke tahun 2022 lalu langsung bahagia tanpa pernah mengalami guncangan batin kehilangan Ayahnya, cerita terasa datar dan tidak memberi alasan logis mengapa Ivan berubah sikap!"
@@ -599,11 +601,13 @@ export function KitabMateriOverlay({
       } else {
         playChime();
         setClimaxWarningMessage(
-          "ALUR UTUH DENGAN KLIMAKS: Puncak konflik di tahun 2022 saat Ivan mendapati makam Ayahnya memicu penyesalan mendalam, sehingga perubahan watak Ivan di Resolusi terasa kuat dan masuk akal."
+          state.climaxSimulationTested
+            ? "ALUR UTUH DENGAN KLIMAKS: Puncak konflik di tahun 2022 saat Ivan mendapati makam Ayahnya memicu penyesalan mendalam, sehingga perubahan watak Ivan di Resolusi terasa kuat dan masuk akal."
+            : "ALUR UTUH DENGAN KLIMAKS: Puncak konflik di tahun 2022 memicu perubahan watak Ivan secara logis. Sekarang klik juga 'Coba Hapus Puncak Masalah!' agar kamu melihat perbedaan alur yang bolong sekaligus menuntaskan syarat simulasi Segel 1."
         );
       }
     },
-    [state.sealAlurUnlocked]
+    [state.climaxSimulationTested, state.sealAlurUnlocked]
   );
 
   const handleResetPlotMountain = useCallback(() => {
@@ -2243,7 +2247,11 @@ export function KitabMateriOverlay({
                           </p>
 
                           <div className="mt-1 space-y-1">
-                            {BOLA_WAKTU_PLOT_BEATS.map((beat) => {
+                            {BOLA_WAKTU_DISPLAY_ORDER_IDS.map((beatId) => {
+                              const beat = BOLA_WAKTU_PLOT_BEATS.find(
+                                (item) => item.id === beatId
+                              );
+                              if (!beat) return null;
                               const placedIndex = state.plotPlacedIds.indexOf(
                                 beat.id
                               );
@@ -2455,7 +2463,11 @@ export function KitabMateriOverlay({
                             kalah!
                           </p>
                           <div className="space-y-1.5 pt-0.5">
-                            {EMAS_POUCH_STEPS.map((step) => {
+                            {EMAS_POUCH_DISPLAY_ORDER_IDS.map((pouchId) => {
+                              const step = EMAS_POUCH_STEPS.find(
+                                (item) => item.pouchId === pouchId
+                              );
+                              if (!step) return null;
                               const isUnlocked = state.pouchOrderIds.includes(
                                 step.pouchId
                               );
@@ -2478,7 +2490,9 @@ export function KitabMateriOverlay({
                                       {step.itemName}
                                     </span>
                                     <span className="text-[9.5px] italic">
-                                       Kantong {step.order}
+                                      {isUnlocked
+                                        ? `Urutan ${step.order}`
+                                        : "Pilih urutan"}
                                     </span>
                                   </div>
                                   <p className="mt-0.5 text-[10px] leading-snug text-[#3a2512]">
@@ -2747,12 +2761,12 @@ export function KitabMateriOverlay({
                           <hr className="parchment-ink-rule mt-1.5" />
                         </div>
 
-                        {/* 3. Bank Kata & Frasa Fantasi */}
+                        {/* 3. Bank Kata & Frasa Fantasi (6 Kategori · 48 Entri) */}
                         <div className="space-y-1">
                           <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            3. Kamus Kata Fantasi (Klik Kategori):
+                            3. Kamus Kata Fantasi (6 Kategori · Klik untuk Lihat):
                           </span>
-                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          <div className="flex flex-wrap gap-1 pt-0.5">
                             {FANTASY_LEXICON_BANK.map((cat) => {
                               const isPicked =
                                 selectedLexiconCategory.id === cat.id;
@@ -2764,7 +2778,7 @@ export function KitabMateriOverlay({
                                     playChime();
                                     setSelectedLexiconCatId(cat.id);
                                   }}
-                                  className={`cursor-pointer border-b-2 px-2 py-0.5 font-serif text-[9.5px] transition ${
+                                  className={`cursor-pointer border-b-2 px-1.5 py-0.5 font-serif text-[9px] transition ${
                                     isPicked
                                       ? "border-[#2b1a0c] bg-[#5c3d1e]/15 font-bold text-[#1f1207]"
                                       : "border-transparent text-[#5c3d1e] hover:border-[#5c3d1e]/40"

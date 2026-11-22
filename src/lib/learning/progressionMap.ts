@@ -95,7 +95,11 @@ export function buildProgressionMapModel(
       ? "babak-2"
       : !state.sealBahasaUnlocked
         ? "babak-3"
-        : "babak-4";
+        : !state.sealStudioUnlocked
+          ? "babak-4"
+          : solvedQuestsCount < ASTROLABE_SIDE_QUESTS.length
+            ? "quest-hub"
+            : "babak-4";
 
   const statusFor = (
     sealUnlocked: boolean,
@@ -209,8 +213,11 @@ export function buildProgressionMapModel(
         solvedQuestsCount === ASTROLABE_SIDE_QUESTS.length,
         metrics.questScore
       ),
-      isRecommendedNext: false,
-      coachMarkText: "Kuis Bonus Seru!",
+      isRecommendedNext: recommendedNodeId === "quest-hub",
+      coachMarkText:
+        recommendedNodeId === "quest-hub"
+          ? "Tuntaskan 3 Kuis Bonus untuk 100%!"
+          : "Kuis Bonus Seru!",
       questPrompt:
         "Mau tambah poin? Pecahkan 3 teka-teki singkat tentang ide cerita keren, logika keajaiban, dan ejaan dialog!",
       tpCodes: ["TP 2", "TP 5"],
@@ -312,8 +319,10 @@ export function buildProgressionMapModel(
           done: studioAnalysis.isReadyForSeal,
         },
         {
-          label: `Simpan Cerita (${state.savedManuscripts.length})`,
-          done: state.savedManuscripts.length > 0,
+          label: `Simpan Karya Siap Segel (${state.savedManuscripts.length})`,
+          done: state.savedManuscripts.some(
+            (m) => analyzeStudentManuscript(m.draft).isReadyForSeal
+          ),
         },
       ],
     },

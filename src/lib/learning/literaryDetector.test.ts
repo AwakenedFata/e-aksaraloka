@@ -96,4 +96,47 @@ describe("literaryDetector & Authority Layer", () => {
     expect(modelRefResult.isModelPresetReference).toBe(true);
     expect(modelRefResult.isReadyForSeal).toBe(false);
   });
+
+  it("rejects non-metaphor 'seperti biasa', substring non-sensory words, empty komplikasi, and unfilled [...] scaffold blanks", () => {
+    const flawedDraft = {
+      ...INITIAL_STUDIO_DRAFT,
+      themeCategory: "Kerajaan Kucing Mekanik Bawah Tanah",
+      storyTitle: "Misteri Gerbang Besi",
+      worldRule: "Setiap jam berdentang dua kali, pintu besi hanya terbuka bagi yang jujur.",
+      protagonistName: "Bima",
+      antagonistName: "Ratu Besi",
+      settingPlace: "Kota Gear",
+      paragraphOrientasi:
+        "Di Kota Gear, Bima berjalan seperti biasa melewati keramaian yang baur dan serupa sambil mengusap keringat di dahi.",
+      paragraphKomplikasi: "",
+      paragraphKlimaks:
+        'Ratu Besi berkata, "[Tulis ucapan langsung di sini!]" Bima segera berlari keatas menara menuju mahluk lembab itu.',
+      paragraphResolusi:
+        "Akhirnya Bima menjelaskan bahwa ia berpesan agar semua penduduk menjaga mesin kota dengan jujur.",
+      amanat: "Kejujuran lebih kuat dari kecurangan dalam keadaan sulit.",
+      selfRevisionChecks: {
+        "rev-struktur": true,
+        "rev-aturan": true,
+        "rev-watak-indera": true,
+        "rev-majas-dialog": true,
+        "rev-eyd": true,
+      },
+    };
+
+    const result = analyzeStudentManuscript(flawedDraft);
+    const struktur = result.indicators.find((i) => i.id === "struktur");
+    const indera = result.indicators.find((i) => i.id === "konsistensi_indera");
+    const majas = result.indicators.find((i) => i.id === "majas_asosiasi");
+    const takLangsung = result.indicators.find((i) => i.id === "tak_langsung_konjungsi");
+
+    expect(struktur?.passed).toBe(false);
+    expect(indera?.passed).toBe(false);
+    expect(majas?.passed).toBe(false);
+    expect(takLangsung?.passed).toBe(true);
+    expect(result.unfilledPlaceholderCount).toBe(1);
+    expect(result.isReadyForSeal).toBe(false);
+    expect(result.eydAndLexiconIssues.some((i) => i.id === "eyd-ke-atas")).toBe(true);
+    expect(result.eydAndLexiconIssues.some((i) => i.id === "lex-mahluk")).toBe(true);
+    expect(result.eydAndLexiconIssues.some((i) => i.id === "lex-lembab")).toBe(true);
+  });
 });

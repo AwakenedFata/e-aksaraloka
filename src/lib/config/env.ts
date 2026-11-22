@@ -42,7 +42,15 @@ export const serverEnvSchema = z.object({
   ),
 
   GEMINI_API_KEY: optionalString,
+  GEMINI_MODEL: z.preprocess(
+    emptyToUndefined,
+    z.string().min(1).max(80).default("gemini-2.5-flash"),
+  ),
   GROQ_API_KEY: optionalString,
+  GROQ_MODEL: z.preprocess(
+    emptyToUndefined,
+    z.string().min(1).max(80).default("llama-3.3-70b-versatile"),
+  ),
 
   APP_COMMIT_SHA: optionalString,
 });

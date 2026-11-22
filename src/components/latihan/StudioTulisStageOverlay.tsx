@@ -32,14 +32,21 @@ import {
 } from "@/lib/learning/learningStore";
 import {
   INITIAL_STUDIO_DRAFT,
+  PRESET_FANTASY_THEMES,
   SELF_REVISION_CHECKLIST,
-  STORY_SEED_PRESETS,
   analyzeStudentManuscript,
   applyAutomaticEydFixes,
   buildKbbiReferenceUrl,
   type FantasyThemeCategory,
   type StudioExtraSpread,
 } from "@/lib/learning/literaryDetector";
+import {
+  buildDynamicSentenceFrame,
+  type FantasyIdeaRecipe,
+  type SentenceFrameGroupId,
+} from "@/lib/learning/creativeScaffolding";
+import { StudioHybridToolkitDrawer } from "@/components/latihan/StudioHybridToolkitDrawer";
+import { StudioAiSocraticPanel } from "@/components/latihan/StudioAiSocraticPanel";
 import {
   playChime,
   playErrorTone,
@@ -59,11 +66,16 @@ interface StudioTulisStageOverlayProps {
 
 type StudioViewTab = "dual_book" | "audit_revisi" | "galeri_piagam";
 
-const THEME_OPTIONS: readonly FantasyThemeCategory[] = [
-  "Lintas Waktu & Konsekuensi",
-  "Dunia Sihir & Akademi",
-  "Mitos & Pusaka Nusantara",
-];
+const CUSTOM_THEME_OPTION_VALUE = "__custom_original_theme__";
+
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 const SEAL_BADGES: readonly {
   readonly id: GrimoireChapterId;
@@ -127,8 +139,29 @@ export function StudioTulisStageOverlay({
   const didSwipeRef = useRef<boolean>(false);
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
   const [isGuideDrawerOpen, setIsGuideDrawerOpen] = useState<boolean>(false);
+  const [isConfirmingResetDraft, setIsConfirmingResetDraft] = useState<boolean>(false);
+  const [forceCustomThemeInput, setForceCustomThemeInput] = useState<boolean>(false);
+  const [framePatternCursor, setFramePatternCursor] = useState<
+    Record<SentenceFrameGroupId, number>
+  >({
+    komplikasi_waktu: 0,
+    majas_asosiasi: 0,
+    dialog_langsung: 0,
+    tak_langsung_akhir: 0,
+  });
   const [kbbiLookupQuery, setKbbiLookupQuery] = useState("");
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
+
+  const isPresetTheme = (PRESET_FANTASY_THEMES as readonly string[]).includes(
+    draft.themeCategory
+  );
+  const showCustomThemeInput = forceCustomThemeInput || !isPresetTheme;
+
+  useEffect(() => {
+    if (!isConfirmingResetDraft) return;
+    const timer = window.setTimeout(() => setIsConfirmingResetDraft(false), 4500);
+    return () => window.clearTimeout(timer);
+  }, [isConfirmingResetDraft]);
   const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [viewportSize, setViewportSize] = useState<{
     readonly width: number;
@@ -463,12 +496,22 @@ export function StudioTulisStageOverlay({
     setCurrentSpread(1);
     setActiveViewTab("dual_book");
     showTempBanner(
-      `Teks Model Contoh "${title}" dimuat sebagai bahan pelajara. Sunting dan tulis kalimat versimu sendiri agar dapat disimpan sebagai Karya Asli Siswa.`
+      `Teks Model Contoh "${title}" dimuat sebagai bahan pelajaran. Sunting dan tulis kalimat versimu sendiri agar dapat disimpan sebagai Karya Asli Siswa.`
     );
   };
 
   const handleResetDraft = () => {
+    if (!isConfirmingResetDraft) {
+      playErrorTone();
+      setIsConfirmingResetDraft(true);
+      showTempBanner(
+        "Klik tombol 'Yakin Hapus Draf?' sekali lagi jika benar-benar ingin mengosongkan seluruh tulisan."
+      );
+      return;
+    }
     playChime();
+    setIsConfirmingResetDraft(false);
+    setForceCustomThemeInput(false);
     setCurrentSpread(0);
     setIsGuideDrawerOpen(false);
     updateStudioDraft({
@@ -480,64 +523,69 @@ export function StudioTulisStageOverlay({
   };
 
   /**
-   * Scaffold-to-Draft Helper: Merakit draf awal 4 tahap (Orientasi, Komplikasi, Klimaks, Resolusi)
-   * dari isian Langkah 1-4 di Lembar 1, lalu membalik halaman buku ke Lembar 2 secara otomatis.
+   * Scaffold-to-Draft Helper (Pedagogis, Anti-Cheat):
+   * Memindahkan kerangka asli siswa dari Lembar 1 ke Lembar 2 & 3 disertai rumpang
+   * terbimbing ([...]) yang wajib dilengkapi sendiri oleh siswa agar Segel terbuka.
    */
   const handleGenerateDraftFromOutline = () => {
-    const protag = draft.protagonistName.trim() || "Aruna";
-    const antag = draft.antagonistName.trim() || "Bayang Kabut";
-    const place = draft.settingPlace.trim() || "Perpustakaan Kuno";
+    const protag = draft.protagonistName.trim();
+    const place = draft.settingPlace.trim();
+    const rule = draft.worldRule.trim();
+
+    if (!protag || !place || !rule) {
+      playErrorTone();
+      showTempBanner(
+        "Isi dulu Nama Tokoh Utama, Tempat Kejadian, dan Aturan Keajaiban di Lembar 1 (atau buka 'Butuh Ide?') sebelum merakit kerangka cerita!"
+      );
+      return;
+    }
+
+    const antag = draft.antagonistName.trim() || "[tulis nama tokoh lawan/rintanganmu]";
     const sight =
       draft.sensorySight.trim() ||
-      "cahaya keemasan berpendar di sela kabut temaram";
+      "[gambarkan warna atau cahaya yang terlihat di tempat ini]";
     const sound =
       draft.sensorySound.trim() ||
-      "gemuruh langkah berat menggema di kejauhan";
+      "[gambarkan suara apa yang terdengar]";
     const smellTouch =
       draft.sensorySmellTouch.trim() ||
-      "aroma kertas tua yang lembap dan udara dingin menusuk kulit";
-    const rule =
-      draft.worldRule.trim() ||
-      "setiap keajaiban menuntut keberanian dan kejujuran pemiliknya";
+      "[gambarkan aroma atau suhu yang terasa]";
 
     const pOrientasi =
       draft.paragraphOrientasi.trim() ||
-      `Di ${place}, ${protag} melangkah dengan hati-hati saat ${sight}. Udara di sekitarnya terasa dipenuhi ${smellTouch}. ${draft.outlineOrientasi.trim() ||
-      `${protag} menemukan sebuah benda bertuah yang menyimpan aturan bahwa ${rule}.`
+      `Di ${place}, ${protag} berada di tengah suasana saat ${sight} dan ${smellTouch}. ${
+        draft.outlineOrientasi.trim() ||
+        `[Ceritakan bagaimana ${protag} menemukan hal ajaib dan mengenal aturan bahwa ${rule}]`
       }`;
 
     const pKomplikasi =
       (draft.paragraphKomplikasi ?? "").trim() ||
-      `Tiba-tiba ${sound} ketika ${antag} muncul menghadang jalan keluar di ${place}. ${draft.outlineKomplikasiKlimaks.trim() ||
-      `Kemunculan ${antag} memicu ketegangan karena ia berusaha merampas benda bertuah tersebut.`
+      `Tiba-tiba ${sound} saat ${antag} muncul di ${place}. ${
+        draft.outlineKomplikasiKlimaks.trim() ||
+        `[Ceritakan masalah apa yang ditimbulkan ${antag} sehingga ${protag} mulai terdesak]`
       }`;
 
     const pKlimaks =
       draft.paragraphKlimaks.trim() ||
-      `${antag} berseru dengan lantang, "Serahkan pusaka itu sekarang juga atau kau akan menyesal!" ${protag} bergerak cepat bagaikan anak panah yang melesat dari busurnya untuk mempertahankan pusaka tersebut sambil mematuhi aturan dunianya.`;
+      `[Tulis ucapan langsung tokoh memakai tanda petik ("...!") di sini.] ${protag} [tulis aksi berani ${protag} memakai perumpamaan seperti/bagaikan/laksana ...] tanpa melanggar aturan bahwa ${rule}.`;
 
     const pResolusi =
       draft.paragraphResolusi.trim() ||
-      `Namun ${protag} tidak menyerah dan berhasil mengatasi rintangan tanpa melanggar pantangan pusaka itu. Akhirnya ${antag} menyadari bahwa keserakahan tidak akan pernah menang melawan ketulusan hati, dan suasana di ${place} kembali damai.`;
+      `Akhirnya, ${
+        draft.outlineResolusi.trim() ||
+        `[ceritakan bagaimana ${protag} menuntaskan masalah secara logis]`
+      } ${protag} menyadari bahwa [tulis kalimat tak langsung berisi pelajaran kebaikan yang dipetik].`;
 
-    playSealUnlock();
+    playChime();
     updateStudioDraft({
-      protagonistName: protag,
-      antagonistName: antag,
-      settingPlace: place,
-      worldRule: rule,
       paragraphOrientasi: pOrientasi,
       paragraphKomplikasi: pKomplikasi,
       paragraphKlimaks: pKlimaks,
       paragraphResolusi: pResolusi,
       isModelPresetReference: false,
-      storyTitle: draft.storyTitle.trim() || `Kisah ${protag} di ${place}`,
-      amanat:
-        draft.amanat.trim() ||
-        "Kita harus bertanggung jawab, jujur, dan pantang menyerah saat menghadapi kesulitan.",
     });
     showTempBanner(
-      "Kerangka Langkah 1-4 berhasil dirakit menjadi fondasi 4 paragraf di Lembar 2 & 3! Silakan kembangkan dengan kalimatmu sendiri."
+      "Kerangka rencanamu sudah dipindahkan ke Lembar 2 & 3! Ganti semua tanda [...] dengan kalimat karyamu sendiri agar 5 Misi Tulisan terpenuhi."
     );
     triggerSpreadTransition(1);
   };
@@ -596,51 +644,144 @@ export function StudioTulisStageOverlay({
     showTempBanner("Lembar kertas tambahan sudah dihapus dari bukumu.");
   };
 
-  const handleInsertTimeConjunctionSnippet = () => {
+  const handleApplyIdeaRecipe = (recipe: FantasyIdeaRecipe) => {
     playChime();
-    const snippet =
-      " Tiba-tiba terdengar suara gemuruh dari balik lorong yang memicu ketegangan.";
+    setForceCustomThemeInput(true);
+    setIsGuideDrawerOpen(false);
+    setCurrentSpread(0);
+    setActiveViewTab("dual_book");
     updateStudioDraft({
-      paragraphKomplikasi: `${(draft.paragraphKomplikasi ?? "").trimEnd()}${snippet}`,
+      themeCategory: recipe.themeLabel,
+      worldRule: recipe.worldRule,
+      protagonistName: recipe.protagonistName,
+      protagonistTraitAction: `${recipe.protagonistRole}. ${recipe.protagonistTraitAction}`,
+      antagonistName: recipe.antagonistName,
+      antagonistConflictTrigger: recipe.antagonistConflictTrigger,
+      settingPlace: recipe.settingPlace,
+      sensorySight: recipe.sensoryHint.sight,
+      sensorySound: recipe.sensoryHint.sound,
+      sensorySmellTouch: recipe.sensoryHint.smellTouch,
+      outlineOrientasi: `${recipe.protagonistName} menemukan ${recipe.magicArtifact} di ${recipe.settingPlace}.`,
+      outlineKomplikasiKlimaks: "",
+      outlineResolusi: "",
+      isModelPresetReference: false,
     });
     showTempBanner(
-      "Kalimat pemicu masalah ('Tiba-tiba...') ditambahkan ke Paragraf 2!"
+      `Ramuan ide "${recipe.themeLabel}" masuk ke Lembar 1! Silakan ubah sesukamu lalu kembangkan ceritamu sendiri.`
+    );
+  };
+
+  const handleInsertLexiconWord = (word: string) => {
+    playChime();
+    const cleanedWord = word.trim();
+    if (!cleanedWord) return;
+
+    if (safeCurrentSpread === 1) {
+      if (isMobileBook && mobilePageSide === "right") {
+        updateStudioDraft({
+          paragraphKomplikasi: `${(draft.paragraphKomplikasi ?? "").trimEnd()} ${cleanedWord}`,
+        });
+      } else {
+        updateStudioDraft({
+          paragraphOrientasi: `${draft.paragraphOrientasi.trimEnd()} ${cleanedWord}`,
+        });
+      }
+      showTempBanner(`Kata "${cleanedWord}" disisipkan ke Lembar 2! Rangkai menjadi kalimatmu sendiri.`);
+      return;
+    }
+
+    if (safeCurrentSpread === 2) {
+      if (isMobileBook && mobilePageSide === "right") {
+        updateStudioDraft({
+          paragraphResolusi: `${draft.paragraphResolusi.trimEnd()} ${cleanedWord}`,
+        });
+      } else {
+        updateStudioDraft({
+          paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()} ${cleanedWord}`,
+        });
+      }
+      showTempBanner(`Kata "${cleanedWord}" disisipkan ke Lembar 3! Rangkai menjadi kalimatmu sendiri.`);
+      return;
+    }
+
+    updateStudioDraft({
+      paragraphOrientasi: `${draft.paragraphOrientasi.trimEnd()} ${cleanedWord}`,
+    });
+    setCurrentSpread(1);
+    setActiveViewTab("dual_book");
+    showTempBanner(`Kata "${cleanedWord}" disisipkan ke Paragraf 1 (Awal Cerita)!`);
+  };
+
+  const handleInsertAiMajasFrame = (frameText: string) => {
+    playChime();
+    updateStudioDraft({
+      paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()} ${frameText.trim()}`,
+    });
+    setIsGuideDrawerOpen(false);
+    setActiveViewTab("dual_book");
+    setCurrentSpread(2);
+    setMobilePageSide("left");
+    showTempBanner(
+      "Kerangka majas rumpang dari pemantik tema disisipkan ke Paragraf 3! Ganti bagian [...] dengan kalimatmu sendiri."
+    );
+  };
+
+  const frameCtx = {
+    protagonistName: draft.protagonistName,
+    antagonistName: draft.antagonistName,
+    settingPlace: draft.settingPlace,
+    themeCategory: draft.themeCategory,
+  };
+
+  const handleInsertTimeConjunctionSnippet = () => {
+    playChime();
+    const idx = framePatternCursor.komplikasi_waktu;
+    const frame = buildDynamicSentenceFrame("komplikasi_waktu", idx, frameCtx);
+    setFramePatternCursor((prev) => ({ ...prev, komplikasi_waktu: idx + 1 }));
+    updateStudioDraft({
+      paragraphKomplikasi: `${(draft.paragraphKomplikasi ?? "").trimEnd()}${frame.text}`,
+    });
+    showTempBanner(
+      `${frame.patternLabel} (${frame.patternIndex + 1}/${frame.totalPatterns}) disisipkan! Klik lagi untuk variasi pola lain, lalu ganti [...].`
     );
   };
 
   const handleInsertMajasSnippet = () => {
     playChime();
-    const snippet =
-      " Semangatnya menyala terang bagaikan bintang kejora di tengah gelapnya malam.";
+    const idx = framePatternCursor.majas_asosiasi;
+    const frame = buildDynamicSentenceFrame("majas_asosiasi", idx, frameCtx);
+    setFramePatternCursor((prev) => ({ ...prev, majas_asosiasi: idx + 1 }));
     updateStudioDraft({
-      paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()}${snippet}`,
+      paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()}${frame.text}`,
     });
     showTempBanner(
-      "Contoh kalimat perumpamaan ('bagaikan bintang kejora') ditambahkan ke Paragraf 3!"
+      `${frame.patternLabel} (${frame.patternIndex + 1}/${frame.totalPatterns}) disisipkan! Lengkapi [...] sesuai temamu.`
     );
   };
 
   const handleInsertDialogSnippet = () => {
     playChime();
-    const speaker = draft.protagonistName.trim() || "Tokoh Utama";
-    const snippet = ` ${speaker} berseru dengan tegas, "Aku tidak akan mundur menghadapi ujian ini!"`;
+    const idx = framePatternCursor.dialog_langsung;
+    const frame = buildDynamicSentenceFrame("dialog_langsung", idx, frameCtx);
+    setFramePatternCursor((prev) => ({ ...prev, dialog_langsung: idx + 1 }));
     updateStudioDraft({
-      paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()}${snippet}`,
+      paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()}${frame.text}`,
     });
     showTempBanner(
-      "Contoh kalimat dialog bertanda petik (\"...\") ditambahkan ke Paragraf 3!"
+      `${frame.patternLabel} (${frame.patternIndex + 1}/${frame.totalPatterns}) disisipkan! Ganti [...] dengan ucapan tokohmu.`
     );
   };
 
   const handleInsertIndirectSnippet = () => {
     playChime();
-    const speaker = draft.protagonistName.trim() || "Ia";
-    const snippet = ` Akhirnya ${speaker} menyatakan bahwa keberanian dan kejujuran jauh lebih berharga daripada jalan pintas.`;
+    const idx = framePatternCursor.tak_langsung_akhir;
+    const frame = buildDynamicSentenceFrame("tak_langsung_akhir", idx, frameCtx);
+    setFramePatternCursor((prev) => ({ ...prev, tak_langsung_akhir: idx + 1 }));
     updateStudioDraft({
-      paragraphResolusi: `${draft.paragraphResolusi.trimEnd()}${snippet}`,
+      paragraphResolusi: `${draft.paragraphResolusi.trimEnd()}${frame.text}`,
     });
     showTempBanner(
-      "Contoh kalimat penutup cerita ditambahkan ke Paragraf 4!"
+      `${frame.patternLabel} (${frame.patternIndex + 1}/${frame.totalPatterns}) disisipkan! Lengkapi [...] dengan pesan ceritamu.`
     );
   };
 
@@ -685,10 +826,16 @@ export function StudioTulisStageOverlay({
       );
       return;
     }
-    playSealUnlock();
+    if (analysis.isReadyForSeal) {
+      playSealUnlock();
+    } else {
+      playChime();
+    }
     const saved = saveCurrentManuscriptToPustaka();
     showTempBanner(
-      `Cerita "${saved.storyTitle}" (${saved.wordCount} kata, Skor ${saved.studioScore}%) berhasil disimpan ke Galeri Karya!`
+      analysis.isReadyForSeal
+        ? `Karya Siap Segel "${saved.storyTitle}" (${saved.wordCount} kata, Skor ${saved.studioScore}%) tersimpan & Segel Studio terbuka!`
+        : `Draf "${saved.storyTitle}" (${saved.wordCount} kata) tersimpan sebagai Draf Sementara. Lengkapi min. 4/5 misi, 3 ceklis revisi, tanpa tanda [...], & ejaan rapi untuk membuka Segel Studio.`
     );
   };
 
@@ -697,24 +844,45 @@ export function StudioTulisStageOverlay({
     const win = window.open("", "_blank", "width=940,height=880");
     if (!win) return;
 
-    const safeAuthor =
-      draft.authorName.trim() || "................................................";
-    const safeClass = draft.authorClass.trim() || "VII-....";
-    const safeTitle =
-      draft.storyTitle.trim() || "Cerita Fantasi Tanpa Judul";
-    const safeAmanat =
-      draft.amanat.trim() || "(Belum ditulis oleh penulis)";
-    const safeWorldRule = draft.worldRule.trim() || "(Belum ditulis)";
+    const safeAuthor = escapeHtml(
+      draft.authorName.trim() || "................................................"
+    );
+    const safeClass = escapeHtml(draft.authorClass.trim() || "VII-....");
+    const safeTitle = escapeHtml(
+      draft.storyTitle.trim() || "Cerita Fantasi Tanpa Judul"
+    );
+    const safeTheme = escapeHtml(draft.themeCategory.trim() || "Tema Fantasi Orisinal");
+    const safeAmanat = escapeHtml(
+      draft.amanat.trim() || "(Belum ditulis oleh penulis)"
+    );
+    const safeWorldRule = escapeHtml(draft.worldRule.trim() || "(Belum ditulis)");
+    const safeProtagName = escapeHtml(draft.protagonistName.trim() || "-");
+    const safeProtagTrait = escapeHtml(draft.protagonistTraitAction.trim() || "-");
+    const safeAntagName = escapeHtml(draft.antagonistName.trim() || "-");
+    const safeAntagTrigger = escapeHtml(draft.antagonistConflictTrigger.trim() || "-");
+    const safePlace = escapeHtml(draft.settingPlace.trim() || "-");
+    const safeSight = escapeHtml(draft.sensorySight.trim() || "-");
+    const safeSound = escapeHtml(draft.sensorySound.trim() || "-");
+    const safeSmell = escapeHtml(draft.sensorySmellTouch.trim() || "-");
 
     const extraParagraphsHtml = extraSpreads
       .flatMap((sp) => [sp.leftText.trim(), sp.rightText.trim()])
       .filter(Boolean)
-      .map((text) => `<p class="story-para">${text}</p>`)
+      .map((text) => `<p class="story-para">${escapeHtml(text)}</p>`)
       .join("");
 
     const komplikasiHtml = (draft.paragraphKomplikasi ?? "").trim()
-      ? `<p class="story-para">${draft.paragraphKomplikasi}</p>`
+      ? `<p class="story-para">${escapeHtml(draft.paragraphKomplikasi ?? "")}</p>`
       : "";
+    const safeOrientasi = escapeHtml(
+      draft.paragraphOrientasi || "(Paragraf Orientasi belum ditulis)"
+    );
+    const safeKlimaks = escapeHtml(
+      draft.paragraphKlimaks || "(Paragraf Puncak Klimaks belum ditulis)"
+    );
+    const safeResolusi = escapeHtml(
+      draft.paragraphResolusi || "(Paragraf Resolusi belum ditulis)"
+    );
 
     const html = `<!DOCTYPE html>
 <html lang="id">
@@ -845,7 +1013,7 @@ export function StudioTulisStageOverlay({
     <div class="meta-grid">
       <div><strong>Nama Penulis Muda:</strong> ${safeAuthor}</div>
       <div><strong>Kelas:</strong> ${safeClass}</div>
-      <div><strong>Tema Fantasi:</strong> ${draft.themeCategory}</div>
+      <div><strong>Tema Fantasi:</strong> ${safeTheme}</div>
       <div><strong>Segel Materi Terbuka:</strong> ${metrics.unlockedSealsCount} / 3 Segel (${metrics.overallPercentage}%)</div>
       <div><strong>Skor Cerita (Studio Tulis):</strong> ${analysis.studioScore}% (${analysis.passedIndicatorsCount}/5 Misi Beres)</div>
       <div><strong>Jumlah Kata Cerita:</strong> ${analysis.totalWords} kata</div>
@@ -860,19 +1028,19 @@ export function StudioTulisStageOverlay({
         </tr>
         <tr>
           <th>Tokoh Protagonis &amp; Bukti Watak</th>
-          <td><strong>${draft.protagonistName || "-"}</strong> — ${draft.protagonistTraitAction || "-"}</td>
+          <td><strong>${safeProtagName}</strong> — ${safeProtagTrait}</td>
         </tr>
         <tr>
           <th>Tokoh Antagonis &amp; Pemicu Konflik</th>
-          <td><strong>${draft.antagonistName || "-"}</strong> — ${draft.antagonistConflictTrigger || "-"}</td>
+          <td><strong>${safeAntagName}</strong> — ${safeAntagTrigger}</td>
         </tr>
         <tr>
           <th>Latar Tempat &amp; Peta Lima Indera</th>
           <td>
-            <strong>Latar:</strong> ${draft.settingPlace || "-"}<br/>
-            <strong>Penglihatan:</strong> ${draft.sensorySight || "-"} |
-            <strong>Pendengaran:</strong> ${draft.sensorySound || "-"} |
-            <strong>Penciuman/Peraba:</strong> ${draft.sensorySmellTouch || "-"}
+            <strong>Latar:</strong> ${safePlace}<br/>
+            <strong>Penglihatan:</strong> ${safeSight} |
+            <strong>Pendengaran:</strong> ${safeSound} |
+            <strong>Penciuman/Peraba:</strong> ${safeSmell}
           </td>
         </tr>
       </tbody>
@@ -881,10 +1049,10 @@ export function StudioTulisStageOverlay({
     <h2>II. Cerita Fantasi Karya Siswa</h2>
     <div class="story-container">
       <div class="story-title">${safeTitle}</div>
-      <p class="story-para">${draft.paragraphOrientasi || "(Paragraf Orientasi belum ditulis)"}</p>
+      <p class="story-para">${safeOrientasi}</p>
       ${komplikasiHtml}
-      <p class="story-para">${draft.paragraphKlimaks || "(Paragraf Puncak Klimaks belum ditulis)"}</p>
-      <p class="story-para">${draft.paragraphResolusi || "(Paragraf Resolusi belum ditulis)"}</p>
+      <p class="story-para">${safeKlimaks}</p>
+      <p class="story-para">${safeResolusi}</p>
       ${extraParagraphsHtml}
       <div class="amanat-box">
         <strong>Amanat / Pesan Moral Cerita:</strong><br/>
@@ -906,10 +1074,10 @@ export function StudioTulisStageOverlay({
         ${analysis.indicators
         .map(
           (ind) => `<tr>
-          <td><strong>${ind.title}</strong></td>
+          <td><strong>${escapeHtml(ind.title)}</strong></td>
           <td>${ind.passed ? "Beres" : "Perlu Dilengkapi"}</td>
           <td>${ind.earnedScore} / ${ind.scoreWeight}</td>
-          <td>${ind.detectedSnippets.length > 0 ? ind.detectedSnippets.join("; ") : ind.summary}</td>
+          <td>${escapeHtml(ind.detectedSnippets.length > 0 ? ind.detectedSnippets.join("; ") : ind.summary)}</td>
         </tr>`
         )
         .join("")}
@@ -1382,7 +1550,12 @@ export function StudioTulisStageOverlay({
                   : "border-[#cda250]/55 bg-[#0d0a07]/90 hover:bg-[#0d0a07] text-[#f4d993]"
                   }`}
               >
-                {isGuideDrawerOpen ? "Tutup Ide" : "Butuh Ide?"}
+                <span className="md:hidden">
+                  {isGuideDrawerOpen ? "Tutup" : "Ide & AI"}
+                </span>
+                <span className="hidden md:inline">
+                  {isGuideDrawerOpen ? "Tutup Alat Bantu" : "Alat Bantu & AI"}
+                </span>
               </button>
 
               {activeViewTab === "dual_book" ? (
@@ -1397,9 +1570,13 @@ export function StudioTulisStageOverlay({
                   <button
                     type="button"
                     onClick={handleResetDraft}
-                    className="hidden sm:inline-block rounded-lg border border-white/20 bg-[#0d0a07]/85 hover:bg-[#0d0a07] px-2.5 py-1 text-[11px] text-stone-200 transition-colors cursor-pointer shadow-md whitespace-nowrap"
+                    className={`hidden sm:inline-block rounded-lg border px-2.5 py-1 text-[11px] transition-colors cursor-pointer shadow-md whitespace-nowrap ${
+                      isConfirmingResetDraft
+                        ? "border-rose-400/80 bg-rose-950/95 font-bold text-rose-100"
+                        : "border-white/20 bg-[#0d0a07]/85 hover:bg-[#0d0a07] text-stone-200"
+                    }`}
                   >
-                    Hapus Isian
+                    {isConfirmingResetDraft ? "Yakin Hapus Draf?" : "Hapus Isian"}
                   </button>
                 </>
               ) : (
@@ -1490,82 +1667,27 @@ export function StudioTulisStageOverlay({
             </button>
           </div>
 
-          {/* Popover Mengambang (Scrollable cleanly inside viewport on small phones) */}
+          {/* Popover Mengambang: Toolkit Hybrid (Ramuan Ide + Kamus 48 Kata + Pemantik AI + 3 Segel) */}
           {isGuideDrawerOpen && (
-            <div
-              data-lenis-prevent
-              className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-[70dvh] overflow-y-auto overscroll-contain rounded-2xl border border-[#cda250]/55 bg-[#070d1d]/96 p-3 shadow-2xl space-y-2.5"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="font-brand text-[10px] tracking-[0.16em] uppercase text-[#f4d993]">
-                    3 SEGEL MATERI (KLIK KALAU MAU BACA LAGI):
-                  </span>
-                  {SEAL_BADGES.map((sb) => {
-                    const unlocked = isSealUnlockedForId(sb.id);
-                    return (
-                      <button
-                        key={sb.id}
-                        type="button"
-                        onClick={() => {
-                          playChime();
-                          setActiveGrimoireChapter(sb.id);
-                          onJumpToKitabChapter(sb.id);
-                        }}
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold transition-colors cursor-pointer ${unlocked
-                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/45"
-                          : "bg-amber-500/15 text-amber-200 border border-amber-400/40 hover:bg-amber-500/25"
-                          }`}
-                      >
-                        {sb.label}: {unlocked ? "Selesai ✓" : "Buka di Pustaka ->"}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsGuideDrawerOpen(false)}
-                  className="text-[10px] font-bold uppercase text-[#f4d993] hover:text-white cursor-pointer"
-                >
-                  [ X ] Tutup Ide
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                {STORY_SEED_PRESETS.map((seed, idx) => (
-                  <div
-                    key={seed.id}
-                    className="flex flex-col justify-between rounded-xl border border-[#cda250]/35 bg-black/60 p-2.5 space-y-2"
-                  >
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#f4d993]">
-                        Ide Cerita {idx + 1}: {seed.title}
-                      </span>
-                      <p className="mt-0.5 text-[11px] text-stone-300 leading-snug">
-                        {seed.description}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleApplySeedOutline(seed.id, seed.title)}
-                        className="rounded-lg border border-emerald-400/50 bg-emerald-500/20 hover:bg-emerald-500/30 px-2 py-1 text-[10px] font-bold text-emerald-200 cursor-pointer"
-                      >
-                        Pakai Rencana Ide Ini
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleApplySeedFullModel(seed.id, seed.title)}
-                        className="rounded-lg border border-[#cda250]/40 bg-white/5 hover:bg-white/10 px-2 py-1 text-[10px] font-semibold text-[#f4d993] cursor-pointer"
-                      >
-                        Lihat Contoh Ceritanya
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <StudioHybridToolkitDrawer
+              draft={draft}
+              sealBadges={SEAL_BADGES}
+              isSealUnlockedForId={isSealUnlockedForId}
+              onClose={() => setIsGuideDrawerOpen(false)}
+              onJumpToKitabChapter={(chapter) => {
+                setActiveGrimoireChapter(chapter);
+                onJumpToKitabChapter(chapter);
+              }}
+              onApplySeedOutline={handleApplySeedOutline}
+              onApplySeedFullModel={handleApplySeedFullModel}
+              onApplyIdeaRecipe={handleApplyIdeaRecipe}
+              onInsertWord={handleInsertLexiconWord}
+              onInsertMajasFrame={handleInsertAiMajasFrame}
+              onUpdateThemeCategory={(nextTheme) => {
+                setForceCustomThemeInput(true);
+                updateStudioDraft({ themeCategory: nextTheme });
+              }}
+            />
           )}
 
           {/* Floating Notification Toast (Absolute Overlay — 0px Vertical Layout Shift) */}
@@ -1723,27 +1845,59 @@ export function StudioTulisStageOverlay({
                             className={inkInputClass}
                           />
                         </div>
-                        <div className="sm:col-span-6">
+                        <div className="sm:col-span-6 space-y-1">
                           <label
                             htmlFor="studio-theme-select"
                             className="block truncate text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
                           >
-                            Pilih Tema Cerita:
+                            Pilih atau Tulis Tema Ceritamu:
                           </label>
                           <ParchmentSelect
                             id="studio-theme-select"
                             ariaLabel="Pilih Tema Cerita"
-                            value={draft.themeCategory}
-                            options={THEME_OPTIONS.map((theme) => ({
-                              value: theme,
-                              label: theme,
-                            }))}
-                            onChange={(nextValue) =>
-                              updateStudioDraft({
-                                themeCategory: nextValue as FantasyThemeCategory,
-                              })
+                            value={
+                              showCustomThemeInput
+                                ? CUSTOM_THEME_OPTION_VALUE
+                                : draft.themeCategory
                             }
+                            options={[
+                              ...PRESET_FANTASY_THEMES.map((theme) => ({
+                                value: theme,
+                                label: theme,
+                              })),
+                              {
+                                value: CUSTOM_THEME_OPTION_VALUE,
+                                label: "+ Tulis Tema Orisinalku Sendiri...",
+                              },
+                            ]}
+                            onChange={(nextValue) => {
+                              if (nextValue === CUSTOM_THEME_OPTION_VALUE) {
+                                setForceCustomThemeInput(true);
+                                if (isPresetTheme) {
+                                  updateStudioDraft({ themeCategory: "" });
+                                }
+                              } else {
+                                setForceCustomThemeInput(false);
+                                updateStudioDraft({
+                                  themeCategory: nextValue as FantasyThemeCategory,
+                                });
+                              }
+                            }}
                           />
+                          {showCustomThemeInput && (
+                            <input
+                              id="studio-custom-theme-input"
+                              type="text"
+                              value={draft.themeCategory}
+                              onChange={(e) =>
+                                updateStudioDraft({
+                                  themeCategory: e.target.value,
+                                })
+                              }
+                              placeholder="Misal: Kerajaan Kucing Mekanik / Kota Bawah Laut..."
+                              className={inkInputClass}
+                            />
+                          )}
                         </div>
                       </div>
 
@@ -1946,14 +2100,14 @@ export function StudioTulisStageOverlay({
                               onClick={handleInsertMajasSnippet}
                               className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer whitespace-nowrap"
                             >
-                              + Contoh Perumpamaan
+                              + Kerangka Perumpamaan
                             </button>
                             <button
                               type="button"
                               onClick={handleInsertDialogSnippet}
                               className="rounded-full border border-[#1e3a8a]/75 bg-[#1e3a8a]/12 hover:bg-[#1e3a8a]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#1e3a8a] transition-colors cursor-pointer whitespace-nowrap"
                             >
-                              + Contoh Dialog (&ldquo;...&rdquo;)
+                              + Kerangka Dialog (&ldquo;...&rdquo;)
                             </button>
                           </div>
                         </div>
@@ -2021,6 +2175,12 @@ export function StudioTulisStageOverlay({
                         </span>
                       </div>
 
+                      {analysis.unfilledPlaceholderCount > 0 && (
+                        <div className="rounded border border-[#7f1d1d]/55 bg-[#7f1d1d]/10 px-2 py-1.5 text-[10.5px] font-semibold text-[#7f1d1d]">
+                          Masih ada {analysis.unfilledPlaceholderCount} bagian panduan bertanda [...] yang belum kamu ganti dengan kalimatmu sendiri. Lengkapi dulu agar Segel Studio bisa terbuka!
+                        </div>
+                      )}
+
                       <div className="space-y-2 divide-y divide-[#5c3d1e]/25">
                         {analysis.indicators.map((ind) => (
                           <div key={ind.id} className="pt-1.5 first:pt-0">
@@ -2046,6 +2206,11 @@ export function StudioTulisStageOverlay({
                           </div>
                         ))}
                       </div>
+
+                      <StudioAiSocraticPanel
+                        draft={draft}
+                        totalWords={analysis.totalWords}
+                      />
                     </div>
                   )}
 
@@ -2177,7 +2342,7 @@ export function StudioTulisStageOverlay({
                           onClick={handleGenerateDraftFromOutline}
                           className="rounded-full border border-[#14532d]/75 bg-[#14532d]/12 hover:bg-[#14532d]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#14532d] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                         >
-                          Bantu Susun ke Halaman Cerita -&gt;
+                          Rakit Kerangka ke Halaman -&gt;
                         </button>
                       </div>
 
@@ -2356,7 +2521,7 @@ export function StudioTulisStageOverlay({
                             onClick={handleInsertTimeConjunctionSnippet}
                             className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                           >
-                            + Tambah &ldquo;Tiba-tiba...&rdquo;
+                            + Kerangka &ldquo;Tiba-tiba...&rdquo;
                           </button>
 
                           <div className="flex items-center gap-1 min-w-0">
@@ -2434,7 +2599,7 @@ export function StudioTulisStageOverlay({
                               onClick={handleInsertIndirectSnippet}
                               className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                             >
-                              + Contoh Kalimat Akhir
+                              + Kerangka Kalimat Akhir
                             </button>
                           </div>
                           <textarea
@@ -2592,6 +2757,24 @@ export function StudioTulisStageOverlay({
                                   type="checkbox"
                                   checked={checked}
                                   onChange={() => {
+                                    if (!checked && analysis.totalWords === 0) {
+                                      playErrorTone();
+                                      showTempBanner(
+                                        "Tulis dulu ceritamu di Lembar 2 & 3 sebelum mencentang daftar periksa revisi!"
+                                      );
+                                      return;
+                                    }
+                                    if (
+                                      !checked &&
+                                      item.id === "rev-eyd" &&
+                                      analysis.eydAndLexiconIssues.length > 0
+                                    ) {
+                                      playErrorTone();
+                                      showTempBanner(
+                                        `Masih ada ${analysis.eydAndLexiconIssues.length} catatan ejaan di atas. Rapikan dulu sebelum mencentang poin EYD ini!`
+                                      );
+                                      return;
+                                    }
                                     playChime();
                                     toggleStudioRevisionCheck(item.id);
                                   }}

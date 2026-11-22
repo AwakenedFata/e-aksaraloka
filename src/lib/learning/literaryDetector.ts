@@ -11,10 +11,16 @@
  *    - KbbiLinkProvider (tautan rujukan ke kbbi.kemendikdasmen.go.id tanpa fetch/scraping)
  */
 
-export type FantasyThemeCategory =
-  | "Lintas Waktu & Konsekuensi"
-  | "Dunia Sihir & Akademi"
-  | "Mitos & Pusaka Nusantara";
+export const PRESET_FANTASY_THEMES = [
+  "Lintas Waktu & Konsekuensi",
+  "Dunia Sihir & Akademi",
+  "Mitos & Pusaka Nusantara",
+] as const;
+
+export type PresetFantasyTheme = (typeof PRESET_FANTASY_THEMES)[number];
+
+/** Mendukung 3 tema kurasi kurikulum maupun tema fantasi orisinal pilihan siswa sendiri. */
+export type FantasyThemeCategory = PresetFantasyTheme | (string & {});
 
 export type VerificationStatus =
   | "authority_verified"
@@ -119,6 +125,7 @@ export interface LiteraryAnalysisResult {
   readonly klimaksWords: number;
   readonly resolusiWords: number;
   readonly isModelPresetReference: boolean;
+  readonly unfilledPlaceholderCount: number;
   readonly indicators: readonly LiteraryIndicatorStatus[];
   readonly passedIndicatorsCount: number;
   readonly revisionCheckedCount: number;
@@ -367,6 +374,49 @@ const LOCATIVE_NOUNS_MERGED = [
   "gua",
   "menara",
   "dunia",
+  "istana",
+  "kastel",
+  "gerbang",
+  "pasar",
+  "kantin",
+  "sungai",
+  "laut",
+  "langit",
+  "puncak",
+  "seberang",
+  "sekitar",
+  "dekat",
+  "halaman",
+  "lorong",
+  "jembatan",
+  "taman",
+  "pantai",
+  "pulau",
+  "negeri",
+  "kerajaan",
+  "ruangan",
+  "loteng",
+  "aula",
+  "dinding",
+  "lantai",
+] as const;
+
+const KE_LOCATIVE_NOUNS_MERGED = [
+  "atas",
+  "bawah",
+  "dalam",
+  "depan",
+  "belakang",
+  "sana",
+  "sini",
+  "situ",
+  "mana",
+  "sekolah",
+  "rumah",
+  "hutan",
+  "istana",
+  "lorong",
+  "perpustakaan",
 ] as const;
 
 interface CuratedLexiconEntry {
@@ -432,16 +482,52 @@ const CURATED_NON_STANDARD_LEXICON: readonly CuratedLexiconEntry[] = [
     verifiedDate: "2026-10-03",
   },
   {
-    nonStandard: "জামা",
+    nonStandard: "jaman",
     standard: "zaman",
     note: "Bentuk baku menurut KBBI VI Daring adalah 'zaman'.",
     verifiedDate: "2026-10-03",
   },
   {
-    nonStandard: "jaman",
-    standard: "zaman",
-    note: "Bentuk baku menurut KBBI VI Daring adalah 'zaman'.",
-    verifiedDate: "2026-10-03",
+    nonStandard: "lembab",
+    standard: "lembap",
+    note: "Bentuk baku menurut KBBI VI Daring adalah 'lembap' (berakhiran -p).",
+    verifiedDate: "2026-11-22",
+  },
+  {
+    nonStandard: "mahluk",
+    standard: "makhluk",
+    note: "Bentuk baku menurut KBBI VI Daring adalah 'makhluk' (memakai 'kh').",
+    verifiedDate: "2026-11-22",
+  },
+  {
+    nonStandard: "karna",
+    standard: "karena",
+    note: "Bentuk baku menurut KBBI VI Daring adalah 'karena'.",
+    verifiedDate: "2026-11-22",
+  },
+  {
+    nonStandard: "aktifitas",
+    standard: "aktivitas",
+    note: "Bentuk baku menurut KBBI VI Daring adalah 'aktivitas'.",
+    verifiedDate: "2026-11-22",
+  },
+  {
+    nonStandard: "merubah",
+    standard: "mengubah",
+    note: "Kata dasarnya 'ubah', sehingga bentuk berimbuhan bakunya adalah 'mengubah'.",
+    verifiedDate: "2026-11-22",
+  },
+  {
+    nonStandard: "terlanjur",
+    standard: "telanjur",
+    note: "Bentuk baku menurut KBBI VI Daring adalah 'telanjur'.",
+    verifiedDate: "2026-11-22",
+  },
+  {
+    nonStandard: "fikir",
+    standard: "pikir",
+    note: "Bentuk baku menurut KBBI VI Daring adalah 'pikir' (berpikir, pikiran).",
+    verifiedDate: "2026-11-22",
   },
 ];
 
@@ -485,14 +571,38 @@ export function auditEydAndLexicon(fullText: string): readonly EydAndLexiconIssu
     }
   }
 
+  // 1b. EydRuleProvider: Kata depan 'ke' yang digabung dengan kata tempat/arah
+  for (const noun of KE_LOCATIVE_NOUNS_MERGED) {
+    const regex = new RegExp(`\\b(ke)(${noun})\\b`, "gi");
+    const match = regex.exec(fullText);
+    if (match && match[0]) {
+      const found = match[0];
+      const prefix = found.slice(0, 2);
+      const rest = found.slice(2);
+      issues.push({
+        id: `eyd-ke-${noun}`,
+        foundText: found,
+        suggestion: `${prefix} ${rest}`,
+        explanation: `Kata depan '${prefix}' yang menunjukkan arah atau tempat wajib ditulis terpisah dari kata '${rest}'.`,
+        ruleReference: "Aturan Penulisan Kata Depan ('ke' dipisah)",
+        referenceUrl: "https://ejaan.kemendikdasmen.go.id/eyd/penulisan-kata/kata-depan/",
+        verificationStatus: "deterministic_rule",
+      });
+    }
+  }
+
   // 2. EydRuleProvider: Tanda baca titik/koma/seru/tanya yang diletakkan di luar tanda petik penutup
   const misplacedQuotePunctRegex = /["”]([.,!?])/g;
-  const quoteMatch = misplacedQuotePunctRegex.exec(fullText);
-  if (quoteMatch && quoteMatch[0] && quoteMatch[1]) {
-    const punct = quoteMatch[1];
+  const quoteMatches = Array.from(fullText.matchAll(misplacedQuotePunctRegex));
+  if (quoteMatches.length > 0) {
+    const first = quoteMatches[0]!;
+    const punct = first[1]!;
     issues.push({
       id: "eyd-quote-punct",
-      foundText: quoteMatch[0],
+      foundText:
+        quoteMatches.length > 1
+          ? `${first[0]} (${quoteMatches.length} bagian)`
+          : first[0],
       suggestion: `${punct}"`,
       explanation:
         "Pada kalimat langsung, tanda baca penutup kalimat (titik, koma, tanda seru, atau tanda tanya) diletakkan di dalam (sebelum) tanda petik penutup.",
@@ -533,6 +643,11 @@ export function applyAutomaticEydFixes(text: string): string {
     result = result.replace(regex, (_full, p1: string, p2: string) => `${p1} ${p2}`);
   }
 
+  for (const noun of KE_LOCATIVE_NOUNS_MERGED) {
+    const regex = new RegExp(`\\b(ke)(${noun})\\b`, "gi");
+    result = result.replace(regex, (_full, p1: string, p2: string) => `${p1} ${p2}`);
+  }
+
   result = result.replace(/["”]([.,!?])/g, (_full, punct: string) => `${punct}"`);
 
   for (const entry of CURATED_NON_STANDARD_LEXICON) {
@@ -556,57 +671,147 @@ export function applyAutomaticEydFixes(text: string): string {
 // LIVE LITERARY DETECTOR: 5 INDIKATOR KOMPETENSI MENULIS NARATIF
 // ============================================================================
 
+const SCAFFOLD_PLACEHOLDER_REGEX = /\[[^\]\n]{3,110}\]/g;
+
+function stripScaffoldPlaceholders(text: string): string {
+  return text.replace(SCAFFOLD_PLACEHOLDER_REGEX, " ");
+}
+
+function countScaffoldPlaceholders(text: string): number {
+  return (text.match(SCAFFOLD_PLACEHOLDER_REGEX) ?? []).length;
+}
+
 function countWords(text: string): number {
-  const trimmed = text.trim();
-  if (!trimmed) return 0;
-  return trimmed.split(/\s+/).filter(Boolean).length;
+  const cleaned = stripScaffoldPlaceholders(text).trim();
+  if (!cleaned) return 0;
+  return cleaned.split(/\s+/).filter(Boolean).length;
 }
 
 const SENSORY_KEYWORDS = [
-  // Visual / Cahaya
+  // Visual / Penglihatan & Cahaya
   "berpendar",
+  "pendar",
   "cahaya",
+  "bercahaya",
+  "sinar",
+  "bersinar",
   "temaram",
+  "remang",
   "berkilau",
+  "kilau",
+  "berkilat",
+  "kilat",
+  "silau",
+  "menyilaukan",
+  "gemerlap",
   "gelap",
+  "kegelapan",
+  "pekat",
   "bayangan",
   "kabut",
+  "berkabut",
   "merah",
   "biru",
   "emas",
+  "keemasan",
+  "keperakan",
+  "jingga",
+  "ungu",
   "hijau",
   "zamrud",
   "safir",
-  // Auditif / Suara
+  "berkedip",
+  // Auditif / Pendengaran & Suara
   "suara",
+  "bersuara",
   "gemuruh",
+  "bergemuruh",
   "dentuman",
+  "berdentum",
   "bisik",
   "berbisik",
+  "bisikan",
   "derit",
+  "berderit",
   "gemerisik",
   "detak",
+  "berdetak",
   "menggema",
+  "gema",
   "hening",
+  "sunyi",
+  "senyap",
   "teriak",
-  "seru",
-  // Olfaktoris & Taktil (Aroma / Suhu / Sentuhan)
+  "berteriak",
+  "berseru",
+  "geraman",
+  "menggeram",
+  "mengaum",
+  "deru",
+  "menderu",
+  "desir",
+  "berdesir",
+  "melengking",
+  "gemerincing",
+  "nyaring",
+  "menggelegar",
+  // Olfaktoris, Taktil & Pengecapan (Aroma, Suhu, Sentuhan, Rasa)
   "aroma",
   "harum",
+  "wangi",
   "bau",
+  "amis",
+  "pengap",
+  "semerbak",
   "dingin",
+  "sedingin",
+  "sejuk",
   "hangat",
   "panas",
+  "membakar",
+  "membeku",
   "lembap",
   "basah",
   "kering",
   "kasar",
   "halus",
+  "licin",
+  "tajam",
+  "perih",
+  "gemetar",
+  "menggigil",
   "menusuk",
   "angin",
+  "embun",
+  "manis",
+  "pahit",
+  "asin",
+  "asam",
+  "gurih",
 ] as const;
 
-const CHRONOLOGICAL_AND_INDIRECT_MARKERS = [
+const NON_METAPHOR_SEPERTI_STARTERS = new Set([
+  "biasa",
+  "biasanya",
+  "ini",
+  "itu",
+  "yang",
+  "semula",
+  "sebelumnya",
+  "tadi",
+  "kemarin",
+  "halnya",
+  "terlihat",
+  "tampak",
+  "dikatakan",
+  "disebutkan",
+  "seharusnya",
+  "sediakala",
+  "misalnya",
+  "contohnya",
+]);
+
+const INDIRECT_SPEECH_MARKERS = [
   "mengatakan bahwa",
   "menyatakan bahwa",
   "berkata bahwa",
@@ -614,16 +819,51 @@ const CHRONOLOGICAL_AND_INDIRECT_MARKERS = [
   "menyadari bahwa",
   "berjanji bahwa",
   "menceritakan bahwa",
+  "bercerita bahwa",
   "berpikir bahwa",
+  "menjelaskan bahwa",
+  "mengingatkan bahwa",
+  "memperingatkan bahwa",
+  "meyakinkan bahwa",
+  "menegaskan bahwa",
+  "mengabarkan bahwa",
+  "menjawab bahwa",
+  "mengaku bahwa",
+  "berpesan bahwa",
+  "berharap bahwa",
+  "memutuskan bahwa",
   "meminta agar",
   "menyuruh agar",
+  "berpesan agar",
+  "mengingatkan agar",
+  "memperingatkan agar",
+  "berharap agar",
+  "mengajak agar",
+  "menyarankan agar",
+  "menyemangati",
+  "mengancam akan",
+] as const;
+
+const CHRONOLOGICAL_CONNECTORS = [
   "tiba-tiba",
   "seketika",
   "namun",
+  "tetapi",
   "akhirnya",
   "kemudian",
+  "lalu",
   "perlahan",
   "keesokan",
+  "ketika",
+  "setelah",
+  "sebelum",
+  "sejak saat itu",
+  "tak lama kemudian",
+] as const;
+
+const CHRONOLOGICAL_AND_INDIRECT_MARKERS = [
+  ...INDIRECT_SPEECH_MARKERS,
+  ...CHRONOLOGICAL_CONNECTORS,
 ] as const;
 
 export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalysisResult {
@@ -638,29 +878,34 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   const totalWords =
     orientasiWords + komplikasiWords + klimaksWords + resolusiWords + extraWords;
 
-  const combinedParagraphs = `${draft.paragraphOrientasi}\n${
+  const rawCombinedParagraphs = `${draft.paragraphOrientasi}\n${
     draft.paragraphKomplikasi ?? ""
   }\n${draft.paragraphKlimaks}\n${draft.paragraphResolusi}${
     extraTexts.trim() ? `\n${extraTexts}` : ""
   }`;
+  const unfilledPlaceholderCount = countScaffoldPlaceholders(rawCombinedParagraphs);
+  const combinedParagraphs = stripScaffoldPlaceholders(rawCombinedParagraphs);
   const lowerCombined = combinedParagraphs.toLowerCase();
 
   // --------------------------------------------------------------------------
   // 1. Indikator Struktur Alur, Aturan Dunia, & Amanat (Bobot 20)
   // --------------------------------------------------------------------------
-  const middleWords = komplikasiWords + klimaksWords;
-  const hasAllThreeStages =
-    orientasiWords >= 12 && middleWords >= 12 && resolusiWords >= 12;
+  const hasAllFourStages =
+    orientasiWords >= 12 &&
+    komplikasiWords >= 8 &&
+    klimaksWords >= 10 &&
+    resolusiWords >= 12;
   const hasTitleAndAmanat =
     draft.storyTitle.trim().length >= 3 && draft.amanat.trim().length >= 10;
   const hasWorldRule = draft.worldRule.trim().length >= 10;
 
-  const strukturPassed = hasAllThreeStages && hasTitleAndAmanat && hasWorldRule;
+  const strukturPassed = hasAllFourStages && hasTitleAndAmanat && hasWorldRule;
   const strukturPartialScore =
-    (orientasiWords >= 12 ? 5 : orientasiWords > 0 ? 2 : 0) +
-    (middleWords >= 12 ? 5 : middleWords > 0 ? 2 : 0) +
-    (resolusiWords >= 12 ? 5 : resolusiWords > 0 ? 2 : 0) +
-    (hasTitleAndAmanat && hasWorldRule ? 5 : hasTitleAndAmanat || hasWorldRule ? 3 : 0);
+    (orientasiWords >= 12 ? 4 : orientasiWords > 0 ? 2 : 0) +
+    (komplikasiWords >= 8 ? 4 : komplikasiWords > 0 ? 2 : 0) +
+    (klimaksWords >= 10 ? 4 : klimaksWords > 0 ? 2 : 0) +
+    (resolusiWords >= 12 ? 4 : resolusiWords > 0 ? 2 : 0) +
+    (hasTitleAndAmanat && hasWorldRule ? 4 : hasTitleAndAmanat || hasWorldRule ? 2 : 0);
 
   const strukturSnippets: string[] = [];
   if (orientasiWords > 0) strukturSnippets.push(`Orientasi: ${orientasiWords} kata`);
@@ -683,7 +928,7 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
     place.length >= 2 && lowerCombined.includes(place.toLowerCase());
 
   const detectedSensoryWords = SENSORY_KEYWORDS.filter((kw) =>
-    new RegExp(`\\b${kw}`, "i").test(combinedParagraphs)
+    new RegExp(`\\b${kw}\\b`, "i").test(combinedParagraphs)
   );
 
   const konsistensiPassed =
@@ -715,9 +960,21 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   // 3. Indikator Majas Asosiasi / Perumpamaan (Hlm. 63, Bobot 20)
   // --------------------------------------------------------------------------
   const majasRegex =
-    /\b(?:seperti|bagaikan|bagai|laksana|seumpama|bak)\s+[a-zA-ZÀ-ÿ-]+(?:\s+[a-zA-ZÀ-ÿ-]+){1,4}/gi;
-  const majasMatches = combinedParagraphs.match(majasRegex) ?? [];
-  const uniqueMajas = Array.from(new Set(majasMatches.map((m) => m.trim())));
+    /\b(seperti|bagaikan|bagai|laksana|seumpama|bak)\s+([a-zA-ZÀ-ÿ-]+(?:\s+[a-zA-ZÀ-ÿ-]+){1,4})/gi;
+  const validMajasMatches: string[] = [];
+  for (const m of combinedParagraphs.matchAll(majasRegex)) {
+    const connector = (m[1] ?? "").toLowerCase();
+    const rest = (m[2] ?? "").trim();
+    const firstWordAfterConnector = rest.split(/\s+/)[0]?.toLowerCase() ?? "";
+    if (
+      connector === "seperti" &&
+      NON_METAPHOR_SEPERTI_STARTERS.has(firstWordAfterConnector)
+    ) {
+      continue;
+    }
+    validMajasMatches.push(m[0].trim());
+  }
+  const uniqueMajas = Array.from(new Set(validMajasMatches));
   const majasPassed = uniqueMajas.length >= 1;
 
   // --------------------------------------------------------------------------
@@ -727,7 +984,7 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   const dialogMatches: string[] = [];
   let dlgMatch = directSpeechRegex.exec(combinedParagraphs);
   while (dlgMatch !== null) {
-    if (dlgMatch[0]) {
+    if (dlgMatch[0] && dlgMatch[1] && dlgMatch[1].trim().length >= 5) {
       dialogMatches.push(dlgMatch[0].trim());
     }
     dlgMatch = directSpeechRegex.exec(combinedParagraphs);
@@ -749,23 +1006,20 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   const detectedMarkers = CHRONOLOGICAL_AND_INDIRECT_MARKERS.filter((m) =>
     lowerCombined.includes(m)
   );
-  const hasIndirectMarker = [
-    "mengatakan bahwa",
-    "menyatakan bahwa",
-    "berkata bahwa",
-    "mengakui bahwa",
-    "menyadari bahwa",
-    "berjanji bahwa",
-    "menceritakan bahwa",
-    "berpikir bahwa",
-    "meminta agar",
-    "menyuruh agar",
-  ].some((m) => lowerCombined.includes(m));
+  const hasIndirectMarker = INDIRECT_SPEECH_MARKERS.some((m) =>
+    lowerCombined.includes(m)
+  );
+  const hasChronologicalMarker = CHRONOLOGICAL_CONNECTORS.some((m) =>
+    lowerCombined.includes(m)
+  );
 
-  const takLangsungPassed = hasIndirectMarker && detectedMarkers.length >= 2;
+  const takLangsungPassed = hasIndirectMarker && hasChronologicalMarker;
   const takLangsungEarned = takLangsungPassed
     ? 20
-    : Math.min(15, (hasIndirectMarker ? 10 : 0) + detectedMarkers.length * 4);
+    : Math.min(
+        15,
+        (hasIndirectMarker ? 10 : 0) + (hasChronologicalMarker ? 6 : 0)
+      );
 
   const indicators: readonly LiteraryIndicatorStatus[] = [
     {
@@ -776,11 +1030,11 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
       scoreWeight: 20,
       earnedScore: strukturPassed ? 20 : strukturPartialScore,
       summary: strukturPassed
-        ? `Hebat! Semua bagian ceritamu sudah lengkap (${totalWords} kata) beserta aturan keajaiban dan pesan kebaikan.`
-        : "Yuk lengkapi dulu! Pastikan bagian Awal, Puncak, dan Akhir masing-masing minimal 12 kata, serta Judul, Aturan Keajaiban, dan Pesan Cerita sudah diisi.",
+        ? `Hebat! Keempat tahap ceritamu sudah lengkap (${totalWords} kata) beserta aturan keajaiban dan pesan kebaikan.`
+        : "Yuk lengkapi dulu! Pastikan Awal (min. 12 kata), Muncul Masalah (min. 8 kata), Puncak (min. 10 kata), dan Akhir (min. 12 kata) serta Judul, Aturan Keajaiban, dan Pesan Cerita sudah terisi.",
       detectedSnippets: strukturSnippets,
       improvementHint:
-        "Tulis minimal 12 kata di tiap halaman cerita (Awal, Puncak, Akhir), lalu isi juga Judul, Aturan Keajaiban, dan Pesan Kebaikan.",
+        "Isi semua 4 bagian cerita (Awal, Muncul Masalah, Puncak, Akhir), lalu lengkapi Judul, Aturan Keajaiban, dan Pesan Kebaikan.",
     },
     {
       id: "konsistensi_indera",
@@ -855,6 +1109,7 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   const studioScore = Math.min(100, Math.round(rawIndicatorSum));
   const isReadyForSeal =
     !isModelPresetReference &&
+    unfilledPlaceholderCount === 0 &&
     passedIndicatorsCount >= 4 &&
     revisionCheckedCount >= 3 &&
     eydAndLexiconIssues.length === 0;
@@ -866,6 +1121,7 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
     klimaksWords,
     resolusiWords,
     isModelPresetReference,
+    unfilledPlaceholderCount,
     indicators,
     passedIndicatorsCount,
     revisionCheckedCount,

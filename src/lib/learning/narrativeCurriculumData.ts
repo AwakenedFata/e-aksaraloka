@@ -139,6 +139,15 @@ export const BOLA_WAKTU_PLOT_BEATS: readonly PlotBeatItem[] = [
   },
 ];
 
+/** Urutan acak deterministik untuk tampilan tantangan Gunung Alur agar siswa benar-benar bernalar sebab-akibat. */
+export const BOLA_WAKTU_DISPLAY_ORDER_IDS: readonly string[] = [
+  "beat-komplikasi",
+  "beat-orientasi",
+  "beat-resolusi",
+  "beat-pemantik",
+  "beat-klimaks",
+];
+
 export interface AmanatOption {
   readonly id: string;
   readonly text: string;
@@ -272,10 +281,18 @@ export const EMAS_POUCH_STEPS: readonly PouchEscalationStep[] = [
   {
     order: 4,
     pouchId: "terasi",
-    itemName: "Kantong Terasi (Puncak Klimaks)",
+    itemName: "Kantong Terasi",
     transformation: "Meledak jadi lautan lumpur mendidih yang mengalahkan Raksasa dan menyelamatkan Emas!",
     tensionLevel: "Puncak Klimaks (100%) — Momen penentu kemenangan Emas!",
   },
+];
+
+/** Urutan acak deterministik untuk tantangan 4 Kantong Emas agar tidak membocorkan urutan eskalasi konflik. */
+export const EMAS_POUCH_DISPLAY_ORDER_IDS: readonly string[] = [
+  "garam",
+  "biji-timun",
+  "terasi",
+  "jarum",
 ];
 
 export interface SensoryUpgradeChallenge {
@@ -376,8 +393,8 @@ export const MAJAS_ASOSIASI_CHALLENGES: readonly MajasAsosiasiItem[] = [
     blankPrompt: "Kami berdua sulit menyatu [Kata Pembanding] [Perumpamaan].",
     correctConnector: "bagaikan",
     correctComparison: "minyak dan air",
-    connectorChoices: ["bagaikan", "daripada", "karena"],
-    comparisonChoices: ["minyak dan air", "bintang kejora", "anak panah"],
+    connectorChoices: ["daripada", "bagaikan", "karena"],
+    comparisonChoices: ["anak panah", "bintang kejora", "minyak dan air"],
     explanation:
       "Cocok! Dua sifat yang tidak bisa bersatu diumpamakan 'bagaikan minyak dan air'.",
   },
@@ -387,8 +404,8 @@ export const MAJAS_ASOSIASI_CHALLENGES: readonly MajasAsosiasiItem[] = [
     blankPrompt: "Kebaikan sahabatnya terasa menyejukkan hati [Kata Pembanding] [Perumpamaan].",
     correctConnector: "laksana",
     correctComparison: "oase di padang pasir",
-    connectorChoices: ["laksana", "sehingga", "meskipun"],
-    comparisonChoices: ["oase di padang pasir", "benang kusut", "bara api"],
+    connectorChoices: ["sehingga", "meskipun", "laksana"],
+    comparisonChoices: ["benang kusut", "oase di padang pasir", "bara api"],
     explanation:
       "Tepat! 'Laksana oase di padang pasir' artinya memberi kesejukan di saat sulit.",
   },
@@ -398,8 +415,8 @@ export const MAJAS_ASOSIASI_CHALLENGES: readonly MajasAsosiasiItem[] = [
     blankPrompt: "Tubuh kecil Emas melesat cepat menembus kabut [Kata Pembanding] [Perumpamaan].",
     correctConnector: "seperti",
     correctComparison: "anak panah",
-    connectorChoices: ["seperti", "supaya", "tetapi"],
-    comparisonChoices: ["anak panah", "oase di padang pasir", "minyak dan air"],
+    connectorChoices: ["supaya", "seperti", "tetapi"],
+    comparisonChoices: ["oase di padang pasir", "minyak dan air", "anak panah"],
     explanation:
       "Benar! Gerakan lari yang sangat cepat diumpamakan 'seperti anak panah'.",
   },
@@ -492,8 +509,8 @@ export interface FantasyLexiconCategory {
 export const FANTASY_LEXICON_BANK: readonly FantasyLexiconCategory[] = [
   {
     id: "lex-cahaya",
-    category: "Cahaya & Suasana Ajaib",
-    subtitle: "Kata-kata seru untuk menggambarkan tempat ceritamu",
+    category: "Penglihatan & Cahaya",
+    subtitle: "Menghidupkan warna, bayangan, dan kilau dunia fantasi",
     entries: [
       {
         word: "Berpendar",
@@ -504,8 +521,32 @@ export const FANTASY_LEXICON_BANK: readonly FantasyLexiconCategory[] = [
       {
         word: "Temaram",
         type: "Denotatif",
-        meaning: "Remang-remang atau agak gelap.",
+        meaning: "Remang-remang atau agak gelap karena cahaya redup.",
         example: "Di bawah cahaya lentera yang temaram, bayangan jubahnya memanjang.",
+      },
+      {
+        word: "Gemerlap",
+        type: "Denotatif",
+        meaning: "Berkilauan cemerlang memantulkan banyak titik cahaya.",
+        example: "Langit-langit gua kristal tampak gemerlap diterpa sinar pagi.",
+      },
+      {
+        word: "Menyilaukan",
+        type: "Denotatif",
+        meaning: "Terlalu terang hingga membuat mata harus menyipit.",
+        example: "Portal waktu terbuka dengan kilatan putih yang menyilaukan.",
+      },
+      {
+        word: "Pekat",
+        type: "Konotatif",
+        meaning: "Sangat gelap atau tebal sehingga pandangan tertutup rapat.",
+        example: "Kabut hitam pekat menelan ujung jembatan kayu di depan mereka.",
+      },
+      {
+        word: "Keperakan",
+        type: "Denotatif",
+        meaning: "Berwarna kilau putih cerah menyerupai logam perak.",
+        example: "Awan keperakan melayang rendah menyelimuti menara jam tua.",
       },
       {
         word: "Bak bintang kejora",
@@ -513,30 +554,286 @@ export const FANTASY_LEXICON_BANK: readonly FantasyLexiconCategory[] = [
         meaning: "Perumpamaan untuk benda yang bersinar sangat terang dan indah.",
         example: "Permata kompas itu berkilau indah bak bintang kejora.",
       },
+      {
+        word: "Laksana pelita di lorong gelap",
+        type: "Kiasan / Majas",
+        meaning: "Perumpamaan bagi harapan atau penunjuk jalan di situasi sulit.",
+        example: "Nasihat kakek hadir laksana pelita di lorong gelap.",
+      },
     ],
   },
   {
-    id: "lex-gerak",
-    category: "Gerakan & Aksi Menegangkan",
-    subtitle: "Kata-kata untuk membuat adegan masalah makin seru",
+    id: "lex-suara",
+    category: "Pendengaran & Suara",
+    subtitle: "Membangun ketegangan dan suasana lewat bunyi nyata",
     entries: [
       {
-        word: "Melesat",
+        word: "Menggema",
         type: "Denotatif",
-        meaning: "Meluncur atau berlari dengan sangat cepat.",
-        example: "Panah cahaya itu melesat menembus kabut hitam.",
+        meaning: "Memantulkan suara berulang-ulang di ruang luas atau lorong.",
+        example: "Detak jam perunggu menggema di seluruh aula kosong itu.",
+      },
+      {
+        word: "Dentuman",
+        type: "Denotatif",
+        meaning: "Bunyi berat dan kuat seperti langkah raksasa atau ledakan jauh.",
+        example: "Dentuman langkah kaki di balik pintu membuat meja ikut bergetar.",
+      },
+      {
+        word: "Berdesir",
+        type: "Denotatif",
+        meaning: "Berbunyi lembut seperti angin melewati dedaunan atau pasir.",
+        example: "Angin senja berdesir lirih membawa bisikan dari arah hutan.",
+      },
+      {
+        word: "Gemerisik",
+        type: "Denotatif",
+        meaning: "Bunyi halus gesekan kertas tua, kain, atau daun kering.",
+        example: "Terdengar gemerisik halaman buku yang membalik sendiri.",
+      },
+      {
+        word: "Derit",
+        type: "Denotatif",
+        meaning: "Bunyi nyaring pelan dari engsel pintu atau papan kayu tua.",
+        example: "Derit gerbang besi memecah keheningan malam di menara.",
+      },
+      {
+        word: "Senyap",
+        type: "Konotatif",
+        meaning: "Sunyi sekali tanpa suara sedikit pun sehingga terasa menegangkan.",
+        example: "Seketika ruang kelas berubah senyap saat cahaya biru padam.",
+      },
+      {
+        word: "Melengking",
+        type: "Denotatif",
+        meaning: "Berbunyi sangat nyaring dan tinggi hingga menusuk telinga.",
+        example: "Peluit perak penjaga gerbang melengking memanggil burung cahaya.",
+      },
+      {
+        word: "Bagaikan guntur di langit senja",
+        type: "Kiasan / Majas",
+        meaning: "Perumpamaan untuk suara atau teriakan yang sangat menggelegar.",
+        example: "Seruan sang penjaga terdengar bagaikan guntur di langit senja.",
+      },
+    ],
+  },
+  {
+    id: "lex-indera",
+    category: "Aroma, Suhu & Sentuhan",
+    subtitle: "Membuat pembaca ikut mencium bau dan merasakan suhu latar",
+    entries: [
+      {
+        word: "Semerbak",
+        type: "Denotatif",
+        meaning: "Harum merata memenuhi seluruh ruangan atau udara sekitar.",
+        example: "Aroma rempah hangat semerbak begitu tutup peti pusaka dibuka.",
+      },
+      {
+        word: "Pengap",
+        type: "Denotatif",
+        meaning: "Udara terasa sesak, tidak segar, dan minim angin.",
+        example: "Lorong bawah tanah itu terasa pengap dan berdebu tebal.",
+      },
+      {
+        word: "Lembap",
+        type: "Denotatif",
+        meaning: "Agak basah dan dingin karena uap air (bentuk baku KBBI VI).",
+        example: "Kertas peta kuno itu terasa lembap saat digenggam erat.",
+      },
+      {
+        word: "Menusuk",
+        type: "Konotatif",
+        meaning: "Terasa sangat tajam mengenai kulit, seperti hawa dingin ekstrem.",
+        example: "Hawa dingin dari balik cermin menusuk telapak tangannya.",
+      },
+      {
+        word: "Hangat",
+        type: "Konotatif",
+        meaning: "Suhu nyaman atau suasana hati yang menenangkan.",
+        example: "Pendar lentera memberi rasa hangat yang mengusir ketakutannya.",
       },
       {
         word: "Membeku",
         type: "Konotatif",
-        meaning: "Terpaku diam tak bergerak karena kaget atau takut.",
+        meaning: "Terpaku diam tak bergerak karena sangat kaget atau takut.",
         example: "Langkah Ivan membeku ketika membaca nama di batu nisan itu.",
+      },
+      {
+        word: "Menggigil",
+        type: "Denotatif",
+        meaning: "Bergetar tubuhnya karena kedinginan atau rasa cemas.",
+        example: "Jarinya sedikit menggigil saat memutar kunci kuningan itu.",
+      },
+      {
+        word: "Sedingin embun puncak gunung",
+        type: "Kiasan / Majas",
+        meaning: "Perumpamaan untuk benda atau udara yang amat dingin dan segar.",
+        example: "Permukaan batu pusaka terasa sedingin embun puncak gunung.",
+      },
+    ],
+  },
+  {
+    id: "lex-watak",
+    category: "Watak & Emosi Tokoh",
+    subtitle: "Menggambarkan karakter tokoh lewat sikap dan perasaan",
+    entries: [
+      {
+        word: "Gigih",
+        type: "Denotatif",
+        meaning: "Tetap teguh berusaha dan pantang menyerah meski berkali-kali gagal.",
+        example: "Mao tetap gigih berlatih mantra meski teman-temannya menertawakan.",
+      },
+      {
+        word: "Angkuh",
+        type: "Denotatif",
+        meaning: "Sombong dan suka memandang rendah kemampuan orang lain.",
+        example: "Dengan tatapan angkuh, Yari menolak bantuan sahabatnya.",
+      },
+      {
+        word: "Tulus",
+        type: "Denotatif",
+        meaning: "Sungguh-sungguh dan bersih niatnya tanpa pamrih.",
+        example: "Tinta cahaya hanya menyala jika digoreskan dengan hati tulus.",
+      },
+      {
+        word: "Cerdik",
+        type: "Denotatif",
+        meaning: "Cepat mengerti keadaan dan pandai mencari akal keluar dari bahaya.",
+        example: "Emas bersikap cerdik dengan memanfaatkan empat kantong secara berurutan.",
+      },
+      {
+        word: "Gentar",
+        type: "Denotatif",
+        meaning: "Merasa takut atau ragu menghadapi tantangan besar.",
+        example: "Meski raksasa mendekat, sorot matanya sama sekali tidak gentar.",
+      },
+      {
+        word: "Besar kepala",
+        type: "Konotatif",
+        meaning: "Ungkapan untuk sikap sombong karena merasa paling hebat.",
+        example: "Kemenangan kecil tidak boleh membuat penjaga aksara besar kepala.",
+      },
+      {
+        word: "Lapang dada",
+        type: "Konotatif",
+        meaning: "Sabar dan ikhlas menerima kenyataan atau memaafkan kesalahan.",
+        example: "Dengan lapang dada, ia memaafkan temannya yang pernah mengejek.",
+      },
+      {
+        word: "Bagaikan minyak dan air",
+        type: "Kiasan / Majas",
+        meaning: "Perumpamaan untuk dua sifat bertolak belakang yang sulit menyatu.",
+        example: "Awalnya sifat mereka bertolak belakang bagaikan minyak dan air.",
+      },
+    ],
+  },
+  {
+    id: "lex-aksi",
+    category: "Gerak & Aksi Menegangkan",
+    subtitle: "Membuat adegan komplikasi dan klimaks terasa hidup",
+    entries: [
+      {
+        word: "Melesat",
+        type: "Denotatif",
+        meaning: "Meluncur atau berlari dengan kecepatan luar biasa.",
+        example: "Panah cahaya itu melesat menembus kabut hitam.",
+      },
+      {
+        word: "Menghadang",
+        type: "Denotatif",
+        meaning: "Menahan atau menghalangi jalan seseorang secara tiba-tiba.",
+        example: "Bayang Waktu muncul menghadang tepat di depan tangga loteng.",
+      },
+      {
+        word: "Menyelinap",
+        type: "Denotatif",
+        meaning: "Masuk atau bergerak diam-diam agar tidak ketahuan.",
+        example: "Ia menyelinap di balik rak buku tinggi sebelum pintu terkunci.",
+      },
+      {
+        word: "Terpaku",
+        type: "Konotatif",
+        meaning: "Berhenti mendadak dan menatap sesuatu tanpa berkedip.",
+        example: "Semua murid terpaku menyaksikan lukisan tinta itu hidup di udara.",
+      },
+      {
+        word: "Bergegas",
+        type: "Denotatif",
+        meaning: "Segera bergerak cepat karena waktu amat mendesak.",
+        example: "Sebelum fajar menyingsing, mereka bergegas menutup gerbang portal.",
+      },
+      {
+        word: "Menerjang",
+        type: "Denotatif",
+        meaning: "Menyerang atau menembus rintangan dengan penuh tenaga.",
+        example: "Angin pusaran menerjang dedaunan hingga membentuk dinding kabut.",
+      },
+      {
+        word: "Seperti anak panah",
+        type: "Kiasan / Majas",
+        meaning: "Perumpamaan untuk gerakan lari atau luncuran yang sangat cepat lurus.",
+        example: "Tubuhnya melesat cepat seperti anak panah lepas dari busurnya.",
       },
       {
         word: "Bagaikan bara api",
         type: "Kiasan / Majas",
         meaning: "Perumpamaan untuk semangat atau keberanian yang menyala-nyala.",
         example: "Semangat Emas untuk selamat menyala bagaikan bara api.",
+      },
+    ],
+  },
+  {
+    id: "lex-alur",
+    category: "Penghubung Alur & Kiasan",
+    subtitle: "Menyambung urutan kejadian dan memperindah penutup cerita",
+    entries: [
+      {
+        word: "Seketika",
+        type: "Denotatif",
+        meaning: "Langsung terjadi pada saat itu juga tanpa jeda.",
+        example: "Seketika roda gigi jam berhenti berputar saat penutupnya dirapatkan.",
+      },
+      {
+        word: "Tiba-tiba",
+        type: "Denotatif",
+        meaning: "Terjadi mendadak di luar dugaan tokoh.",
+        example: "Tiba-tiba lantai batu bergeser membuka tangga rahasia ke bawah tanah.",
+      },
+      {
+        word: "Tak lama kemudian",
+        type: "Denotatif",
+        meaning: "Penanda jeda waktu singkat sebelum peristiwa berikutnya.",
+        example: "Tak lama kemudian, kabut pekat mulai terbelah oleh sinar mentari.",
+      },
+      {
+        word: "Keesokan paginya",
+        type: "Denotatif",
+        meaning: "Penanda pergantian hari yang rapi menuju resolusi cerita.",
+        example: "Keesokan paginya, ia berani mengakui kesalahannya dengan jujur.",
+      },
+      {
+        word: "Sejak saat itu",
+        type: "Denotatif",
+        meaning: "Penanda perubahan sikap tokoh yang bertahan hingga akhir.",
+        example: "Sejak saat itu, tak seorang pun lagi meremehkan bakat uniknya.",
+      },
+      {
+        word: "Laksana oase di padang pasir",
+        type: "Kiasan / Majas",
+        meaning: "Perumpamaan untuk pertolongan yang sangat melegakan di saat genting.",
+        example: "Uluran tangan sahabatnya terasa laksana oase di padang pasir.",
+      },
+      {
+        word: "Bagaikan benang kusut",
+        type: "Kiasan / Majas",
+        meaning: "Perumpamaan untuk masalah rumit yang membingungkan.",
+        example: "Pikirannya sempat kacau bagaikan benang kusut sebelum ia tenang.",
+      },
+      {
+        word: "Seperti embun pagi",
+        type: "Kiasan / Majas",
+        meaning: "Perumpamaan untuk kedamaian atau kesejukan hati di akhir cerita.",
+        example: "Rasa lega menyapu hatinya dengan lembut seperti embun pagi.",
       },
     ],
   },
@@ -572,18 +869,18 @@ export const ASTROLABE_SIDE_QUESTS: readonly SideQuestItem[] = [
     question: "Ide mana di bawah ini yang lebih seru dan bikin pembaca penasaran?",
     options: [
       {
-        id: "q1-a",
-        text: "Seorang siswa yang sering terlambat sekolah menemukan jam saku tua milik kakeknya yang bisa memutar waktu 10 menit, tapi setiap dipakai satu benda kesayangannya berubah jadi batu.",
-        isCorrect: true,
-        feedback:
-          "Keren banget! Ceritanya dekat dengan kehidupan kita di sekolah, dan jam ajaibnya punya aturan/risiko yang bikin tegang!",
-      },
-      {
         id: "q1-b",
         text: "Seorang pangeran dari negeri awan punya kekuatan paling hebat di dunia dan mengalahkan semua musuhnya dengan sekali pukul tanpa kesulitan.",
         isCorrect: false,
         feedback:
           "Kalau jagoannya terlalu sempurna dan menang gampang, pembaca jadi tidak ikut deg-degan. Yuk pilih ide yang punya tantangan!",
+      },
+      {
+        id: "q1-a",
+        text: "Seorang siswa yang sering terlambat sekolah menemukan jam saku tua milik kakeknya yang bisa memutar waktu 10 menit, tapi setiap dipakai satu benda kesayangannya berubah jadi batu.",
+        isCorrect: true,
+        feedback:
+          "Keren banget! Ceritanya dekat dengan kehidupan kita di sekolah, dan jam ajaibnya punya aturan/risiko yang bikin tegang!",
       },
     ],
   },
@@ -622,18 +919,18 @@ export const ASTROLABE_SIDE_QUESTS: readonly SideQuestItem[] = [
     question: "Penulisan manakah yang paling rapi dan benar?",
     options: [
       {
-        id: "q3-a",
-        text: 'Di perpustakaan tua itu, Aruna berbisik, "Jangan sentuh segel emas yang ada di atas meja!"',
-        isCorrect: true,
-        feedback:
-          "Sempurna! Kata tempat ('di perpustakaan', 'di atas') ditulis dipisah, setelah kata 'berbisik' diberi koma, dan awal kalimat di dalam tanda petik memakai huruf besar.",
-      },
-      {
         id: "q3-b",
         text: 'Diperpustakaan tua itu, Aruna berbisik "Jangan sentuh segel emas yang ada di atas meja".',
         isCorrect: false,
         feedback:
           "Hampir benar! Tapi ingat: kata tempat 'Di perpustakaan' harus dipisah, dan tanda titik/seru diletakkan DI DALAM sebelum tanda petik penutup.",
+      },
+      {
+        id: "q3-a",
+        text: 'Di perpustakaan tua itu, Aruna berbisik, "Jangan sentuh segel emas yang ada di atas meja!"',
+        isCorrect: true,
+        feedback:
+          "Sempurna! Kata tempat ('di perpustakaan', 'di atas') ditulis dipisah, setelah kata 'berbisik' diberi koma, dan awal kalimat di dalam tanda petik memakai huruf besar.",
       },
     ],
   },

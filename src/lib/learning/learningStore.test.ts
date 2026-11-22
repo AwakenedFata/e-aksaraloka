@@ -2,9 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   INITIAL_LEARNING_STATE,
   computeCompetencyMetrics,
+  getPjblMasteryCategory,
   recomputeSeals,
 } from "./learningStore";
-import { STORY_SEED_PRESETS } from "./literaryDetector";
+import { INITIAL_STUDIO_DRAFT, STORY_SEED_PRESETS } from "./literaryDetector";
+import {
+  ASTROLABE_SIDE_QUESTS,
+  BOLA_WAKTU_DISPLAY_ORDER_IDS,
+  BOLA_WAKTU_PLOT_BEATS,
+  EMAS_POUCH_DISPLAY_ORDER_IDS,
+  EMAS_POUCH_STEPS,
+  MAJAS_ASOSIASI_CHALLENGES,
+} from "./narrativeCurriculumData";
 
 describe("learningStore & competency metrics", () => {
   it("starts with 0% competency and 0 unlocked seals", () => {
@@ -103,5 +112,56 @@ describe("learningStore & competency metrics", () => {
     expect(metrics.holisticTotalPercentage).toBe(100);
     expect(metrics.unlockedSealsCount).toBe(3);
     expect(metrics.kelayakanCategory).toContain("Sangat Mahir");
+  });
+
+  it("does NOT unlock sealStudioUnlocked when a student saves an incomplete 15-word draft", () => {
+    const shortDraft = {
+      ...INITIAL_STUDIO_DRAFT,
+      storyTitle: "Tes Singkat",
+      paragraphOrientasi: "satu dua tiga empat lima enam tujuh delapan sembilan sepuluh sebelas dua belas tiga belas empat belas lima belas",
+    };
+
+    const withJunkSave = recomputeSeals({
+      ...INITIAL_LEARNING_STATE,
+      studioDraft: shortDraft,
+      savedManuscripts: [
+        {
+          id: "ms-junk",
+          savedAtIso: "2026-11-22T00:00:00.000Z",
+          storyTitle: "Tes Singkat",
+          authorName: "Siswa",
+          authorClass: "VII-A",
+          themeCategory: shortDraft.themeCategory,
+          wordCount: 18,
+          studioScore: 4,
+          draft: shortDraft,
+        },
+      ],
+    });
+
+    expect(withJunkSave.sealStudioUnlocked).toBe(false);
+  });
+
+  it("applies the 5-tier Pedoman PjBL scale consistently against holisticTotalPercentage and scrambles challenge orders", () => {
+    expect(getPjblMasteryCategory(90)).toContain("81–100%");
+    expect(getPjblMasteryCategory(70)).toContain("61–80%");
+    expect(getPjblMasteryCategory(50)).toContain("41–60%");
+    expect(getPjblMasteryCategory(30)).toContain("21–40%");
+    expect(getPjblMasteryCategory(10)).toContain("0–20%");
+
+    // Verify display order for plot & pouch challenges is genuinely scrambled
+    expect(BOLA_WAKTU_DISPLAY_ORDER_IDS).not.toEqual(
+      BOLA_WAKTU_PLOT_BEATS.map((b) => b.id)
+    );
+    expect(EMAS_POUCH_DISPLAY_ORDER_IDS).not.toEqual(
+      EMAS_POUCH_STEPS.map((s) => s.pouchId)
+    );
+    // Verify not every majas or side-quest correct answer sits at index 0
+    expect(
+      MAJAS_ASOSIASI_CHALLENGES.every(
+        (m) => m.connectorChoices[0] === m.correctConnector
+      )
+    ).toBe(false);
+    expect(ASTROLABE_SIDE_QUESTS.every((q) => q.options[0]?.isCorrect)).toBe(false);
   });
 });

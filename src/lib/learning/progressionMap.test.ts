@@ -4,6 +4,7 @@ import {
   computeCompetencyMetrics,
   recomputeSeals,
 } from "./learningStore";
+import { STORY_SEED_PRESETS } from "./literaryDetector";
 import {
   MAP_CANVAS_HEIGHT,
   MAP_CANVAS_WIDTH,
@@ -60,5 +61,56 @@ describe("Astrolab Overworld Progression Map model", () => {
     expect(getMapNodeIdForTpDestination("watak")).toBe("babak-2");
     expect(getMapNodeIdForTpDestination("bahasa")).toBe("babak-3");
     expect(getMapNodeIdForTpDestination("studio")).toBe("babak-4");
+  });
+
+  it("recommends quest-hub once all 3 Materi seals and Studio seal are unlocked while bonus quests remain", () => {
+    const seed = STORY_SEED_PRESETS[0]!;
+    const completedMainWithoutQuests = recomputeSeals({
+      ...INITIAL_LEARNING_STATE,
+      plotPlacedIds: [
+        "beat-orientasi",
+        "beat-pemantik",
+        "beat-komplikasi",
+        "beat-klimaks",
+        "beat-resolusi",
+      ],
+      climaxSimulationTested: true,
+      selectedAmanatId: "amanat-b",
+      characterEvidenceAnswers: {
+        "char-mao": "mao-opt-1",
+        "char-yari": "yari-opt-2",
+      },
+      pouchOrderIds: ["biji-timun", "jarum", "garam", "terasi"],
+      sensoryUpgradeAnswers: {
+        "sens-1": "s1-a",
+        "sens-2": "s2-b",
+        "sens-3": "s3-a",
+      },
+      majasAnswers: {
+        "majas-1": { connector: "bagaikan", comparison: "minyak dan air" },
+        "majas-2": { connector: "laksana", comparison: "oase di padang pasir" },
+        "majas-3": { connector: "seperti", comparison: "anak panah" },
+      },
+      dialogueAnswers: {
+        "dlg-1": "dlg-1-b",
+        "dlg-2": "dlg-2-a",
+      },
+      studioDraft: {
+        ...INITIAL_LEARNING_STATE.studioDraft,
+        ...seed.draftPreset,
+        selfRevisionChecks: {
+          "rev-struktur": true,
+          "rev-aturan": true,
+          "rev-watak-indera": true,
+          "rev-majas-dialog": true,
+          "rev-eyd": true,
+        },
+      },
+    });
+
+    const metrics = computeCompetencyMetrics(completedMainWithoutQuests);
+    const model = buildProgressionMapModel(completedMainWithoutQuests, metrics);
+    expect(model.recommendedNodeId).toBe("quest-hub");
+    expect(model.nodes.find((n) => n.id === "quest-hub")?.isRecommendedNext).toBe(true);
   });
 });

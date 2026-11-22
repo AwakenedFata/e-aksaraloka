@@ -61,6 +61,19 @@ export interface CompetencyMetrics {
   readonly holisticTotalPercentage: number;
   readonly unlockedSealsCount: number;
   readonly kelayakanCategory: string;
+  readonly materiKelayakanCategory: string;
+}
+
+/**
+ * Skala 5 tingkat penguasaan / kelayakan selaras dengan Pedoman PjBL hlm. 9:
+ * 81–100%, 61–80%, 41–60%, 21–40%, dan 0–20%.
+ */
+export function getPjblMasteryCategory(percentage: number): string {
+  if (percentage >= 81) return "Sangat Mahir / Sangat Layak (81–100%)";
+  if (percentage >= 61) return "Cakap / Layak (61–80%)";
+  if (percentage >= 41) return "Cukup Berkembang (41–60%)";
+  if (percentage >= 21) return "Perlu Bimbingan (21–40%)";
+  return "Tahap Eksplorasi Awal (0–20%)";
 }
 
 const STORAGE_KEY = "aksaraloka:learning-state:v1";
@@ -209,9 +222,13 @@ export function recomputeSeals(state: AksaralokaLearningState): AksaralokaLearni
   const studioAnalysis = analyzeStudentManuscript(
     state.studioDraft ?? INITIAL_STUDIO_DRAFT
   );
+  const hasQualifyingSavedManuscript =
+    Array.isArray(state.savedManuscripts) &&
+    state.savedManuscripts.some(
+      (item) => analyzeStudentManuscript(item.draft).isReadyForSeal
+    );
   const sealStudioUnlocked =
-    studioAnalysis.isReadyForSeal ||
-    (Array.isArray(state.savedManuscripts) && state.savedManuscripts.length > 0);
+    studioAnalysis.isReadyForSeal || hasQualifyingSavedManuscript;
 
   return {
     ...state,
@@ -299,15 +316,9 @@ export function computeCompetencyMetrics(state: AksaralokaLearningState): Compet
     (state.sealWatakUnlocked ? 1 : 0) +
     (state.sealBahasaUnlocked ? 1 : 0);
 
-  // Kategori kelayakan/penguasaan sesuai skala persentase Pedoman PjBL hlm. 9
-  const kelayakanCategory =
-    overallPercentage >= 81
-      ? "Sangat Mahir (81–100%)"
-      : overallPercentage >= 61
-      ? "Cakap / Layak (61–80%)"
-      : overallPercentage >= 41
-      ? "Berkembang (41–60%)"
-      : "Tahap Eksplorasi Awal (0–40%)";
+  // Kategori kelayakan/penguasaan 5 tingkat sesuai skala persentase Pedoman PjBL hlm. 9
+  const kelayakanCategory = getPjblMasteryCategory(holisticTotalPercentage);
+  const materiKelayakanCategory = getPjblMasteryCategory(overallPercentage);
 
   return {
     babak1Score,
@@ -319,6 +330,7 @@ export function computeCompetencyMetrics(state: AksaralokaLearningState): Compet
     holisticTotalPercentage,
     unlockedSealsCount,
     kelayakanCategory,
+    materiKelayakanCategory,
   };
 }
 
