@@ -32,6 +32,7 @@ import {
   EMAS_POUCH_STEPS,
   FANTASY_LEXICON_BANK,
   MAJAS_ASOSIASI_CHALLENGES,
+  MAO_EMAS_AUDIO_SCRIPT,
   SENSORY_UPGRADE_CHALLENGES,
 } from "@/lib/learning/narrativeCurriculumData";
 import {
@@ -145,15 +146,36 @@ const TIME_ORB_DATA = [
 
 const PLOT_MOUNTAIN_COORDS: readonly {
   readonly order: number;
-  readonly xPercent: number;
-  readonly yPercent: number;
+  readonly shortName: string;
+  readonly x: number;
+  readonly y: number;
 }[] = [
-  { order: 1, xPercent: 10, yPercent: 80 },
-  { order: 2, xPercent: 32, yPercent: 54 },
-  { order: 3, xPercent: 52, yPercent: 32 },
-  { order: 4, xPercent: 72, yPercent: 14 },
-  { order: 5, xPercent: 90, yPercent: 76 },
+  { order: 1, shortName: "Awal", x: 32, y: 82 },
+  { order: 2, shortName: "Masalah", x: 108, y: 62 },
+  { order: 3, shortName: "Naik", x: 180, y: 44 },
+  { order: 4, shortName: "Puncak", x: 252, y: 28 },
+  { order: 5, shortName: "Akhir", x: 326, y: 78 },
 ] as const;
+
+const MATERI_TOUR_STORAGE_KEY = "aksaraloka:materi-tour-seen:v1";
+
+const MATERI_TOUR_STEPS: readonly {
+  readonly title: string;
+  readonly body: string;
+}[] = [
+  {
+    title: "Langkah 1/3 · Baca Kisah di Halaman Kiri",
+    body: "Di setiap Misi, halaman kiri berisi kisah seru dan rahasia cerita fantasi. Kamu juga bisa klik tombol [Dengarkan Suara Cerita]!",
+  },
+  {
+    title: "Langkah 2/3 · Selesaikan Tantangan di Halaman Kanan",
+    body: "Ikuti kotak 'Misi Sekarang' di bagian atas halaman tantangan agar kamu selalu tahu tombol apa yang harus diklik untuk membuka Segel!",
+  },
+  {
+    title: "Langkah 3/3 · Kumpulkan 3 Segel lalu Mengarang!",
+    body: "Setiap Misi membuka 1 Segel Rahasia. Setelah siap, klik 'Studio Tulis ->' di atas layar untuk mengarang cerita fantasimu sendiri!",
+  },
+];
 
 const FIVE_SENSES_GUIDE = [
   {
@@ -197,6 +219,16 @@ export function KitabMateriOverlay({
   const activeChapter = state.activeGrimoireChapter;
 
   const [isIntroViewOpen, setIsIntroViewOpen] = useState<boolean>(false);
+  const [materiTourStep, setMateriTourStep] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return window.localStorage.getItem(MATERI_TOUR_STORAGE_KEY) === "1"
+        ? null
+        : 0;
+    } catch {
+      return null;
+    }
+  });
   const [isMobileBook, setIsMobileBook] = useState<boolean>(false);
   const [mobilePageSide, setMobilePageSide] = useState<"left" | "right">("left");
   const [internal3dSide, setInternal3dSide] = useState<"left" | "right">("left");
@@ -223,6 +255,12 @@ export function KitabMateriOverlay({
   const [selectedOrbId, setSelectedOrbId] = useState<string>(
     TIME_ORB_DATA[0].id
   );
+  const [visitedOrbIds, setVisitedOrbIds] = useState<readonly string[]>([
+    TIME_ORB_DATA[0].id,
+  ]);
+  const [climaxSimMode, setClimaxSimMode] = useState<
+    "idle" | "tanpa-klimaks" | "utuh"
+  >("idle");
   const [climaxWarningMessage, setClimaxWarningMessage] = useState<
     string | null
   >(null);
@@ -232,6 +270,9 @@ export function KitabMateriOverlay({
   const [selectedLexiconCatId, setSelectedLexiconCatId] = useState<string>(
     FANTASY_LEXICON_BANK[0]?.id ?? "lex-cahaya"
   );
+  const [lexiconTypeFilter, setLexiconTypeFilter] = useState<
+    "Semua" | "Denotatif" | "Konotatif" | "Kiasan / Majas"
+  >("Semua");
   const [isNarrating, setIsNarrating] = useState<boolean>(() =>
     getAudioNarratingSnapshot()
   );
@@ -538,10 +579,42 @@ export function KitabMateriOverlay({
   // =========================================================================
   // BABAK 1 HANDLERS: BOLA WAKTU, GUNUNG ALUR & AMANAT
   // =========================================================================
+  const handleDismissMateriTour = useCallback(() => {
+    playChime();
+    setMateriTourStep(null);
+    try {
+      window.localStorage.setItem(MATERI_TOUR_STORAGE_KEY, "1");
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const handleNextMateriTour = useCallback(() => {
+    playChime();
+    setMateriTourStep((prev) => {
+      if (prev === null || prev >= MATERI_TOUR_STEPS.length - 1) {
+        try {
+          window.localStorage.setItem(MATERI_TOUR_STORAGE_KEY, "1");
+        } catch {
+          // ignore
+        }
+        return null;
+      }
+      return prev + 1;
+    });
+  }, []);
+
   const handleToggleBolaWaktuAudio = useCallback(() => {
     const started = toggleSpeechNarration(BOLA_WAKTU_AUDIO_SCRIPT);
     if (started) {
       showToast("amber", "Memutar sulih suara ringkasan cerita Bola-Bola Waktu...");
+    }
+  }, [showToast]);
+
+  const handleToggleMaoEmasAudio = useCallback(() => {
+    const started = toggleSpeechNarration(MAO_EMAS_AUDIO_SCRIPT);
+    if (started) {
+      showToast("amber", "Memutar sulih suara kisah Sihir Unik Mao & Keberanian Emas...");
     }
   }, [showToast]);
 
@@ -583,6 +656,7 @@ export function KitabMateriOverlay({
 
   const handleSimulateClimaxResolution = useCallback(
     (mode: "tanpa-klimaks" | "utuh") => {
+      setClimaxSimMode(mode);
       if (mode === "tanpa-klimaks") {
         const wasUnlocked = state.sealAlurUnlocked;
         const nextState = updateLearningState((prev) => ({
@@ -596,14 +670,14 @@ export function KitabMateriOverlay({
 
         playErrorTone();
         setClimaxWarningMessage(
-          "SIMULASI TANPA KLIMAKS (CACAT LOGIKA ALUR): Jika Ivan melompat ke tahun 2022 lalu langsung bahagia tanpa pernah mengalami guncangan batin kehilangan Ayahnya, cerita terasa datar dan tidak memberi alasan logis mengapa Ivan berubah sikap!"
+          "SIMULASI TANPA PUNCAK (ALUR BOLONG): Lihat grafik merah di atas! Titik 4 (Puncak/Klimaks) hilang sehingga garis langsung jatuh dari 3 ke 5. Jika Ivan melompat ke tahun 2022 lalu langsung bahagia tanpa pernah menghadapi guncangan kehilangan Ayahnya, cerita terasa datar dan tidak ada alasan logis mengapa Ivan berubah sikap!"
         );
       } else {
         playChime();
         setClimaxWarningMessage(
           state.climaxSimulationTested
-            ? "ALUR UTUH DENGAN KLIMAKS: Puncak konflik di tahun 2022 saat Ivan mendapati makam Ayahnya memicu penyesalan mendalam, sehingga perubahan watak Ivan di Resolusi terasa kuat dan masuk akal."
-            : "ALUR UTUH DENGAN KLIMAKS: Puncak konflik di tahun 2022 memicu perubahan watak Ivan secara logis. Sekarang klik juga 'Coba Hapus Puncak Masalah!' agar kamu melihat perbedaan alur yang bolong sekaligus menuntaskan syarat simulasi Segel 1."
+            ? "ALUR UTUH DENGAN PUNCAK (KLIMAKS): Lihat grafik hijau di atas! Garis naik tajam menuju titik 4 (Puncak) saat Ivan mendapati makam Ayahnya, sehingga penyesalan dan perubahan sikap Ivan di titik 5 (Akhir) terasa kuat dan masuk akal."
+            : "ALUR UTUH DENGAN PUNCAK (KLIMAKS): Garis naik ke titik 4 memicu perubahan sikap Ivan secara logis. Sekarang klik juga 'Coba Hapus Puncak Masalah!' agar kamu melihat gunung alurnya runtuh sekaligus menuntaskan syarat Simulasi Segel 1."
         );
       }
     },
@@ -615,6 +689,7 @@ export function KitabMateriOverlay({
       ...prev,
       plotPlacedIds: [],
     }));
+    setClimaxSimMode("idle");
     setClimaxWarningMessage(null);
     showToast("amber", "Susunan Gunung Alur telah diatur ulang.");
   }, [showToast]);
@@ -1422,7 +1497,7 @@ export function KitabMateriOverlay({
                     <span className="font-bold">
                       {state.sealAlurUnlocked
                         ? "SELESAI ✓"
-                        : `${plotCorrectCount}/5 Alur · ${isAmanatDone ? "Pesan Beres" : "Pesan Belum"}`}
+                        : `${plotCorrectCount}/5 Alur · ${state.climaxSimulationTested ? "Uji Klimaks ✓" : "Uji Klimaks"} · ${isAmanatDone ? "Pesan ✓" : "Pesan"}`}
                     </span>
                   </p>
                   <p className="text-[#2f1a09]/92">
@@ -1430,7 +1505,7 @@ export function KitabMateriOverlay({
                     <span className="font-bold">
                       {state.sealWatakUnlocked
                         ? "SELESAI ✓"
-                        : `Tokoh ${charDone ? "Beres" : "Belum"} · Kantong ${state.pouchOrderIds.length}/4`}
+                        : `Tokoh ${charDone ? "✓" : "Belum"} · Kantong ${state.pouchOrderIds.length}/4 · Indera ${sensoryDone ? "✓" : "Belum"}`}
                     </span>
                   </p>
                   <p className="text-[#2f1a09]/92">
@@ -1694,6 +1769,18 @@ export function KitabMateriOverlay({
                 <span className="text-emerald-300">{masteryPercentage}%</span>
               </div>
               <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playChime();
+                    setMateriTourStep(0);
+                  }}
+                  aria-label="Buka panduan cara belajar di Pustaka"
+                  title="Panduan Singkat Pustaka"
+                  className="cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-[#f3d89b]/55 bg-slate-950/85 px-2.5 py-1 text-[11px] font-bold text-[#ffe8b6] shadow-md backdrop-blur-md transition hover:bg-slate-900 whitespace-nowrap"
+                >
+                  ?
+                </button>
                 <button
                   type="button"
                   onClick={onOpenPetaModal}
@@ -2050,6 +2137,7 @@ export function KitabMateriOverlay({
                         <div className="grid grid-cols-3 gap-1.5 border-t border-b border-[#5c3d1e]/35 py-1.5">
                           {TIME_ORB_DATA.map((orb) => {
                             const isSelected = selectedOrb.id === orb.id;
+                            const isVisited = visitedOrbIds.includes(orb.id);
                             return (
                               <button
                                 key={orb.id}
@@ -2057,6 +2145,9 @@ export function KitabMateriOverlay({
                                 onClick={() => {
                                   playChime();
                                   setSelectedOrbId(orb.id);
+                                  setVisitedOrbIds((prev) =>
+                                    prev.includes(orb.id) ? prev : [...prev, orb.id]
+                                  );
                                 }}
                                 className={`cursor-pointer border-b-2 px-1.5 py-1 text-left font-serif transition ${
                                   isSelected
@@ -2064,8 +2155,13 @@ export function KitabMateriOverlay({
                                     : "border-transparent text-[#5c3d1e] hover:border-[#5c3d1e]/40 hover:text-[#2b1a0c]"
                                 }`}
                               >
-                                <span className="block text-[9.5px] leading-tight font-bold sm:text-[10px]">
-                                  {orb.eraLabel}
+                                <span className="flex items-center justify-between gap-1 text-[9.5px] leading-tight font-bold sm:text-[10px]">
+                                  <span>{orb.eraLabel}</span>
+                                  {isVisited && (
+                                    <span className="text-[#14532d]" aria-label="Sudah dibaca">
+                                      ✓
+                                    </span>
+                                  )}
                                 </span>
                                 <span className="mt-0.5 block truncate text-[8.5px] text-[#6b4826] sm:text-[9px]">
                                   {orb.location}
@@ -2125,25 +2221,48 @@ export function KitabMateriOverlay({
                   {/* RIGHT PAGE (HALAMAN 2): GUNUNG ALUR INTERAKTIF & AMANAT */}
                   <div style={get2dPageStyle("right")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
+                      <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-[#5c3d1e]/35 pb-1">
+                        <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
                           HALAMAN 2 · TANTANGAN SEGEL 1
                         </span>
-                        <span className="font-serif text-[10px] font-bold text-[#14532d]">
+                        <span className="shrink-0 whitespace-nowrap font-serif text-[9px] font-bold text-[#14532d] sm:text-[9.5px]">
                           {state.sealAlurUnlocked
                             ? "Segel 1 Selesai ✓"
-                            : `Urutan: ${plotCorrectCount}/5`}
+                            : `Alur ${plotCorrectCount}/5 · Uji ${state.climaxSimulationTested ? "✓" : "○"} · Pesan ${isAmanatDone ? "✓" : "○"}`}
                         </span>
                       </div>
 
                       <div className="space-y-2 font-serif text-[#2b1a0c]">
-                        {/* Compact Hand-Drawn Sepia Plot Mountain SVG */}
-                        <div className="border-b border-[#5c3d1e]/30 pb-1.5">
-                          <div className="flex items-center justify-between">
+                        {/* Live 1-Line Quest Prompt (Guided Next Action for 7th Graders) */}
+                        {state.sealAlurUnlocked ? (
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-[#14532d]/55 bg-[#14532d]/12 px-2 py-1.5 text-[10px] font-bold text-[#14532d]">
+                            <span>Hebat! Segel 1 (Alur &amp; Pesan) Terbuka!</span>
+                            <button
+                              type="button"
+                              onClick={() => switchToChapter("watak")}
+                              className="cursor-pointer rounded-full bg-[#14532d] px-2.5 py-0.5 text-[9.5px] font-bold text-[#fdf6e7] hover:bg-emerald-950"
+                            >
+                              Lanjut Misi 2 -&gt;
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="rounded border border-[#5c3d1e]/40 bg-[#5c3d1e]/10 px-2 py-1 text-[9.5px] leading-snug text-[#2b1a0c]">
+                            <strong className="text-[#4a2f15]">Misi Sekarang:</strong>{" "}
+                            {!isPlotComplete
+                              ? `Klik kejadian ke-${plotCorrectCount + 1} pada Misi A di bawah (${plotCorrectCount}/5).`
+                              : !state.climaxSimulationTested
+                                ? 'Klik tombol merah "Hapus Puncak!" di Gunung Alur untuk melihat efek cerita tanpa klimaks!'
+                                : "Pilih 1 Pesan Kebaikan (Amanat) yang paling tepat di Misi B bawah!"}
+                          </div>
+                        )}
+
+                        {/* Interactive Hand-Drawn Sepia Plot Mountain SVG (Collision-Free Coordinates) */}
+                        <div className="border-b border-[#5c3d1e]/30 pb-2">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <span className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                              1. Gunung Alur ({plotCorrectCount}/5 Kejadian)
+                              1. Gunung Alur ({plotCorrectCount}/5)
                             </span>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <button
                                 type="button"
                                 onClick={() =>
@@ -2151,88 +2270,263 @@ export function KitabMateriOverlay({
                                     "tanpa-klimaks"
                                   )
                                 }
-                                className="cursor-pointer text-[9.5px] font-bold text-[#7f1d1d] underline decoration-[#7f1d1d]/50 underline-offset-2 hover:text-red-950"
+                                className={`cursor-pointer rounded px-2 py-0.5 text-[9px] leading-tight font-bold transition ${
+                                  climaxSimMode === "tanpa-klimaks"
+                                    ? "border border-[#7f1d1d] bg-[#7f1d1d] text-[#fdf6e7]"
+                                    : "border border-[#7f1d1d]/60 bg-[#7f1d1d]/10 text-[#7f1d1d] hover:bg-[#7f1d1d]/20"
+                                }`}
                               >
-                                Coba Hapus Puncak Masalah!
+                                {state.climaxSimulationTested ? "✓ " : ""}
+                                Hapus Puncak!
                               </button>
                               <button
                                 type="button"
                                 onClick={() =>
                                   handleSimulateClimaxResolution("utuh")
                                 }
-                                className="cursor-pointer text-[9.5px] font-bold text-[#14532d] underline decoration-[#14532d]/50 underline-offset-2 hover:text-emerald-950"
+                                className={`cursor-pointer rounded px-2 py-0.5 text-[9px] leading-tight font-bold transition ${
+                                  climaxSimMode === "utuh"
+                                    ? "border border-[#14532d] bg-[#14532d] text-[#fdf6e7]"
+                                    : "border border-[#14532d]/60 bg-[#14532d]/10 text-[#14532d] hover:bg-[#14532d]/20"
+                                }`}
                               >
-                                Lihat Alur Utuh
+                                Alur Utuh
                               </button>
                               <button
                                 type="button"
                                 onClick={handleResetPlotMountain}
-                                className="cursor-pointer text-[9.5px] font-semibold text-[#5c3d1e] underline hover:text-black"
+                                className="cursor-pointer px-1 text-[9px] font-semibold text-[#5c3d1e] underline hover:text-black"
                               >
                                 Ulangi
                               </button>
                             </div>
                           </div>
 
-                          <svg
-                            viewBox="0 0 360 82"
-                            className="parchment-contour-warp mt-1 h-16 w-full overflow-visible"
-                            aria-label="Diagram Gunung Alur Cerita Fantasi"
-                          >
-                            <polyline
-                              fill="none"
-                              stroke="#5c3d1e"
-                              strokeWidth="2"
-                              strokeDasharray="3 2"
-                              points="28,68 110,46 185,28 260,12 332,64"
-                            />
-                            {PLOT_MOUNTAIN_COORDS.map((coord, idx) => {
-                              const cx = (coord.xPercent / 100) * 360;
-                              const cy = (coord.yPercent / 100) * 82;
-                              const beat = BOLA_WAKTU_PLOT_BEATS[idx];
-                              const isSolved =
-                                beat !== undefined &&
-                                state.plotPlacedIds[idx] === beat.id;
-                              const isNextTarget =
-                                state.plotPlacedIds.length === idx;
+                          <p className="mt-1 text-[9.5px] leading-snug text-[#4a2f15]">
+                            Grafik ini menunjukkan <strong>naik-turunnya ketegangan cerita</strong> dari 1 (Awal) mendaki ke puncak 4 (Klimaks) lalu turun ke 5 (Akhir). Klik <strong>&ldquo;Hapus Puncak!&rdquo;</strong> untuk melihat efek alur yang bolong!
+                          </p>
 
-                              return (
-                                <g key={coord.order}>
-                                  <circle
-                                    cx={cx}
-                                    cy={cy}
-                                    r={isNextTarget ? 9 : 7}
-                                    fill={
-                                      isSolved
+                          {(() => {
+                            const isBrokenSim = climaxSimMode === "tanpa-klimaks";
+                            const isIntactSim = climaxSimMode === "utuh";
+                            const fullPoints = PLOT_MOUNTAIN_COORDS.map(
+                              (c) => `${c.x},${c.y}`
+                            ).join(" ");
+                            const brokenPoints = [
+                              PLOT_MOUNTAIN_COORDS[0]!,
+                              PLOT_MOUNTAIN_COORDS[1]!,
+                              PLOT_MOUNTAIN_COORDS[2]!,
+                              PLOT_MOUNTAIN_COORDS[4]!,
+                            ]
+                              .map((c) => `${c.x},${c.y}`)
+                              .join(" ");
+                            const solvedProgressPoints =
+                              plotCorrectCount >= 2
+                                ? PLOT_MOUNTAIN_COORDS.slice(0, plotCorrectCount)
+                                    .map((c) => `${c.x},${c.y}`)
+                                    .join(" ")
+                                : null;
+
+                            return (
+                              <svg
+                                viewBox="0 0 360 116"
+                                className="parchment-contour-warp mt-1.5 h-[88px] sm:h-[96px] w-full overflow-visible"
+                                aria-label="Diagram Gunung Alur Cerita Fantasi"
+                              >
+                                {/* Baseline dashed mountain contour (ghosted when peak removed) */}
+                                <polyline
+                                  fill="none"
+                                  stroke={
+                                    isBrokenSim
+                                      ? "#5c3d1e45"
+                                      : isIntactSim
                                         ? "#14532d"
-                                        : isNextTarget
-                                          ? "#4a2f15"
-                                          : "#d9c39a"
-                                    }
-                                    stroke="#2b1a0c"
-                                    strokeWidth="1.5"
+                                        : "#5c3d1e"
+                                  }
+                                  strokeWidth={isIntactSim ? "2.6" : "2"}
+                                  strokeDasharray={isIntactSim ? undefined : "4 3"}
+                                  points={fullPoints}
+                                />
+
+                                {/* Solved progression solid emerald path when placing beats */}
+                                {!isBrokenSim && !isIntactSim && solvedProgressPoints && (
+                                  <polyline
+                                    fill="none"
+                                    stroke="#14532d"
+                                    strokeWidth="2.8"
+                                    points={solvedProgressPoints}
                                   />
-                                  <text
-                                    x={cx}
-                                    y={cy + 3}
-                                    textAnchor="middle"
-                                    fontSize="8.5"
-                                    fontWeight="bold"
-                                    fill={
-                                      isSolved || isNextTarget
-                                        ? "#fdf6e7"
-                                        : "#2b1a0c"
-                                    }
-                                  >
-                                    {coord.order}
-                                  </text>
-                                </g>
-                              );
-                            })}
-                          </svg>
+                                )}
+
+                                {/* Collapsed red flatline skipping Peak #4 during tanpa-klimaks simulation */}
+                                {isBrokenSim && (
+                                  <>
+                                    <polyline
+                                      fill="none"
+                                      stroke="#991b1b"
+                                      strokeWidth="2.8"
+                                      strokeDasharray="6 3"
+                                      points={brokenPoints}
+                                    />
+                                    <g>
+                                      <rect
+                                        x="148"
+                                        y="89"
+                                        width="148"
+                                        height="19"
+                                        rx="9.5"
+                                        fill="#991b1b"
+                                        fillOpacity="0.14"
+                                        stroke="#991b1b"
+                                        strokeWidth="1"
+                                      />
+                                      <text
+                                        x="222"
+                                        y="101.5"
+                                        textAnchor="middle"
+                                        fontSize="8.2"
+                                        fontWeight="bold"
+                                        fill="#7f1d1d"
+                                      >
+                                        ALUR BOLONG (DATAR!)
+                                      </text>
+                                    </g>
+                                  </>
+                                )}
+
+                                {/* Intact peak highlight ring & collision-free badge in valley */}
+                                {isIntactSim && (
+                                  <>
+                                    <circle
+                                      cx={PLOT_MOUNTAIN_COORDS[3]!.x}
+                                      cy={PLOT_MOUNTAIN_COORDS[3]!.y}
+                                      r="12"
+                                      fill="#14532d"
+                                      fillOpacity="0.15"
+                                      stroke="#14532d"
+                                      strokeWidth="1.5"
+                                    />
+                                    <g>
+                                      <rect
+                                        x="148"
+                                        y="89"
+                                        width="148"
+                                        height="19"
+                                        rx="9.5"
+                                        fill="#14532d"
+                                        fillOpacity="0.14"
+                                        stroke="#14532d"
+                                        strokeWidth="1"
+                                      />
+                                      <text
+                                        x="222"
+                                        y="101.5"
+                                        textAnchor="middle"
+                                        fontSize="8.2"
+                                        fontWeight="bold"
+                                        fill="#14532d"
+                                      >
+                                        ALUR UTUH · PUNCAK KUAT ✓
+                                      </text>
+                                    </g>
+                                  </>
+                                )}
+
+                                {PLOT_MOUNTAIN_COORDS.map((coord, idx) => {
+                                  const beat = BOLA_WAKTU_PLOT_BEATS[idx];
+                                  const isSolved =
+                                    beat !== undefined &&
+                                    state.plotPlacedIds[idx] === beat.id;
+                                  const isNextTarget =
+                                    state.plotPlacedIds.length === idx;
+                                  const isRemovedPeak = isBrokenSim && coord.order === 4;
+
+                                  return (
+                                    <g key={coord.order}>
+                                      <circle
+                                        cx={coord.x}
+                                        cy={coord.y}
+                                        r={
+                                          isRemovedPeak
+                                            ? 8.5
+                                            : isNextTarget
+                                              ? 9
+                                              : 7.5
+                                        }
+                                        fill={
+                                          isRemovedPeak
+                                            ? "#fee2e2"
+                                            : isIntactSim && coord.order === 4
+                                              ? "#14532d"
+                                              : isSolved
+                                                ? "#14532d"
+                                                : isNextTarget
+                                                  ? "#4a2f15"
+                                                  : "#d9c39a"
+                                        }
+                                        stroke={
+                                          isRemovedPeak ? "#991b1b" : "#2b1a0c"
+                                        }
+                                        strokeWidth={isRemovedPeak ? "1.8" : "1.5"}
+                                        strokeDasharray={
+                                          isRemovedPeak ? "2 2" : undefined
+                                        }
+                                      />
+                                      <text
+                                        x={coord.x}
+                                        y={coord.y + 3}
+                                        textAnchor="middle"
+                                        fontSize="8.5"
+                                        fontWeight="bold"
+                                        fill={
+                                          isRemovedPeak
+                                            ? "#991b1b"
+                                            : isSolved ||
+                                                isNextTarget ||
+                                                (isIntactSim && coord.order === 4)
+                                              ? "#fdf6e7"
+                                              : "#2b1a0c"
+                                        }
+                                      >
+                                        {isRemovedPeak ? "X" : coord.order}
+                                      </text>
+                                      <text
+                                        x={coord.x}
+                                        y={
+                                          coord.order === 4
+                                            ? coord.y - 18
+                                            : coord.y + 21
+                                        }
+                                        textAnchor="middle"
+                                        fontSize="8.2"
+                                        fontWeight="bold"
+                                        fill={
+                                          isRemovedPeak
+                                            ? "#991b1b"
+                                            : isSolved
+                                              ? "#14532d"
+                                              : "#3a2512"
+                                        }
+                                      >
+                                        {isRemovedPeak
+                                          ? "Puncak Hilang!"
+                                          : coord.shortName}
+                                      </text>
+                                    </g>
+                                  );
+                                })}
+                              </svg>
+                            );
+                          })()}
 
                           {climaxWarningMessage && (
-                            <p className="mt-1 border-l-2 border-[#7f1d1d] pl-2 text-[9.5px] leading-snug font-semibold text-[#5a1818]">
+                            <p
+                              className={`mt-1.5 rounded-r border-l-2 px-2 py-1 text-[9.5px] leading-snug font-semibold ${
+                                climaxSimMode === "utuh"
+                                  ? "border-[#14532d] bg-[#14532d]/10 text-[#14532d]"
+                                  : "border-[#7f1d1d] bg-[#7f1d1d]/10 text-[#5a1818]"
+                              }`}
+                            >
                               {climaxWarningMessage}
                             </p>
                           )}
@@ -2289,25 +2583,37 @@ export function KitabMateriOverlay({
                             const isChosen =
                               state.selectedAmanatId === opt.id;
                             return (
-                              <button
-                                key={opt.id}
-                                type="button"
-                                onClick={() => handleSelectAmanat(opt.id)}
-                                className={`block w-full cursor-pointer border-b border-[#5c3d1e]/25 px-1.5 py-1 text-left font-serif text-[10px] leading-snug transition ${
-                                  isChosen
+                              <div key={opt.id} className="border-b border-[#5c3d1e]/25 pb-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectAmanat(opt.id)}
+                                  className={`block w-full cursor-pointer px-1.5 py-1 text-left font-serif text-[10px] leading-snug transition ${
+                                    isChosen
+                                      ? opt.isCorrect
+                                        ? "bg-[#14532d]/15 font-bold text-[#14532d]"
+                                        : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
+                                      : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
+                                  }`}
+                                >
+                                  {isChosen
                                     ? opt.isCorrect
-                                      ? "bg-[#14532d]/15 font-bold text-[#14532d]"
-                                      : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
-                                    : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
-                                }`}
-                              >
-                                {isChosen
-                                  ? opt.isCorrect
-                                    ? "[Tepat ✓] "
-                                    : "[Coba Lagi] "
-                                  : "○ "}
-                                {opt.text}
-                              </button>
+                                      ? "[Tepat ✓] "
+                                      : "[Coba Lagi] "
+                                    : "○ "}
+                                  {opt.text}
+                                </button>
+                                {isChosen && (
+                                  <p
+                                    className={`px-1.5 pb-1 text-[9px] leading-snug italic ${
+                                      opt.isCorrect
+                                        ? "text-[#14532d]"
+                                        : "text-[#7f1d1d]"
+                                    }`}
+                                  >
+                                    {opt.feedback}
+                                  </p>
+                                )}
+                              </div>
                             );
                           })}
 
@@ -2355,13 +2661,19 @@ export function KitabMateriOverlay({
                   {/* LEFT PAGE (HALAMAN 3): TOKOH, 4 KANTONG EMAS & 5 INDERA */}
                   <div style={get2dPageStyle("left")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
+                      <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-1 border-b border-[#5c3d1e]/35 pb-1">
+                        <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
                           HALAMAN 3 · {CHAPTER_ORDER[1]!.tpTag}
                         </span>
-                        <span className="font-serif text-[10px] font-semibold text-[#6b4826] italic">
-                          Pilih 3 Tab di Bawah!
-                        </span>
+                        <button
+                          type="button"
+                          onClick={handleToggleMaoEmasAudio}
+                          className="cursor-pointer font-serif text-[9.5px] font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950"
+                        >
+                          {isNarrating
+                            ? "[Matikan Suara]"
+                            : "[Dengarkan Kisah Mao & Emas]"}
+                        </button>
                       </div>
 
                       {/* Sub-tab Links on Parchment */}
@@ -2459,9 +2771,46 @@ export function KitabMateriOverlay({
                           </div>
                           <p className="text-[10px] leading-relaxed text-[#3a2512]">
                             Petunjuk: Klik keempat kantong ajaib Emas
-                            secara berurutan dari bahaya kecil sampai Raksasa
-                            kalah!
+                            secara berurutan dari bahaya awal sampai Raksasa
+                            kalah di puncak klimaks!
                           </p>
+                          {/* Meteran Eskalasi Ketegangan Konflik (Visual Naik 0% -> 35% -> 60% -> 85% -> 100%) */}
+                          {(() => {
+                            const tensionLevels = [0, 35, 60, 85, 100];
+                            const pct = tensionLevels[state.pouchOrderIds.length] ?? 0;
+                            return (
+                              <div className="space-y-1 rounded border border-[#5c3d1e]/25 bg-[#5c3d1e]/6 px-2 py-1.5">
+                                <div className="flex flex-wrap items-center justify-between gap-1 text-[9.5px] font-bold">
+                                  <span className="text-[#4a2f15]">
+                                    Meteran Ketegangan Kejaran Raksasa:
+                                  </span>
+                                  <span
+                                    className={
+                                      pct === 100
+                                        ? "text-[#14532d]"
+                                        : pct >= 60
+                                          ? "text-[#7f1d1d]"
+                                          : "text-[#4a2f15]"
+                                    }
+                                  >
+                                    {pct}% {pct === 100 ? "(Klimaks Tercapai ✓)" : ""}
+                                  </span>
+                                </div>
+                                <div className="h-2 w-full overflow-hidden rounded-full border border-[#5c3d1e]/40 bg-[#5c3d1e]/15">
+                                  <div
+                                    style={{ width: `${pct}%` }}
+                                    className={`h-full transition-all duration-300 ${
+                                      pct === 100
+                                        ? "bg-[#14532d]"
+                                        : pct >= 60
+                                          ? "bg-[#991b1b]"
+                                          : "bg-[#854d0e]"
+                                    }`}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()}
                           <div className="space-y-1.5 pt-0.5">
                             {EMAS_POUCH_DISPLAY_ORDER_IDS.map((pouchId) => {
                               const step = EMAS_POUCH_STEPS.find(
@@ -2556,18 +2905,41 @@ export function KitabMateriOverlay({
                   {/* RIGHT PAGE (HALAMAN 4): TANTANGAN BUKTI WATAK & CITRAAN INDERA */}
                   <div style={get2dPageStyle("right")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
+                      <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-[#5c3d1e]/35 pb-1">
+                        <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
                           HALAMAN 4 · TANTANGAN SEGEL 2
                         </span>
-                        <span className="font-serif text-[10px] font-bold text-[#14532d]">
+                        <span className="shrink-0 whitespace-nowrap font-serif text-[9px] font-bold text-[#14532d] sm:text-[9.5px]">
                           {state.sealWatakUnlocked
                             ? "Segel 2 Selesai ✓"
-                            : `Tokoh ${charDone ? "Beres" : "Belum"} · Indera ${sensoryDone ? "Beres" : "Belum"}`}
+                            : `Tokoh ${charDone ? "✓" : "○"} · Kantong ${state.pouchOrderIds.length}/4 · Indera ${sensoryDone ? "✓" : "○"}`}
                         </span>
                       </div>
 
                       <div className="space-y-2.5 font-serif text-[#2b1a0c]">
+                        {/* Live 1-Line Quest Prompt for Segel 2 */}
+                        {state.sealWatakUnlocked ? (
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-[#14532d]/55 bg-[#14532d]/12 px-2 py-1.5 text-[10px] font-bold text-[#14532d]">
+                            <span>Mantap! Segel 2 (Tokoh &amp; Indera) Terbuka!</span>
+                            <button
+                              type="button"
+                              onClick={() => switchToChapter("bahasa")}
+                              className="cursor-pointer rounded-full bg-[#14532d] px-2.5 py-0.5 text-[9.5px] font-bold text-[#fdf6e7] hover:bg-emerald-950"
+                            >
+                              Lanjut Misi 3 -&gt;
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="rounded border border-[#5c3d1e]/40 bg-[#5c3d1e]/10 px-2 py-1 text-[9.5px] leading-snug text-[#2b1a0c]">
+                            <strong className="text-[#4a2f15]">Misi Sekarang:</strong>{" "}
+                            {!charDone
+                              ? "Pilih bukti perbuatan yang cocok untuk sifat Mao & Yari di Bagian A."
+                              : !sensoryDone
+                                ? "Pilih 3 kalimat Panca Indera yang paling hidup di Bagian B."
+                                : `Tinggal 1 lagi! Urutkan 4 Kantong Emas (${state.pouchOrderIds.length}/4) di Halaman 3 (kiri)!`}
+                          </div>
+                        )}
+
                         {/* Bagian A: Bukti Watak Tokoh */}
                         <div className="space-y-1.5 border-b border-[#5c3d1e]/35 pb-2">
                           <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
@@ -2593,30 +2965,42 @@ export function KitabMateriOverlay({
                                   {chal.options.map((opt) => {
                                     const isChosen = selectedOptId === opt.id;
                                     return (
-                                      <button
-                                        key={opt.id}
-                                        type="button"
-                                        onClick={() =>
-                                          handleSelectCharacterTrait(
-                                            chal.id,
-                                            opt.id
-                                          )
-                                        }
-                                        className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${
-                                          isChosen
+                                      <div key={opt.id}>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleSelectCharacterTrait(
+                                              chal.id,
+                                              opt.id
+                                            )
+                                          }
+                                          className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${
+                                            isChosen
+                                              ? opt.isValidEvidence
+                                                ? "bg-[#14532d]/15 font-bold text-[#14532d]"
+                                                : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
+                                              : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
+                                          }`}
+                                        >
+                                          {isChosen
                                             ? opt.isValidEvidence
-                                              ? "bg-[#14532d]/15 font-bold text-[#14532d]"
-                                              : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
-                                            : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
-                                        }`}
-                                      >
-                                        {isChosen
-                                          ? opt.isValidEvidence
-                                            ? "[Tepat ✓] "
-                                            : "[Coba Lagi] "
-                                          : "○ "}
-                                        {opt.quote}
-                                      </button>
+                                              ? "[Tepat ✓] "
+                                              : "[Coba Lagi] "
+                                            : "○ "}
+                                          {opt.quote}
+                                        </button>
+                                        {isChosen && (
+                                          <p
+                                            className={`px-1.5 py-0.5 text-[9px] leading-snug italic ${
+                                              opt.isValidEvidence
+                                                ? "text-[#14532d]"
+                                                : "text-[#7f1d1d]"
+                                            }`}
+                                          >
+                                            {opt.explanation}
+                                          </p>
+                                        )}
+                                      </div>
                                     );
                                   })}
                                 </div>
@@ -2648,30 +3032,42 @@ export function KitabMateriOverlay({
                                   {sens.options.map((opt) => {
                                     const isChosen = selectedOptId === opt.id;
                                     return (
-                                      <button
-                                        key={opt.id}
-                                        type="button"
-                                        onClick={() =>
-                                          handleSelectSensoryUpgrade(
-                                            sens.id,
-                                            opt.id
-                                          )
-                                        }
-                                        className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${
-                                          isChosen
+                                      <div key={opt.id}>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleSelectSensoryUpgrade(
+                                              sens.id,
+                                              opt.id
+                                            )
+                                          }
+                                          className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${
+                                            isChosen
+                                              ? opt.isRichSensory
+                                                ? "bg-[#14532d]/15 font-bold text-[#14532d]"
+                                                : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
+                                              : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
+                                          }`}
+                                        >
+                                          {isChosen
                                             ? opt.isRichSensory
-                                              ? "bg-[#14532d]/15 font-bold text-[#14532d]"
-                                              : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
-                                            : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
-                                        }`}
-                                      >
-                                        {isChosen
-                                          ? opt.isRichSensory
-                                            ? "[Hidup ✓] "
-                                            : "[Masih Biasa] "
-                                          : "○ "}
-                                        {opt.text}
-                                      </button>
+                                              ? "[Hidup ✓] "
+                                              : "[Masih Biasa] "
+                                            : "○ "}
+                                          {opt.text}
+                                        </button>
+                                        {isChosen && (
+                                          <p
+                                            className={`px-1.5 py-0.5 text-[9px] leading-snug italic ${
+                                              opt.isRichSensory
+                                                ? "text-[#14532d]"
+                                                : "text-[#7f1d1d]"
+                                            }`}
+                                          >
+                                            {opt.feedback}
+                                          </p>
+                                        )}
+                                      </div>
                                     );
                                   })}
                                 </div>
@@ -2681,9 +3077,22 @@ export function KitabMateriOverlay({
                         </div>
 
                         {!pouchDone && (
-                          <p className="border-t border-[#5c3d1e]/25 pt-1 text-[9.5px] font-semibold text-[#5a1818] italic">
-                            Petunjuk Segel 2: Jangan lupa klik juga tab &ldquo;2. 4 Kantong Emas&rdquo; di Halaman 3 (kiri) lalu urutkan kantongnya ya!
-                          </p>
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-[#5c3d1e]/30 pt-1.5">
+                            <p className="text-[9.5px] font-semibold text-[#5a1818]">
+                              Syarat ke-3 Segel 2: Urutkan 4 Kantong Emas ({state.pouchOrderIds.length}/4)!
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playChime();
+                                setWatakLeftTab("emas");
+                                if (isMobileBook) setMobilePageSide("left");
+                              }}
+                              className="cursor-pointer rounded border border-[#5c3d1e]/70 bg-[#5c3d1e]/12 px-2 py-0.5 text-[9.5px] font-bold text-[#2b1a0c] hover:bg-[#5c3d1e]/22"
+                            >
+                              Buka Misi 4 Kantong Emas -&gt;
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -2761,12 +3170,36 @@ export function KitabMateriOverlay({
                           <hr className="parchment-ink-rule mt-1.5" />
                         </div>
 
-                        {/* 3. Bank Kata & Frasa Fantasi (6 Kategori · 48 Entri) */}
-                        <div className="space-y-1">
-                          <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            3. Kamus Kata Fantasi (6 Kategori · Klik untuk Lihat):
-                          </span>
-                          <div className="flex flex-wrap gap-1 pt-0.5">
+                        {/* 3. Bank Kata & Frasa Fantasi (6 Kategori · 48 Entri + Filter Makna) */}
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center justify-between gap-1">
+                            <span className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
+                              3. Kamus Kata Fantasi (48 Diksi):
+                            </span>
+                            <div className="flex flex-wrap items-center gap-1">
+                              {(["Semua", "Denotatif", "Konotatif", "Kiasan / Majas"] as const).map(
+                                (tf) => (
+                                  <button
+                                    key={tf}
+                                    type="button"
+                                    onClick={() => {
+                                      playChime();
+                                      setLexiconTypeFilter(tf);
+                                    }}
+                                    className={`cursor-pointer rounded px-1.5 py-0.5 text-[8.5px] font-bold transition ${
+                                      lexiconTypeFilter === tf
+                                        ? "bg-[#14532d] text-[#fdf6e7]"
+                                        : "border border-[#5c3d1e]/35 text-[#4a2f15] hover:bg-[#5c3d1e]/10"
+                                    }`}
+                                  >
+                                    {tf === "Kiasan / Majas" ? "Kiasan" : tf}
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1">
                             {FANTASY_LEXICON_BANK.map((cat) => {
                               const isPicked =
                                 selectedLexiconCategory.id === cat.id;
@@ -2778,10 +3211,10 @@ export function KitabMateriOverlay({
                                     playChime();
                                     setSelectedLexiconCatId(cat.id);
                                   }}
-                                  className={`cursor-pointer border-b-2 px-1.5 py-0.5 font-serif text-[9px] transition ${
+                                  className={`cursor-pointer rounded border px-1.5 py-0.5 font-serif text-[9px] transition ${
                                     isPicked
-                                      ? "border-[#2b1a0c] bg-[#5c3d1e]/15 font-bold text-[#1f1207]"
-                                      : "border-transparent text-[#5c3d1e] hover:border-[#5c3d1e]/40"
+                                      ? "border-[#2b1a0c] bg-[#5c3d1e]/18 font-bold text-[#1f1207]"
+                                      : "border-[#5c3d1e]/25 text-[#5c3d1e] hover:border-[#5c3d1e]/55"
                                   }`}
                                 >
                                   {cat.category}
@@ -2791,23 +3224,38 @@ export function KitabMateriOverlay({
                           </div>
 
                           <div className="mt-1 space-y-1 border-t border-[#5c3d1e]/25 pt-1 text-[9.5px] leading-snug">
-                            {selectedLexiconCategory.entries.map((entry) => (
-                              <div
-                                key={entry.word}
-                                className="border-b border-[#5c3d1e]/15 pb-1 last:border-b-0"
-                              >
-                                <span className="font-bold text-[#2b1a0c]">
-                                  {entry.word}
-                                </span>{" "}
-                                <span className="text-[#6b4826] italic">
-                                  ({entry.type})
-                                </span>{" "}
-                                — {entry.meaning}{" "}
-                                <span className="text-[#14532d] italic">
-                                  Contoh: &ldquo;{entry.example}&rdquo;
-                                </span>
-                              </div>
-                            ))}
+                            {selectedLexiconCategory.entries
+                              .filter(
+                                (entry) =>
+                                  lexiconTypeFilter === "Semua" ||
+                                  entry.type === lexiconTypeFilter
+                              )
+                              .map((entry) => (
+                                <div
+                                  key={entry.word}
+                                  className="border-b border-[#5c3d1e]/15 pb-1 last:border-b-0"
+                                >
+                                  <span className="font-bold text-[#2b1a0c]">
+                                    {entry.word}
+                                  </span>{" "}
+                                  <span className="text-[#6b4826] italic">
+                                    ({entry.type})
+                                  </span>{" "}
+                                  — {entry.meaning}{" "}
+                                  <span className="text-[#14532d] italic">
+                                    Contoh: &ldquo;{entry.example}&rdquo;
+                                  </span>
+                                </div>
+                              ))}
+                            {selectedLexiconCategory.entries.filter(
+                              (entry) =>
+                                lexiconTypeFilter === "Semua" ||
+                                entry.type === lexiconTypeFilter
+                            ).length === 0 && (
+                              <p className="py-1 text-[9px] italic text-[#6b4826]">
+                                Tidak ada entri bertipe {lexiconTypeFilter} di kategori ini. Pilih &ldquo;Semua&rdquo; atau kategori lain.
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2828,18 +3276,43 @@ export function KitabMateriOverlay({
                   {/* RIGHT PAGE (HALAMAN 6): TANTANGAN MAJAS & KONVERSI DIALOG */}
                   <div style={get2dPageStyle("right")} className={page2dContainerClass}>
                     <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
+                      <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-[#5c3d1e]/35 pb-1">
+                        <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
                           HALAMAN 6 · TANTANGAN SEGEL 3
                         </span>
-                        <span className="font-serif text-[10px] font-bold text-[#14532d]">
+                        <span className="shrink-0 whitespace-nowrap font-serif text-[9px] font-bold text-[#14532d] sm:text-[9.5px]">
                           {state.sealBahasaUnlocked
                             ? "Segel 3 Selesai ✓"
-                            : `Perumpamaan ${majasDone ? "Beres" : "Belum"} · Dialog ${dialogueDone ? "Beres" : "Belum"}`}
+                            : `Majas ${majasDone ? "✓" : "○"} · Dialog ${dialogueDone ? "✓" : "○"}`}
                         </span>
                       </div>
 
                       <div className="space-y-2.5 font-serif text-[#2b1a0c]">
+                        {/* Live 1-Line Quest Prompt for Segel 3 */}
+                        {state.sealBahasaUnlocked ? (
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-[#14532d]/55 bg-[#14532d]/12 px-2 py-1.5 text-[10px] font-bold text-[#14532d]">
+                            <span>
+                              {totalSealsUnlocked >= 3
+                                ? "Semua 3 Segel Rahasia Terkumpul!"
+                                : "Keren! Segel 3 (Gaya Bahasa) Terbuka!"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={onNavigateToStudioTulis}
+                              className="cursor-pointer rounded-full bg-[#14532d] px-2.5 py-0.5 text-[9.5px] font-bold text-[#fdf6e7] hover:bg-emerald-950"
+                            >
+                              Ayo Mengarang di Studio Tulis -&gt;
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="rounded border border-[#5c3d1e]/40 bg-[#5c3d1e]/10 px-2 py-1 text-[9.5px] leading-snug text-[#2b1a0c]">
+                            <strong className="text-[#4a2f15]">Misi Sekarang:</strong>{" "}
+                            {!majasDone
+                              ? "Pasangkan Kata Pembanding & Perumpamaan di Bagian A sampai ketiga kalimatnya hijau!"
+                              : "Pilih kalimat tak langsung yang benar pada 2 soal Dialog di Bagian B bawah!"}
+                          </div>
+                        )}
+
                         {/* Tantangan A: Kawah Peracik Majas Asosiasi */}
                         <div className="space-y-1.5 border-b border-[#5c3d1e]/35 pb-2">
                           <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
@@ -2850,9 +3323,20 @@ export function KitabMateriOverlay({
                               connector: "",
                               comparison: "",
                             };
+                            const isPairFilled =
+                              pair.connector !== "" && pair.comparison !== "";
                             const isSolved =
                               pair.connector === majas.correctConnector &&
                               pair.comparison === majas.correctComparison;
+                            const livePreviewSentence = majas.blankPrompt
+                              .replace(
+                                "[Kata Pembanding]",
+                                pair.connector || "[Kata Pembanding]"
+                              )
+                              .replace(
+                                "[Perumpamaan]",
+                                pair.comparison || "[Perumpamaan]"
+                              );
 
                             return (
                               <div
@@ -2862,8 +3346,16 @@ export function KitabMateriOverlay({
                                 <p className="text-[9.5px] font-semibold text-[#3a2512]">
                                   {majas.contextSentence}
                                 </p>
-                                <p className="mt-0.5 text-[9.5px] text-[#4a2f15] italic">
-                                  {majas.blankPrompt}
+                                <p
+                                  className={`mt-1 rounded-r border-l-2 px-2 py-0.5 text-[9.5px] leading-snug italic ${
+                                    isSolved
+                                      ? "border-[#14532d] bg-[#14532d]/10 font-bold text-[#14532d]"
+                                      : isPairFilled
+                                        ? "border-[#7f1d1d] bg-[#7f1d1d]/10 font-semibold text-[#7f1d1d]"
+                                        : "border-[#5c3d1e]/50 bg-[#5c3d1e]/6 text-[#4a2f15]"
+                                  }`}
+                                >
+                                  &ldquo;{livePreviewSentence}&rdquo;
                                 </p>
                                 <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   <div>
@@ -2913,11 +3405,15 @@ export function KitabMateriOverlay({
                                     />
                                   </div>
                                 </div>
-                                {isSolved && (
+                                {isSolved ? (
                                   <p className="mt-0.5 text-[9px] font-bold text-[#14532d]">
-                                    [Tepat] {majas.explanation}
+                                    [Tepat ✓] {majas.explanation}
                                   </p>
-                                )}
+                                ) : isPairFilled ? (
+                                  <p className="mt-0.5 text-[9px] font-semibold text-[#7f1d1d]">
+                                    [Belum Cocok] Cek lagi apakah &ldquo;{pair.connector}&rdquo; termasuk kata pembanding (seperti/bagaikan/laksana) dan apakah perumpamaannya cocok dengan kalimat konteks!
+                                  </p>
+                                ) : null}
                               </div>
                             );
                           })}
@@ -2946,30 +3442,42 @@ export function KitabMateriOverlay({
                                   {dlg.options.map((opt) => {
                                     const isChosen = selectedOptId === opt.id;
                                     return (
-                                      <button
-                                        key={opt.id}
-                                        type="button"
-                                        onClick={() =>
-                                          handleSelectDialogueOption(
-                                            dlg.id,
-                                            opt.id
-                                          )
-                                        }
-                                        className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${
-                                          isChosen
+                                      <div key={opt.id}>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleSelectDialogueOption(
+                                              dlg.id,
+                                              opt.id
+                                            )
+                                          }
+                                          className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${
+                                            isChosen
+                                              ? opt.isCorrect
+                                                ? "bg-[#14532d]/15 font-bold text-[#14532d]"
+                                                : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
+                                              : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
+                                          }`}
+                                        >
+                                          {isChosen
                                             ? opt.isCorrect
-                                              ? "bg-[#14532d]/15 font-bold text-[#14532d]"
-                                              : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
-                                            : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
-                                        }`}
-                                      >
-                                        {isChosen
-                                          ? opt.isCorrect
-                                            ? "[Tepat ✓] "
-                                            : "[Coba Lagi] "
-                                          : "○ "}
-                                        {opt.text}
-                                      </button>
+                                              ? "[Tepat ✓] "
+                                              : "[Coba Lagi] "
+                                            : "○ "}
+                                          {opt.text}
+                                        </button>
+                                        {isChosen && (
+                                          <p
+                                            className={`px-1.5 py-0.5 text-[9px] leading-snug italic ${
+                                              opt.isCorrect
+                                                ? "text-[#14532d]"
+                                                : "text-[#7f1d1d]"
+                                            }`}
+                                          >
+                                            {opt.ruleExplanation}
+                                          </p>
+                                        )}
+                                      </div>
                                     );
                                   })}
                                 </div>
@@ -3063,6 +3571,53 @@ export function KitabMateriOverlay({
                   ? "2. Daftar 3 Misi ->"
                   : "2. Main Tantangan ->"}
               </button>
+            </div>
+          )}
+
+          {/* Guided 3-Step Interactive Walkthrough Card for Materi (Grade 7 Friendly) */}
+          {materiTourStep !== null && !isCalibrating && (
+            <div className="pointer-events-auto fixed inset-x-3 bottom-16 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[340px] z-50 rounded-2xl border-2 border-[#f4d993] bg-slate-950/96 p-3.5 text-stone-100 shadow-[0_18px_45px_rgba(0,0,0,0.95)] backdrop-blur-md space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="rounded-full bg-[#cda250]/25 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#f4d993]">
+                  Panduan Singkat Pustaka
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDismissMateriTour}
+                  className="text-[11px] font-semibold text-stone-400 hover:text-white cursor-pointer"
+                >
+                  Lewati [X]
+                </button>
+              </div>
+              <h3 className="font-serif text-sm font-bold text-white">
+                {MATERI_TOUR_STEPS[materiTourStep]?.title}
+              </h3>
+              <p className="text-xs text-stone-200 leading-relaxed">
+                {MATERI_TOUR_STEPS[materiTourStep]?.body}
+              </p>
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-1">
+                  {MATERI_TOUR_STEPS.map((st, idx) => (
+                    <span
+                      key={st.title}
+                      className={`h-1.5 rounded-full transition-all ${
+                        idx === materiTourStep
+                          ? "w-5 bg-[#f4d993]"
+                          : "w-1.5 bg-white/25"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNextMateriTour}
+                  className="rounded-full bg-[#f4d993] px-3.5 py-1 text-[11px] font-bold text-[#030712] hover:bg-white transition-colors cursor-pointer"
+                >
+                  {materiTourStep === MATERI_TOUR_STEPS.length - 1
+                    ? "Siap Belajar!"
+                    : "Lanjut ->"}
+                </button>
+              </div>
             </div>
           )}
 

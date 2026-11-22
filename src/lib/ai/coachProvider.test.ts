@@ -100,7 +100,7 @@ describe("Hybrid Socratic AI Coach Provider (Groq -> Gemini -> Offline Fallback)
       fetchFn: fetchMock,
       envOverride: {
         GROQ_API_KEY: "gsk_test_secret_123",
-        GROQ_MODEL: "llama-3.3-70b-versatile",
+        GROQ_MODEL: "openai/gpt-oss-120b",
         GEMINI_API_KEY: "AIza_test_secret_456",
         GEMINI_MODEL: "gemini-2.5-flash",
       },
@@ -108,6 +108,7 @@ describe("Hybrid Socratic AI Coach Provider (Groq -> Gemini -> Offline Fallback)
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.provider).toBe("groq");
+    expect(result.model).toBe("openai/gpt-oss-120b");
     expect(result.fallbackUsed).toBe(false);
     expect(result.verificationStatus).toBe("model_suggestion");
     expect(result.mode).toBe("theme_lexicon");
@@ -117,6 +118,52 @@ describe("Hybrid Socratic AI Coach Provider (Groq -> Gemini -> Offline Fallback)
         expect(frame.frameWithBlank).toMatch(/\[[^\]\n]{3,90}\]/);
       }
     }
+  });
+
+  it("recovers cleanly when primary Groq model returns 404 by falling back to next active Groq model and normalizing imperfect LLM casing", async () => {
+    const fetchMock = vi.fn<FetchLike>(async (_input, init) => {
+      const parsedBody = JSON.parse(String(init?.body ?? "{}")) as { model?: string };
+      if (parsedBody.model === "deprecated-model-id") {
+        return new Response(JSON.stringify({ error: { code: "model_not_found" } }), {
+          status: 404,
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  sensoryWords: VALID_THEME_JSON.sensoryWords.map((w) => ({
+                    ...w,
+                    sense: w.sense === "Aroma / Sentuhan" ? "Penciuman/Peraba" : w.sense,
+                    type: w.type === "Kiasan / Majas" ? "Kiasan" : w.type.toLowerCase(),
+                  })),
+                  majasFrames: VALID_THEME_JSON.majasFrames.map((f) => ({
+                    ...f,
+                    connector: "Bagaikan",
+                  })),
+                  imaginationQuestions: VALID_THEME_JSON.imaginationQuestions,
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200 }
+      );
+    });
+
+    const result = await runSocraticCoach(SAMPLE_THEME_REQ, {
+      fetchFn: fetchMock,
+      envOverride: {
+        GROQ_API_KEY: "gsk_test_resilience",
+        GROQ_MODEL: "deprecated-model-id",
+      },
+    });
+
+    expect(result.provider).toBe("groq");
+    expect(result.model).toBe("qwen/qwen3.8-27b");
+    expect(result.mode).toBe("theme_lexicon");
   });
 
   it("automatically falls back from Groq (HTTP 429 token/rate limit) to Gemini using x-goog-api-key header (never in URL)", async () => {

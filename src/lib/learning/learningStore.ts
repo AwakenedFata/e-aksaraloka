@@ -62,6 +62,24 @@ export interface CompetencyMetrics {
   readonly unlockedSealsCount: number;
   readonly kelayakanCategory: string;
   readonly materiKelayakanCategory: string;
+  readonly masteryRankTitle: string;
+}
+
+/** Gelar penguasaan bermakna berbasis pencapaian nyata (bukan poin kosong). */
+export function getMasteryRankTitle(
+  unlockedSealsCount: number,
+  sealStudioUnlocked: boolean
+): string {
+  if (unlockedSealsCount >= 3 && sealStudioUnlocked) {
+    return "Penulis Muda Aksaraloka";
+  }
+  if (unlockedSealsCount >= 3) {
+    return "Penjaga Pustaka (Siap Mengarang!)";
+  }
+  if (unlockedSealsCount >= 1 || sealStudioUnlocked) {
+    return "Penjelajah Aksara";
+  }
+  return "Pengembara Baru";
 }
 
 /**
@@ -319,6 +337,10 @@ export function computeCompetencyMetrics(state: AksaralokaLearningState): Compet
   // Kategori kelayakan/penguasaan 5 tingkat sesuai skala persentase Pedoman PjBL hlm. 9
   const kelayakanCategory = getPjblMasteryCategory(holisticTotalPercentage);
   const materiKelayakanCategory = getPjblMasteryCategory(overallPercentage);
+  const masteryRankTitle = getMasteryRankTitle(
+    unlockedSealsCount,
+    state.sealStudioUnlocked
+  );
 
   return {
     babak1Score,
@@ -331,6 +353,7 @@ export function computeCompetencyMetrics(state: AksaralokaLearningState): Compet
     unlockedSealsCount,
     kelayakanCategory,
     materiKelayakanCategory,
+    masteryRankTitle,
   };
 }
 

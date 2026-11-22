@@ -12,14 +12,20 @@ import {
 } from "./coachSchemas";
 
 const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b";
+const GROQ_FALLBACK_MODELS = [
+  "qwen/qwen3.8-27b",
+  "openai/gpt-oss-20b",
+] as const;
+
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_SECONDARY_MODEL = "gemini-2.0-flash";
 
-const PROVIDER_TIMEOUT_MS = 8500;
+const PROVIDER_TIMEOUT_MS = 10000;
 const MODEL_DISCLAIMER =
-  "Saran pemantik dari Asisten AI Sokratik (bukan otoritas resmi KBBI/EYD V). Lengkapi tanda [...] dengan kalimat karyamu sendiri!";
+  "Saran pemantik dari Asisten AI (bukan kamus resmi KBBI/EYD). Ganti tanda [...] dengan kalimat karyamu sendiri!";
 const OFFLINE_DISCLAIMER =
-  "Saran pemantik dari Bank Kurasi Luring E-Aksaraloka. Lengkapi tanda [...] dengan kalimat karyamu sendiri!";
+  "Saran dari Bank Kata Pustaka (mode luring). Ganti tanda [...] dengan kalimat karyamu sendiri!";
 
 // ============================================================================
 // IN-MEMORY SLIDING-WINDOW RATE LIMITER (CLASSROOM-FRIENDLY QUOTA GUARD)
@@ -179,12 +185,157 @@ function enforceFrameHasBlank(frame: string, connector: string): string {
   return `[Tulis aksi tokoh] ${connector} [lengkapi perumpamaan orisinalmu di sini].`;
 }
 
+function clipText(val: unknown, maxLen: number, fallback: string): string {
+  if (typeof val !== "string") return fallback;
+  const cleaned = val.replace(/\s+/g, " ").trim();
+  if (!cleaned) return fallback;
+  return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen - 3).trim()}...` : cleaned;
+}
+
+function normalizeSense(raw: unknown): "Penglihatan" | "Pendengaran" | "Aroma / Sentuhan" {
+  const s = typeof raw === "string" ? raw.toLowerCase() : "";
+  if (/dengar|suara|auditif|telinga/.test(s)) return "Pendengaran";
+  if (/aroma|bau|cium|raba|sentuh|suhu|rasa|kulit|hidung|taktil|olfakt/.test(s)) {
+    return "Aroma / Sentuhan";
+  }
+  return "Penglihatan";
+}
+
+function normalizeWordType(raw: unknown): "Denotatif" | "Konotatif" | "Kiasan / Majas" {
+  const s = typeof raw === "string" ? raw.toLowerCase() : "";
+  if (/kias|majas|metafor|asosiasi|perumpamaan/.test(s)) return "Kiasan / Majas";
+  if (/konot/.test(s)) return "Konotatif";
+  return "Denotatif";
+}
+
+function normalizeConnector(
+  raw: unknown
+): "seperti" | "bagaikan" | "bagai" | "laksana" | "bak" | "seumpama" {
+  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (s === "bagaikan" || s === "bagai" || s === "laksana" || s === "bak" || s === "seumpama" || s === "seperti") {
+    return s;
+  }
+  if (s.includes("bagai")) return "bagaikan";
+  if (s.includes("laksana")) return "laksana";
+  if (s.includes("bak")) return "bak";
+  return "seperti";
+}
+
+function normalizeConsistencyStatus(
+  raw: unknown
+): "konsisten" | "perlu_diperkuat" | "terindikasi_melanggar" {
+  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (s.includes("langgar") || s.includes("cacat") || s.includes("tidak_konsisten")) {
+    return "terindikasi_melanggar";
+  }
+  if (s.includes("konsisten") && !s.includes("belum") && !s.includes("kurang")) {
+    return "konsisten";
+  }
+  return "perlu_diperkuat";
+}
+
+function normalizeRawPayload(
+  mode: CoachRequest["mode"],
+  parsedJson: unknown
+): unknown {
+  if (!parsedJson || typeof parsedJson !== "object") return parsedJson;
+  const root = parsedJson as Record<string, unknown>;
+  const obj =
+    root.data && typeof root.data === "object"
+      ? (root.data as Record<string, unknown>)
+      : root;
+
+  if (mode === "theme_lexicon") {
+    const rawWords = Array.isArray(obj.sensoryWords) ? obj.sensoryWords : [];
+    const rawFrames = Array.isArray(obj.majasFrames) ? obj.majasFrames : [];
+    const rawQuestions = Array.isArray(obj.imaginationQuestions)
+      ? obj.imaginationQuestions
+      : [];
+
+    return {
+      sensoryWords: rawWords.slice(0, 8).map((item) => {
+        const w = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+        return {
+          word: clipText(w.word, 48, "Berpendar"),
+          sense: normalizeSense(w.sense),
+          type: normalizeWordType(w.type),
+          meaning: clipText(w.meaning, 155, "Kata deskriptif untuk menghidupkan suasana cerita."),
+          usageHint: clipText(w.usageHint, 155, "Gunakan di paragraf awal atau puncak masalah."),
+        };
+      }),
+      majasFrames: rawFrames.slice(0, 4).map((item) => {
+        const f = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+        const connector = normalizeConnector(f.connector);
+        return {
+          connector,
+          frameWithBlank: enforceFrameHasBlank(
+            clipText(f.frameWithBlank, 195, `[Tulis aksi tokoh] ${connector} [isi perumpamaanmu].`),
+            connector
+          ),
+          whyItFits: clipText(f.whyItFits, 155, "Cocok untuk menghidupkan suasana temamu."),
+        };
+      }),
+      imaginationQuestions: rawQuestions
+        .slice(0, 3)
+        .map((q) => clipText(q, 175, "Kejutan ajaib apa yang pertama kali ditemui tokohmu?"))
+        .filter((q) => q.length >= 6),
+    };
+  }
+
+  if (mode === "logic_check") {
+    const rawStrengths = Array.isArray(obj.strengths) ? obj.strengths : [];
+    const rawQuestions = Array.isArray(obj.guidingQuestions) ? obj.guidingQuestions : [];
+    return {
+      consistencyStatus: normalizeConsistencyStatus(obj.consistencyStatus),
+      summary: clipText(
+        obj.summary,
+        350,
+        "Periksa kembali apakah cara tokohmu menyelesaikan masalah sudah mematuhi Aturan Ajaib di Lembar 1."
+      ),
+      strengths: (rawStrengths.length > 0
+        ? rawStrengths
+        : ["Kamu sudah merancang aturan keajaiban untuk dunia ceritamu."]
+      )
+        .slice(0, 3)
+        .map((s) => clipText(s, 195, "Ide cerita sudah menarik.")),
+      guidingQuestions: (rawQuestions.length > 0
+        ? rawQuestions
+        : ["Bagaimana tokohmu menyelesaikan masalah tanpa melanggar aturan ajaib di Lembar 1?"]
+      )
+        .slice(0, 3)
+        .map((q) => clipText(q, 215, "Apakah penyelesaian ceritamu sudah mengikuti aturan ajaib?")),
+    };
+  }
+
+  const rawAppreciations = Array.isArray(obj.appreciations) ? obj.appreciations : [];
+  const rawQuestions = Array.isArray(obj.guidingQuestions) ? obj.guidingQuestions : [];
+  return {
+    appreciations: (rawAppreciations.length > 0
+      ? rawAppreciations
+      : ["Ceritamu sudah memiliki fondasi alur yang menarik untuk dikembangkan."]
+    )
+      .slice(0, 3)
+      .map((a) => clipText(a, 215, "Ide ceritamu sudah bagus.")),
+    guidingQuestions: (rawQuestions.length > 0
+      ? rawQuestions
+      : ["Detail suara atau cahaya apa yang bisa kamu tambahkan agar suasananya makin terasa?"])
+      .slice(0, 3)
+      .map((q) => clipText(q, 215, "Bagian mana yang bisa kamu buat lebih hidup?")),
+    nextMiniChallenge: clipText(
+      obj.nextMiniChallenge,
+      215,
+      "Coba tambahkan 1 detail panca indera atau perumpamaan pada puncak masalahmu!"
+    ),
+  };
+}
+
 function validateAndSanitizePayload(
   mode: CoachRequest["mode"],
   parsedJson: unknown
 ): ThemeLexiconPayload | LogicCheckPayload | SocraticReviewPayload {
+  const normalized = normalizeRawPayload(mode, parsedJson);
   if (mode === "theme_lexicon") {
-    const validated = themeLexiconPayloadSchema.parse(parsedJson);
+    const validated = themeLexiconPayloadSchema.parse(normalized);
     return {
       ...validated,
       majasFrames: validated.majasFrames.map((item) => ({
@@ -194,9 +345,9 @@ function validateAndSanitizePayload(
     };
   }
   if (mode === "logic_check") {
-    return logicCheckPayloadSchema.parse(parsedJson);
+    return logicCheckPayloadSchema.parse(normalized);
   }
-  return socraticReviewPayloadSchema.parse(parsedJson);
+  return socraticReviewPayloadSchema.parse(normalized);
 }
 
 // ============================================================================
@@ -207,43 +358,70 @@ export type FetchLike = typeof fetch;
 
 async function callGroqJson(
   apiKey: string,
-  model: string,
+  primaryModel: string,
   userPrompt: string,
   fetchFn: FetchLike
-): Promise<unknown> {
-  const res = await fetchFn(GROQ_CHAT_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.6,
-      max_tokens: 900,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
-  });
+): Promise<{ readonly json: unknown; readonly usedModel: string }> {
+  const candidateModels = Array.from(
+    new Set([primaryModel, ...GROQ_FALLBACK_MODELS])
+  );
 
-  if (!res.ok) {
-    throw new Error(`Groq HTTP ${res.status}`);
-  }
+  let lastError: unknown;
+  for (const model of candidateModels) {
+    try {
+      const isGptOss = model.startsWith("openai/gpt-oss");
+      const payload: Record<string, unknown> = {
+        model,
+        temperature: 0.6,
+        max_tokens: 1800,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+      };
+      if (isGptOss) {
+        payload.reasoning_effort = "low";
+      }
 
-  const body = (await res.json()) as {
-    readonly choices?: readonly {
-      readonly message?: { readonly content?: string };
-    }[];
-  };
-  const content = body.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("Groq returned empty completion content.");
+      const res = await fetchFn(GROQ_CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      });
+
+      if (!res.ok) {
+        // Rate limit / quota / auth failure: exit Groq loop immediately so Gemini takes over fast
+        if (res.status === 401 || res.status === 402 || res.status === 403 || res.status === 429) {
+          throw new Error(`GROQ_ABORT_${res.status}`);
+        }
+        lastError = new Error(`Groq HTTP ${res.status}`);
+        continue;
+      }
+
+      const body = (await res.json()) as {
+        readonly choices?: readonly {
+          readonly message?: { readonly content?: string };
+        }[];
+      };
+      const content = body.choices?.[0]?.message?.content;
+      if (!content) {
+        lastError = new Error("Groq returned empty completion content.");
+        continue;
+      }
+      return { json: extractJsonObject(content), usedModel: model };
+    } catch (err) {
+      lastError = err;
+      if (err instanceof Error && err.message.startsWith("GROQ_ABORT_")) {
+        throw err;
+      }
+    }
   }
-  return extractJsonObject(content);
+  throw lastError ?? new Error("Groq models unavailable.");
 }
 
 async function callGeminiJson(
@@ -330,11 +508,57 @@ export function buildOfflineCoachFallback(
 
   if (req.mode === "theme_lexicon") {
     const lowerTheme = `${req.theme} ${req.settingPlace}`.toLowerCase();
+    const isKingdom = /kerajaan|istana|raja|ratu|pangeran|putri|kastel|mahkota|kesatria/.test(lowerTheme);
     const isOcean = /laut|air|samudra|karang|pantai|sungai|kapal|paus/.test(lowerTheme);
     const isSky = /awan|langit|bintang|angin|terbang|menara|bulan/.test(lowerTheme);
     const isTech = /mesin|robot|jam|kereta|kota|besi|gear|waktu/.test(lowerTheme);
 
-    const sensoryWords: ThemeLexiconPayload["sensoryWords"] = isOcean
+    const sensoryWords: ThemeLexiconPayload["sensoryWords"] = isKingdom
+      ? [
+          {
+            word: "Gemerlap aula pualam",
+            sense: "Penglihatan",
+            type: "Denotatif",
+            meaning: "Kilau megah lantai batu istana yang memantulkan sinar obor.",
+            usageHint: "Cocok dipakai saat tokoh pertama kali memasuki balairung kerajaan.",
+          },
+          {
+            word: "Kilau mahkota emas",
+            sense: "Penglihatan",
+            type: "Denotatif",
+            meaning: "Pantulan cahaya keemasan dari lambang kekuasaan raja/ratu.",
+            usageHint: "Gambarkan saat mengenalkan tokoh penguasa atau pusaka kerajaan.",
+          },
+          {
+            word: "Dering terompet gerbang",
+            sense: "Pendengaran",
+            type: "Denotatif",
+            meaning: "Bunyi nyaring penanda tamu penting atau bahaya mendekati benteng.",
+            usageHint: "Pas untuk membuka paragraf Muncul Masalah (Komplikasi).",
+          },
+          {
+            word: "Derap langkah penjaga",
+            sense: "Pendengaran",
+            type: "Denotatif",
+            meaning: "Suara langkah kaki berirama yang menggema di lorong batu istana.",
+            usageHint: "Membangun ketegangan saat tokoh harus menyelinap atau bersembunyi.",
+          },
+          {
+            word: "Harum lilin damar",
+            sense: "Aroma / Sentuhan",
+            type: "Denotatif",
+            meaning: "Wangi hangat dari lilin dan lentera yang menerangi ruang kerajaan.",
+            usageHint: "Tambahkan di Orientasi agar suasana istana terasa nyata.",
+          },
+          {
+            word: "Dinding batu sedingin es",
+            sense: "Aroma / Sentuhan",
+            type: "Kiasan / Majas",
+            meaning: "Permukaan tembok benteng yang terasa amat dingin saat disentuh.",
+            usageHint: "Tunjukkan sensasi perabaan saat tokoh terjebak di menara atau lorong.",
+          },
+        ]
+      : isOcean
       ? [
           {
             word: "Berpendar biru safir",
@@ -635,21 +859,26 @@ export async function runSocraticCoach(
   const fetchFn = options?.fetchFn ?? fetch;
   const env = options?.envOverride ?? getServerEnv();
   const groqKey = env.GROQ_API_KEY?.trim();
-  const groqModel = env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile";
+  const groqModel = env.GROQ_MODEL?.trim() || GROQ_DEFAULT_MODEL;
   const geminiKey = env.GEMINI_API_KEY?.trim();
   const geminiModel = env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
 
   const userPrompt = buildUserPrompt(req);
   let groqFailed = false;
 
-  // 1. Primary Provider: Groq
+  // 1. Primary Provider: Groq (with internal active-model resilience)
   if (groqKey) {
     try {
-      const rawJson = await callGroqJson(groqKey, groqModel, userPrompt, fetchFn);
+      const { json: rawJson, usedModel } = await callGroqJson(
+        groqKey,
+        groqModel,
+        userPrompt,
+        fetchFn
+      );
       const data = validateAndSanitizePayload(req.mode, rawJson);
       return buildSuccessResponse(req.mode, data, {
         provider: "groq",
-        model: groqModel,
+        model: usedModel,
         fallbackUsed: false,
         verificationStatus: "model_suggestion",
         disclaimer: MODEL_DISCLAIMER,

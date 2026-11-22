@@ -91,6 +91,9 @@ export interface PlotBeatItem {
 export const BOLA_WAKTU_AUDIO_SCRIPT =
   "Kisah Bola-Bola Waktu karya Fauzia A. Setiap pukul empat pagi, Ivan harus membantu ibunya membuat kue basah untuk dititipkan di kantin sekolah. Ivan merasa malu karena Fiam sering mengejeknya sebagai tukang kue. Suatu sore, pria berkerudung hitam memberinya bola-bola waktu bercahaya. Ivan memilih bola merah untuk melompat ke tahun 2022 agar tidak perlu lagi berjualan kue. Di masa depan itu, Ivan memang menjadi bintang basket populer, tetapi ia terkejut mendapati makam ayahnya yang wafat karena kelelahan bekerja seorang diri. Ivan menangis menyesal, lalu terbangun kembali di masa kini. Ia memeluk kedua orang tuanya dan bertekad bangga membantu ibunya sambil tetap giat berlatih basket.";
 
+export const MAO_EMAS_AUDIO_SCRIPT =
+  "Dua kisah inspirasi Misi Kedua: Sihir Unik Mao dan Keberanian Emas. Di Sekolah Peri Juara, Mao sering gagal mantra terbang dan diejek oleh Yari yang sombong. Namun Mao pantang menyerah berlatih bersama sahabatnya Piru, hingga berhasil menyihir makanan manis yang meredakan marah Yari. Sementara pada kisah Keberanian Emas, Emas melarikan diri dari kejaran Raksasa dengan melemparkan empat kantong ajaib secara berurutan dari bahaya awal sampai puncak klimaks: pertama biji timun menjadi kebun lebat, kedua jarum menjadi hutan bambu tajam, ketiga garam menjadi lautan luas, dan keempat terasi menjadi lautan lumpur mendidih yang mengalahkan Raksasa.";
+
 export const BOLA_WAKTU_PLOT_BEATS: readonly PlotBeatItem[] = [
   {
     id: "beat-orientasi",

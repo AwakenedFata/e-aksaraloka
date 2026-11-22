@@ -318,7 +318,7 @@ export function PetaPembelajaranModal({
 
   <div class="meta-grid">
     <div><strong>Nama Siswa:</strong> ${safeName}</div>
-    <div><strong>Kelas:</strong> ${safeClass}</div>
+    <div><strong>Kelas:</strong> ${safeClass} · <strong>Gelar:</strong> ${escapeHtml(metrics.masteryRankTitle)}</div>
     <div><strong>Skor Holistik:</strong> ${metrics.holisticTotalPercentage}% (${escapeHtml(metrics.kelayakanCategory)})</div>
   </div>
 
@@ -571,7 +571,9 @@ export function PetaPembelajaranModal({
           {/* Desktop Right Floating Pill Group */}
           <div className="pointer-events-auto hidden md:flex flex-wrap items-center gap-1.5 rounded-full border border-[#d6b26f]/45 bg-slate-950/84 px-3 py-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.85)] backdrop-blur-md">
             <span className="text-[11px] text-amber-100/85">
-              Segel:{" "}
+              <strong className="text-[#ffe8b6]">{metrics.masteryRankTitle}</strong>
+              <span className="mx-1 text-[#d6b26f]/40">|</span>
+              Segel{" "}
               <strong className="text-[#ffe8b6]">
                 {metrics.unlockedSealsCount}/3
               </strong>{" "}

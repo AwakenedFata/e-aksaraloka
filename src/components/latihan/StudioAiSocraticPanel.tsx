@@ -13,10 +13,10 @@ interface StudioAiSocraticPanelProps {
   readonly totalWords: number;
 }
 
-function providerTag(provider: CoachSuccessResponse["provider"], model: string): string {
-  if (provider === "groq") return `Groq AI (${model}) · model_suggestion`;
-  if (provider === "gemini") return `Gemini Cadangan (${model}) · model_suggestion`;
-  return "Bank Kurasi Luring · curated_offline";
+function providerTag(provider: CoachSuccessResponse["provider"]): string {
+  if (provider === "groq") return "Saran Pemantik AI";
+  if (provider === "gemini") return "Saran AI (Cadangan)";
+  return "Panduan Luring Pustaka";
 }
 
 export function StudioAiSocraticPanel({
@@ -136,38 +136,38 @@ export function StudioAiSocraticPanel({
   };
 
   return (
-    <div className="mt-2.5 border-t border-[#5c3d1e]/45 pt-2 space-y-1.5">
-      <div className="flex flex-wrap items-center justify-between gap-1.5">
-        <span className="font-brand text-[9.5px] font-bold uppercase tracking-[0.1em] text-[#3d250b]">
-          Pelatih Sokratik AI (Groq · Cadangan Gemini)
+    <div className="mt-2.5 border-t border-[#5c3d1e]/45 pt-2 space-y-2">
+      <div className="space-y-1">
+        <span className="block font-brand text-[10px] font-bold uppercase tracking-[0.08em] text-[#3d250b]">
+          Pelatih Cerita AI (Bantu Cek &amp; Revisi)
         </span>
-        <div className="flex flex-wrap items-center gap-1">
-          <button
-            type="button"
-            disabled={loadingMode !== null}
-            onClick={handleRunLogicCheck}
-            className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 disabled:opacity-50 px-2 py-0.5 text-[9.5px] font-bold text-[#3d250b] transition-colors cursor-pointer"
-          >
-            {loadingMode === "logic_check"
-              ? "Menguji Logika..."
-              : "Uji Logika Aturan Dunia"}
-          </button>
-          <button
-            type="button"
-            disabled={loadingMode !== null}
-            onClick={handleRunSocraticReview}
-            className="rounded-full border border-[#14532d]/75 bg-[#14532d]/12 hover:bg-[#14532d]/22 disabled:opacity-50 px-2 py-0.5 text-[9.5px] font-bold text-[#14532d] transition-colors cursor-pointer"
-          >
-            {loadingMode === "socratic_review"
-              ? "Menyiapkan Pertanyaan..."
-              : "Tanya Pelatih Revisi"}
-          </button>
-        </div>
+        <p className="text-[9.5px] leading-snug italic text-[#5c3d1e]">
+          Pelatih AI hanya memberi pertanyaan penuntun agar kamu sendiri yang memperbagus ceritamu (bukan kamus resmi KBBI/EYD).
+        </p>
       </div>
 
-      <p className="text-[9.5px] italic text-[#5c3d1e]">
-        Saran pemantik AI Sokratik (tidak menulis ulang ceritamu &amp; bukan otoritas resmi KBBI/EYD V).
-      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        <button
+          type="button"
+          disabled={loadingMode !== null}
+          onClick={handleRunLogicCheck}
+          className="min-h-[30px] rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 disabled:opacity-50 px-2.5 py-1 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer text-center"
+        >
+          {loadingMode === "logic_check"
+            ? "Mengecek Aturan..."
+            : "Cek Kecocokan Aturan Ajaib"}
+        </button>
+        <button
+          type="button"
+          disabled={loadingMode !== null}
+          onClick={handleRunSocraticReview}
+          className="min-h-[30px] rounded-full border border-[#14532d]/75 bg-[#14532d]/12 hover:bg-[#14532d]/22 disabled:opacity-50 px-2.5 py-1 text-[10px] font-bold text-[#14532d] transition-colors cursor-pointer text-center"
+        >
+          {loadingMode === "socratic_review"
+            ? "Menyiapkan Saran..."
+            : "Minta Saran Perbaikan Cerita"}
+        </button>
+      </div>
 
       {errorMsg && (
         <p className="rounded border border-[#7f1d1d]/50 bg-[#7f1d1d]/10 px-2 py-1 text-[10px] font-semibold text-[#7f1d1d]">
@@ -187,15 +187,18 @@ export function StudioAiSocraticPanel({
                     : "text-[#7c2d12]"
               }
             >
-              Uji Logika:{" "}
+              Hasil Cek Aturan:{" "}
               {logicResult.data.consistencyStatus === "konsisten"
-                ? "Konsisten dengan Aturan ✓"
+                ? "Cocok dengan Aturan ✓"
                 : logicResult.data.consistencyStatus === "terindikasi_melanggar"
-                  ? "Indikasi Melanggar Aturan!"
-                  : "Perlu Diperkuat"}
+                  ? "Ada Bagian Melanggar Aturan!"
+                  : "Perlu Diperjelas"}
             </strong>
-            <span className="text-[8.5px] font-semibold text-[#5c3d1e]">
-              {providerTag(logicResult.provider, logicResult.model)}
+            <span
+              title={`${logicResult.provider} · ${logicResult.model}`}
+              className="text-[8.5px] font-semibold text-[#5c3d1e]"
+            >
+              {providerTag(logicResult.provider)}
             </span>
           </div>
           {logicResult.fallbackNotice && (
@@ -203,7 +206,7 @@ export function StudioAiSocraticPanel({
           )}
           <p className="leading-snug">{logicResult.data.summary}</p>
           <div className="space-y-0.5 pt-0.5">
-            <span className="font-bold text-[#3d250b]">Pertanyaan Penuntun:</span>
+            <span className="font-bold text-[#3d250b]">Coba Pikirkan Ini:</span>
             {logicResult.data.guidingQuestions.map((q, idx) => (
               <p key={idx} className="leading-snug pl-2">
                 {idx + 1}. {q}
@@ -216,9 +219,12 @@ export function StudioAiSocraticPanel({
       {reviewResult && (
         <div className="rounded border border-[#14532d]/40 bg-[#14532d]/8 p-2 space-y-1 text-[10px] text-[#1e1106]">
           <div className="flex flex-wrap items-center justify-between gap-1">
-            <strong className="text-[#14532d]">Catatan Pelatih Revisi (TP 5)</strong>
-            <span className="text-[8.5px] font-semibold text-[#5c3d1e]">
-              {providerTag(reviewResult.provider, reviewResult.model)}
+            <strong className="text-[#14532d]">Saran Perbaikan Ceritamu</strong>
+            <span
+              title={`${reviewResult.provider} · ${reviewResult.model}`}
+              className="text-[8.5px] font-semibold text-[#5c3d1e]"
+            >
+              {providerTag(reviewResult.provider)}
             </span>
           </div>
           {reviewResult.fallbackNotice && (

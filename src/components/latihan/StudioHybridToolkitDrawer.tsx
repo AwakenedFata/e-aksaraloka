@@ -24,8 +24,15 @@ interface SealBadgeItem {
   readonly label: string;
 }
 
+export type TargetParagraphKey =
+  | "orientasi"
+  | "komplikasi"
+  | "klimaks"
+  | "resolusi";
+
 interface StudioHybridToolkitDrawerProps {
   readonly draft: StudioDraftData;
+  readonly defaultInsertTarget: TargetParagraphKey;
   readonly sealBadges: readonly SealBadgeItem[];
   readonly isSealUnlockedForId: (id: GrimoireChapterId) => boolean;
   readonly onClose: () => void;
@@ -33,7 +40,7 @@ interface StudioHybridToolkitDrawerProps {
   readonly onApplySeedOutline: (seedId: string, title: string) => void;
   readonly onApplySeedFullModel: (seedId: string, title: string) => void;
   readonly onApplyIdeaRecipe: (recipe: FantasyIdeaRecipe) => void;
-  readonly onInsertWord: (word: string) => void;
+  readonly onInsertWord: (word: string, target: TargetParagraphKey) => void;
   readonly onInsertMajasFrame: (frameText: string) => void;
   readonly onUpdateThemeCategory: (theme: string) => void;
 }
@@ -46,24 +53,25 @@ function formatProviderBadge(res: ThemeLexiconResponse): {
 } {
   if (res.provider === "groq") {
     return {
-      label: `Groq AI (${res.model}) · model_suggestion`,
+      label: "Pemantik AI Aktif · Saran Kreatif",
       className: "border-emerald-400/50 bg-emerald-950/60 text-emerald-200",
     };
   }
   if (res.provider === "gemini") {
     return {
-      label: `Gemini Cadangan (${res.model}) · model_suggestion`,
+      label: "Pemantik AI Aktif (Cadangan) · Saran Kreatif",
       className: "border-sky-400/50 bg-sky-950/60 text-sky-200",
     };
   }
   return {
-    label: "Bank Kurasi Luring · curated_offline",
+    label: "Bank Kata Pustaka · Mode Luring",
     className: "border-amber-400/50 bg-amber-950/60 text-amber-200",
   };
 }
 
 export function StudioHybridToolkitDrawer({
   draft,
+  defaultInsertTarget,
   sealBadges,
   isSealUnlockedForId,
   onClose,
@@ -76,6 +84,8 @@ export function StudioHybridToolkitDrawer({
   onUpdateThemeCategory,
 }: StudioHybridToolkitDrawerProps) {
   const [activeTab, setActiveTab] = useState<ToolkitTab>("ide_ramuan");
+  const [insertTarget, setInsertTarget] =
+    useState<TargetParagraphKey>(defaultInsertTarget);
   const [recipeSeedCounter, setRecipeSeedCounter] = useState<number>(1);
   const [ideaRecipe, setIdeaRecipe] = useState<FantasyIdeaRecipe>(() =>
     rollFantasyIdeaRecipe(1)
@@ -155,16 +165,16 @@ export function StudioHybridToolkitDrawer({
   return (
     <div
       data-lenis-prevent
-      className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-[72dvh] overflow-y-auto overscroll-contain rounded-2xl border border-[#cda250]/55 bg-[#070d1d]/97 p-3 shadow-2xl space-y-2.5 text-stone-200"
+      className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-[76dvh] overflow-y-auto overscroll-contain rounded-2xl border border-[#cda250]/55 bg-[#070d1d]/98 p-3 pb-5 shadow-2xl space-y-2.5 text-stone-200"
     >
-      {/* Top Bar: 4 Toolkit Tabs + Close */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#cda250]/25 pb-2">
-        <div className="flex flex-wrap items-center gap-1.5">
+      {/* Top Bar: Responsive 2x2 Tab Grid on Mobile, Inline Tabs + Close on Desktop */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-[#cda250]/25 pb-2">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5">
           {(
             [
               { id: "ide_ramuan", label: "1. Ide & Ramuan" },
               { id: "kamus_kata", label: "2. Kamus 48 Kata" },
-              { id: "pemantik_ai", label: "3. Pemantik AI Tema" },
+              { id: "pemantik_ai", label: "3. Bantu Tema AI" },
               { id: "segel", label: "4. 3 Segel Materi" },
             ] as const
           ).map((tab) => (
@@ -175,7 +185,7 @@ export function StudioHybridToolkitDrawer({
                 playChime();
                 setActiveTab(tab.id);
               }}
-              className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${
+              className={`min-h-[32px] sm:min-h-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer text-center ${
                 activeTab === tab.id
                   ? "bg-[#f4d993] text-slate-950"
                   : "border border-[#cda250]/35 bg-white/5 text-amber-100 hover:bg-white/10"
@@ -189,7 +199,7 @@ export function StudioHybridToolkitDrawer({
         <button
           type="button"
           onClick={onClose}
-          className="text-[10.5px] font-bold uppercase text-[#f4d993] hover:text-white cursor-pointer"
+          className="hidden sm:inline-block shrink-0 text-[10.5px] font-bold uppercase text-[#f4d993] hover:text-white cursor-pointer"
         >
           [ X ] Tutup
         </button>
@@ -300,9 +310,41 @@ export function StudioHybridToolkitDrawer({
         </div>
       )}
 
-      {/* TAB 2: KAMUS 48 KATA FANTASI (OFFLINE CURATED + 1-CLICK WORD INSERT) */}
+      {/* TAB 2: KAMUS 48 KATA FANTASI (OFFLINE CURATED + TARGET PARAGRAPH SELECTOR) */}
       {activeTab === "kamus_kata" && (
         <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 py-1.5">
+            <span className="text-[10px] font-bold text-amber-200">
+              Masukkan kata ke bagian:
+            </span>
+            <div className="flex flex-wrap items-center gap-1">
+              {(
+                [
+                  { id: "orientasi", label: "1. Awal" },
+                  { id: "komplikasi", label: "2. Masalah" },
+                  { id: "klimaks", label: "3. Puncak" },
+                  { id: "resolusi", label: "4. Akhir" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    playChime();
+                    setInsertTarget(t.id);
+                  }}
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold cursor-pointer transition-colors ${
+                    insertTarget === t.id
+                      ? "bg-[#f4d993] text-slate-950"
+                      : "border border-white/15 bg-white/5 text-stone-300 hover:border-[#f4d993]/50"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-1">
               {FANTASY_LEXICON_BANK.map((cat) => (
@@ -365,10 +407,10 @@ export function StudioHybridToolkitDrawer({
                 </div>
                 <button
                   type="button"
-                  onClick={() => onInsertWord(entry.word)}
+                  onClick={() => onInsertWord(entry.word, insertTarget)}
                   className="w-full rounded-lg border border-emerald-400/45 bg-emerald-950/60 hover:bg-emerald-900/70 py-1 text-[10px] font-bold text-emerald-200 cursor-pointer"
                 >
-                  + Sisipkan Kata ke Paragraf
+                  + Sisipkan Kata
                 </button>
               </div>
             ))}
@@ -376,19 +418,17 @@ export function StudioHybridToolkitDrawer({
         </div>
       )}
 
-      {/* TAB 3: PEMANTIK AI TEMA ORISINAL (GROQ PRIMARY -> GEMINI FALLBACK -> OFFLINE) */}
+      {/* TAB 3: BANTU TEMA AI (RAMAH SISWA KELAS 7 SMP, TANPA JARGON TEKNIS) */}
       {activeTab === "pemantik_ai" && (
         <div className="space-y-2.5">
           <div className="rounded-xl border border-[#cda250]/40 bg-black/55 p-2.5 space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <span className="font-brand text-[10px] font-bold tracking-wider uppercase text-[#f4d993]">
-                  PEMANTIK DIKSI &amp; MAJAS SESUAI TEMA ORISINALMU (GROQ · CADANGAN GEMINI)
-                </span>
-                <p className="text-[11px] text-stone-300">
-                  Punya tema unik sendiri? AI Sokratik hanya memberi 6 kata panca indera &amp; 3 kerangka rumpang [...] tanpa menulis cerita menggantikanmu.
-                </p>
-              </div>
+            <div className="space-y-0.5">
+              <span className="block font-brand text-[11px] font-bold tracking-wide text-[#f4d993]">
+                Cari Kata &amp; Perumpamaan untuk Temamu!
+              </span>
+              <p className="text-[11px] text-stone-300 leading-snug">
+                Tulis tema fantasimu sendiri (misalnya: <em>Kerajaan Awan</em> atau <em>Kota Bawah Laut</em>). Asisten AI akan memberi 6 kata panca indera dan 3 kerangka kalimat rumpang [...] untuk kamu lengkapi sendiri!
+              </p>
             </div>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -397,16 +437,16 @@ export function StudioHybridToolkitDrawer({
                 aria-label="Tema fantasi orisinal untuk pemantik AI"
                 value={draft.themeCategory}
                 onChange={(e) => onUpdateThemeCategory(e.target.value)}
-                placeholder="Tulis tema orisinalmu, mis. Sekolah di Punggung Paus Langit..."
-                className="flex-1 rounded-lg border border-white/20 bg-slate-950 px-3 py-1.5 text-xs text-white placeholder:text-stone-500 focus:border-[#f4d993] focus:outline-none"
+                placeholder="Tulis tema ceritamu, mis. Kerajaan Kucing atau Kota Awan..."
+                className="flex-1 rounded-lg border border-white/20 bg-slate-950 px-3 py-2 text-xs text-white placeholder:text-stone-500 focus:border-[#f4d993] focus:outline-none"
               />
               <button
                 type="button"
                 disabled={aiLoading}
                 onClick={handleFetchThemeBoost}
-                className="rounded-lg bg-[#cda250] hover:bg-[#f4d993] disabled:opacity-50 px-3.5 py-1.5 text-[11px] font-brand font-bold uppercase tracking-wider text-slate-950 cursor-pointer shrink-0"
+                className="min-h-[36px] rounded-lg bg-[#cda250] hover:bg-[#f4d993] disabled:opacity-50 px-3.5 py-1.5 text-[11px] font-brand font-bold uppercase tracking-wider text-slate-950 cursor-pointer shrink-0"
               >
-                {aiLoading ? "Meracik Pemantik..." : "Cari Diksi & Majas Temaku"}
+                {aiLoading ? "Mencari Kata..." : "Cari Kata & Perumpamaan ->"}
               </button>
             </div>
 
@@ -419,8 +459,9 @@ export function StudioHybridToolkitDrawer({
 
           {aiResult && (
             <div className="space-y-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
                 <span
+                  title={`Sumber: ${aiResult.provider} (${aiResult.model})`}
                   className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${
                     formatProviderBadge(aiResult).className
                   }`}
@@ -431,10 +472,43 @@ export function StudioHybridToolkitDrawer({
               </div>
 
               {aiResult.fallbackNotice && (
-                <p className="rounded-lg border border-amber-400/40 bg-amber-950/45 px-2.5 py-1 text-[10.5px] text-amber-200">
+                <p className="rounded-lg border border-amber-400/40 bg-amber-950/45 px-2.5 py-1.5 text-[10.5px] text-amber-200 leading-snug">
                   {aiResult.fallbackNotice}
                 </p>
               )}
+
+              {/* Target Paragraph Selector for AI Sensory Words */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 py-1.5">
+                <span className="text-[10px] font-bold text-amber-200">
+                  Masukkan kata ke bagian:
+                </span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {(
+                    [
+                      { id: "orientasi", label: "1. Awal" },
+                      { id: "komplikasi", label: "2. Masalah" },
+                      { id: "klimaks", label: "3. Puncak" },
+                      { id: "resolusi", label: "4. Akhir" },
+                    ] as const
+                  ).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        playChime();
+                        setInsertTarget(t.id);
+                      }}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold cursor-pointer transition-colors ${
+                        insertTarget === t.id
+                          ? "bg-[#f4d993] text-slate-950"
+                          : "border border-white/15 bg-white/5 text-stone-300 hover:border-[#f4d993]/50"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* 6 Sensory Words */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -457,7 +531,7 @@ export function StudioHybridToolkitDrawer({
                     </div>
                     <button
                       type="button"
-                      onClick={() => onInsertWord(sw.word)}
+                      onClick={() => onInsertWord(sw.word, insertTarget)}
                       className="w-full rounded-lg border border-emerald-400/45 bg-emerald-950/55 hover:bg-emerald-900/65 py-1 text-[10px] font-bold text-emerald-200 cursor-pointer"
                     >
                       + Sisipkan Kata

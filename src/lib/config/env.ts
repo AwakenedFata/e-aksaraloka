@@ -49,7 +49,7 @@ export const serverEnvSchema = z.object({
   GROQ_API_KEY: optionalString,
   GROQ_MODEL: z.preprocess(
     emptyToUndefined,
-    z.string().min(1).max(80).default("llama-3.3-70b-versatile"),
+    z.string().min(1).max(80).default("openai/gpt-oss-120b"),
   ),
 
   APP_COMMIT_SHA: optionalString,

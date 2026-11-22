@@ -45,7 +45,10 @@ import {
   type FantasyIdeaRecipe,
   type SentenceFrameGroupId,
 } from "@/lib/learning/creativeScaffolding";
-import { StudioHybridToolkitDrawer } from "@/components/latihan/StudioHybridToolkitDrawer";
+import {
+  StudioHybridToolkitDrawer,
+  type TargetParagraphKey,
+} from "@/components/latihan/StudioHybridToolkitDrawer";
 import { StudioAiSocraticPanel } from "@/components/latihan/StudioAiSocraticPanel";
 import {
   playChime,
@@ -67,6 +70,25 @@ interface StudioTulisStageOverlayProps {
 type StudioViewTab = "dual_book" | "audit_revisi" | "galeri_piagam";
 
 const CUSTOM_THEME_OPTION_VALUE = "__custom_original_theme__";
+const STUDIO_TOUR_STORAGE_KEY = "aksaraloka:studio-tour-seen:v1";
+
+const STUDIO_TOUR_STEPS: readonly {
+  readonly title: string;
+  readonly body: string;
+}[] = [
+  {
+    title: "Langkah 1/3 · Rancang Dunia Ceritamu (Lembar 1)",
+    body: "Isi Tema, Aturan Ajaib, Tokoh, dan Tempat di Lembar 1. Bingung mulai? Klik tombol 'Alat Bantu & AI' (atau 'Ide & AI') di atas buat mengacak ide seru atau minta bantuan kata!",
+  },
+  {
+    title: "Langkah 2/3 · Tulis 4 Bagian Cerita (Lembar 2 & 3)",
+    body: "Tulis Awal, Masalah, Puncak, dan Akhir. Kamu boleh klik tombol '+ Kerangka' sebagai awalan, lalu ganti semua tanda [...] dengan kalimat versimu sendiri!",
+  },
+  {
+    title: "Langkah 3/3 · Cek Skor, Revisi & Cetak Piagam!",
+    body: "Klik 'Cek & AI' di atas layar untuk memeriksa 5 Misi dan merapikan ejaan, centang ceklis revisi, lalu buka Galeri untuk Simpan & Cetak Piagam Penulis Muda!",
+  },
+];
 
 function escapeHtml(raw: string): string {
   return raw
@@ -139,7 +161,20 @@ export function StudioTulisStageOverlay({
   const didSwipeRef = useRef<boolean>(false);
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
   const [isGuideDrawerOpen, setIsGuideDrawerOpen] = useState<boolean>(false);
+  const [studioTourStep, setStudioTourStep] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return window.localStorage.getItem(STUDIO_TOUR_STORAGE_KEY) === "1"
+        ? null
+        : 0;
+    } catch {
+      return null;
+    }
+  });
   const [isConfirmingResetDraft, setIsConfirmingResetDraft] = useState<boolean>(false);
+  const [confirmDeleteManuscriptId, setConfirmDeleteManuscriptId] = useState<
+    string | null
+  >(null);
   const [forceCustomThemeInput, setForceCustomThemeInput] = useState<boolean>(false);
   const [framePatternCursor, setFramePatternCursor] = useState<
     Record<SentenceFrameGroupId, number>
@@ -162,6 +197,15 @@ export function StudioTulisStageOverlay({
     const timer = window.setTimeout(() => setIsConfirmingResetDraft(false), 4500);
     return () => window.clearTimeout(timer);
   }, [isConfirmingResetDraft]);
+
+  useEffect(() => {
+    if (!confirmDeleteManuscriptId) return;
+    const timer = window.setTimeout(
+      () => setConfirmDeleteManuscriptId(null),
+      4500
+    );
+    return () => window.clearTimeout(timer);
+  }, [confirmDeleteManuscriptId]);
   const flipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [viewportSize, setViewportSize] = useState<{
     readonly width: number;
@@ -671,45 +715,69 @@ export function StudioTulisStageOverlay({
     );
   };
 
-  const handleInsertLexiconWord = (word: string) => {
+  const handleInsertLexiconWord = (
+    word: string,
+    target: TargetParagraphKey
+  ) => {
     playChime();
     const cleanedWord = word.trim();
     if (!cleanedWord) return;
 
-    if (safeCurrentSpread === 1) {
-      if (isMobileBook && mobilePageSide === "right") {
-        updateStudioDraft({
-          paragraphKomplikasi: `${(draft.paragraphKomplikasi ?? "").trimEnd()} ${cleanedWord}`,
-        });
-      } else {
-        updateStudioDraft({
-          paragraphOrientasi: `${draft.paragraphOrientasi.trimEnd()} ${cleanedWord}`,
-        });
+    const targetMeta: Record<
+      TargetParagraphKey,
+      {
+        readonly label: string;
+        readonly spread: number;
+        readonly side: "left" | "right";
+        readonly apply: () => void;
       }
-      showTempBanner(`Kata "${cleanedWord}" disisipkan ke Lembar 2! Rangkai menjadi kalimatmu sendiri.`);
-      return;
-    }
+    > = {
+      orientasi: {
+        label: "Paragraf 1 (Awal)",
+        spread: 1,
+        side: "left",
+        apply: () =>
+          updateStudioDraft({
+            paragraphOrientasi: `${draft.paragraphOrientasi.trimEnd()} ${cleanedWord}`,
+          }),
+      },
+      komplikasi: {
+        label: "Paragraf 2 (Masalah)",
+        spread: 1,
+        side: "right",
+        apply: () =>
+          updateStudioDraft({
+            paragraphKomplikasi: `${(draft.paragraphKomplikasi ?? "").trimEnd()} ${cleanedWord}`,
+          }),
+      },
+      klimaks: {
+        label: "Paragraf 3 (Puncak)",
+        spread: 2,
+        side: "left",
+        apply: () =>
+          updateStudioDraft({
+            paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()} ${cleanedWord}`,
+          }),
+      },
+      resolusi: {
+        label: "Paragraf 4 (Akhir)",
+        spread: 2,
+        side: "right",
+        apply: () =>
+          updateStudioDraft({
+            paragraphResolusi: `${draft.paragraphResolusi.trimEnd()} ${cleanedWord}`,
+          }),
+      },
+    };
 
-    if (safeCurrentSpread === 2) {
-      if (isMobileBook && mobilePageSide === "right") {
-        updateStudioDraft({
-          paragraphResolusi: `${draft.paragraphResolusi.trimEnd()} ${cleanedWord}`,
-        });
-      } else {
-        updateStudioDraft({
-          paragraphKlimaks: `${draft.paragraphKlimaks.trimEnd()} ${cleanedWord}`,
-        });
-      }
-      showTempBanner(`Kata "${cleanedWord}" disisipkan ke Lembar 3! Rangkai menjadi kalimatmu sendiri.`);
-      return;
-    }
-
-    updateStudioDraft({
-      paragraphOrientasi: `${draft.paragraphOrientasi.trimEnd()} ${cleanedWord}`,
-    });
-    setCurrentSpread(1);
+    const chosen = targetMeta[target];
+    chosen.apply();
     setActiveViewTab("dual_book");
-    showTempBanner(`Kata "${cleanedWord}" disisipkan ke Paragraf 1 (Awal Cerita)!`);
+    setCurrentSpread(chosen.spread);
+    if (isMobileBook) setMobilePageSide(chosen.side);
+    showTempBanner(
+      `Kata "${cleanedWord}" disisipkan ke ${chosen.label}! Rangkai menjadi kalimatmu sendiri.`
+    );
   };
 
   const handleInsertAiMajasFrame = (frameText: string) => {
@@ -855,6 +923,10 @@ export function StudioTulisStageOverlay({
     const safeAmanat = escapeHtml(
       draft.amanat.trim() || "(Belum ditulis oleh penulis)"
     );
+    const safeReflection = escapeHtml(
+      (draft.authorReflection ?? "").trim() || "(Belum diisi oleh penulis)"
+    );
+    const safeRank = escapeHtml(metrics.masteryRankTitle);
     const safeWorldRule = escapeHtml(draft.worldRule.trim() || "(Belum ditulis)");
     const safeProtagName = escapeHtml(draft.protagonistName.trim() || "-");
     const safeProtagTrait = escapeHtml(draft.protagonistTraitAction.trim() || "-");
@@ -1012,7 +1084,7 @@ export function StudioTulisStageOverlay({
 
     <div class="meta-grid">
       <div><strong>Nama Penulis Muda:</strong> ${safeAuthor}</div>
-      <div><strong>Kelas:</strong> ${safeClass}</div>
+      <div><strong>Kelas &amp; Gelar:</strong> ${safeClass} · ${safeRank}</div>
       <div><strong>Tema Fantasi:</strong> ${safeTheme}</div>
       <div><strong>Segel Materi Terbuka:</strong> ${metrics.unlockedSealsCount} / 3 Segel (${metrics.overallPercentage}%)</div>
       <div><strong>Skor Cerita (Studio Tulis):</strong> ${analysis.studioScore}% (${analysis.passedIndicatorsCount}/5 Misi Beres)</div>
@@ -1057,6 +1129,10 @@ export function StudioTulisStageOverlay({
       <div class="amanat-box">
         <strong>Amanat / Pesan Moral Cerita:</strong><br/>
         ${safeAmanat}
+      </div>
+      <div class="amanat-box" style="margin-top:8px; border-left-color:#14532d; background:#f2f8f4;">
+        <strong>Refleksi Proses Menulis Siswa (PjBL):</strong><br/>
+        ${safeReflection}
       </div>
     </div>
 
@@ -1427,10 +1503,16 @@ export function StudioTulisStageOverlay({
                       }
                     >
                       {state.sealStudioUnlocked
-                        ? "Siap Disimpan & Cetak!"
+                        ? "Segel Studio Terbuka ✓"
                         : analysis.isModelPresetReference
-                          ? "Contoh Cerita (Yuk Ganti Kalimatmu!)"
-                          : "Siap Disimpan"}
+                          ? "Contoh Cerita (Ganti Kalimatmu!)"
+                          : analysis.totalWords === 0
+                            ? "Belum Mulai Menulis"
+                            : analysis.unfilledPlaceholderCount > 0
+                              ? `Masih Ada ${analysis.unfilledPlaceholderCount} Bagian [...]`
+                              : analysis.totalWords < 15
+                                ? `Draf Awal (${analysis.totalWords}/15 kata)`
+                                : `Draf Berjalan (${analysis.passedIndicatorsCount}/5 Misi)`}
                     </strong>
                   </span>
 
@@ -1542,6 +1624,19 @@ export function StudioTulisStageOverlay({
                 type="button"
                 onClick={() => {
                   playChime();
+                  setIsGuideDrawerOpen(false);
+                  setStudioTourStep(0);
+                }}
+                aria-label="Buka panduan cara menulis di Studio Tulis"
+                title="Cara Pakai Studio Tulis"
+                className="min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-[#f4d993]/55 bg-[#0d0a07]/90 hover:bg-[#0d0a07] px-2.5 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-md whitespace-nowrap"
+              >
+                ?
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playChime();
                   setIsGuideDrawerOpen((prev) => !prev);
                 }}
                 aria-expanded={isGuideDrawerOpen}
@@ -1563,20 +1658,20 @@ export function StudioTulisStageOverlay({
                   <button
                     type="button"
                     onClick={() => triggerTabFlip("audit_revisi")}
-                    className="md:hidden min-h-[36px] rounded-full border border-emerald-400/50 bg-emerald-950/90 px-2.5 py-1 text-[11px] font-bold text-emerald-200 cursor-pointer shadow-md whitespace-nowrap"
+                    className="min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-emerald-400/55 bg-emerald-950/90 hover:bg-emerald-900/90 px-2.5 py-1 text-[11px] font-bold text-emerald-200 cursor-pointer shadow-md whitespace-nowrap transition-colors"
                   >
-                    Cek ({analysis.passedIndicatorsCount}/5)
+                    Cek &amp; AI ({analysis.passedIndicatorsCount}/5)
                   </button>
                   <button
                     type="button"
                     onClick={handleResetDraft}
-                    className={`hidden sm:inline-block rounded-lg border px-2.5 py-1 text-[11px] transition-colors cursor-pointer shadow-md whitespace-nowrap ${
+                    className={`hidden md:inline-block rounded-lg border px-2.5 py-1 text-[11px] transition-colors cursor-pointer shadow-md whitespace-nowrap ${
                       isConfirmingResetDraft
                         ? "border-rose-400/80 bg-rose-950/95 font-bold text-rose-100"
                         : "border-white/20 bg-[#0d0a07]/85 hover:bg-[#0d0a07] text-stone-200"
                     }`}
                   >
-                    {isConfirmingResetDraft ? "Yakin Hapus Draf?" : "Hapus Isian"}
+                    {isConfirmingResetDraft ? "Yakin Hapus?" : "Hapus Isian"}
                   </button>
                 </>
               ) : (
@@ -1595,23 +1690,23 @@ export function StudioTulisStageOverlay({
                 aria-label="Tutup tampilan tulis penuh"
                 className="min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-rose-400/45 bg-[#090d16]/90 hover:bg-rose-950/75 px-2.5 py-1 text-[11px] font-bold text-stone-100 hover:text-rose-200 transition-colors cursor-pointer shadow-md whitespace-nowrap"
               >
-                <span className="md:hidden">[ X ]</span>
-                <span className="hidden md:inline">[ X ] Kembali ke Meja</span>
+                <span className="lg:hidden">[ X ]</span>
+                <span className="hidden lg:inline">[ X ] Meja</span>
               </button>
             </div>
           </div>
 
-          {/* Kiri: Tab Struktur Lembar Buku (Compact di Mobile, Lengkap di Desktop) */}
+          {/* Kiri: Tab Struktur Lembar Buku (Scrollable di Mobile, Compact 1-Baris di Desktop) */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 md:order-1 md:flex-wrap md:overflow-visible md:pb-0">
             {CORE_SPREAD_LABELS.map((sp) => {
               const isSpreadActive =
                 activeViewTab === "dual_book" && safeCurrentSpread === sp.index;
-              const mobileShort =
+              const compactLabel =
                 sp.index === 0
                   ? "1. Rencana"
                   : sp.index === 1
-                    ? "2. Awal-Masalah"
-                    : "3. Puncak-Akhir";
+                    ? "2. Awal & Masalah"
+                    : "3. Puncak & Akhir";
               return (
                 <button
                   key={sp.index}
@@ -1622,8 +1717,7 @@ export function StudioTulisStageOverlay({
                     : "border border-[#cda250]/45 bg-[#0d0a07]/85 text-[#f4d993] hover:bg-[#0d0a07]"
                     }`}
                 >
-                  <span className="md:hidden">{mobileShort}</span>
-                  <span className="hidden md:inline">{sp.shortLabel}</span>
+                  {compactLabel}
                 </button>
               );
             })}
@@ -1652,18 +1746,29 @@ export function StudioTulisStageOverlay({
               onClick={handleAddExtraSpread}
               className="shrink-0 min-h-[34px] md:min-h-0 rounded-full md:rounded-lg border border-emerald-400/55 bg-emerald-950/85 hover:bg-emerald-900/90 px-2.5 py-1 text-[11px] font-bold text-emerald-200 transition-colors cursor-pointer shadow-md whitespace-nowrap"
             >
-              + Tambah Lembar
+              + Lembar
             </button>
             <button
               type="button"
               onClick={() => triggerTabFlip("galeri_piagam")}
-              className={`md:hidden shrink-0 min-h-[34px] rounded-full border px-2.5 py-1 text-[11px] font-bold cursor-pointer shadow-md whitespace-nowrap ${
+              className={`shrink-0 min-h-[34px] md:min-h-0 rounded-full md:rounded-lg border px-2.5 py-1 text-[11px] font-bold cursor-pointer shadow-md whitespace-nowrap transition-colors ${
                 activeViewTab === "galeri_piagam"
                   ? "border-[#f4d993] bg-[#f4d993] text-slate-950"
-                  : "border-[#cda250]/45 bg-[#0d0a07]/85 text-[#f4d993]"
+                  : "border-[#cda250]/45 bg-[#0d0a07]/85 text-[#f4d993] hover:bg-[#0d0a07]"
               }`}
             >
-              Galeri &amp; Piagam
+              Galeri ({state.savedManuscripts.length})
+            </button>
+            <button
+              type="button"
+              onClick={handleResetDraft}
+              className={`md:hidden shrink-0 min-h-[34px] rounded-full border px-2.5 py-1 text-[11px] font-semibold cursor-pointer shadow-md whitespace-nowrap ${
+                isConfirmingResetDraft
+                  ? "border-rose-400/80 bg-rose-950/95 font-bold text-rose-100"
+                  : "border-white/20 bg-[#0d0a07]/85 text-stone-200"
+              }`}
+            >
+              {isConfirmingResetDraft ? "Yakin Hapus?" : "Hapus Isian"}
             </button>
           </div>
 
@@ -1671,6 +1776,15 @@ export function StudioTulisStageOverlay({
           {isGuideDrawerOpen && (
             <StudioHybridToolkitDrawer
               draft={draft}
+              defaultInsertTarget={
+                safeCurrentSpread === 2
+                  ? isMobileBook && mobilePageSide === "right"
+                    ? "resolusi"
+                    : "klimaks"
+                  : safeCurrentSpread === 1 && isMobileBook && mobilePageSide === "right"
+                    ? "komplikasi"
+                    : "orientasi"
+              }
               sealBadges={SEAL_BADGES}
               isSealUnlockedForId={isSealUnlockedForId}
               onClose={() => setIsGuideDrawerOpen(false)}
@@ -2081,13 +2195,29 @@ export function StudioTulisStageOverlay({
                             Halaman 5 · Bagian 3: Puncak Masalah
                           </span>
                           <span
-                            className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.klimaksWords >= 12
+                            className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.klimaksWords >= 10
                               ? "text-[#14532d]"
                               : "text-[#7c2d12]"
                               }`}
                           >
-                            {analysis.klimaksWords} / min. 12 kata
+                            {analysis.klimaksWords} / min. 10 kata
                           </span>
+                        </div>
+
+                        {/* Pengingat Aturan Dunia Fantasi (Peluang Peran Media #2 — Lembar Analisis Kel. 6) */}
+                        <div className="rounded border border-[#5c3d1e]/35 bg-[#5c3d1e]/8 px-2 py-1 text-[9.5px] leading-snug text-[#2f1d0c]">
+                          <strong className="text-[#4a2f15]">Pengingat Aturan Ajaibmu:</strong>{" "}
+                          {draft.worldRule.trim() ? (
+                            <span className="italic">&ldquo;{draft.worldRule.trim()}&rdquo;</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => triggerSpreadTransition(0)}
+                              className="cursor-pointer font-bold text-[#7c2d12] underline"
+                            >
+                              Belum diisi — klik untuk isi di Lembar 1 -&gt;
+                            </button>
+                          )}
                         </div>
 
                         <div className="flex min-h-[26px] flex-wrap items-center justify-between gap-1.5 border-b border-[#5c3d1e]/30 pb-1">
@@ -2269,12 +2399,27 @@ export function StudioTulisStageOverlay({
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    if (confirmDeleteManuscriptId !== ms.id) {
+                                      playErrorTone();
+                                      setConfirmDeleteManuscriptId(ms.id);
+                                      return;
+                                    }
                                     playErrorTone();
+                                    setConfirmDeleteManuscriptId(null);
                                     deleteSavedManuscriptFromPustaka(ms.id);
+                                    showTempBanner(
+                                      `Karya "${ms.storyTitle}" dihapus dari Galeri.`
+                                    );
                                   }}
-                                  className="rounded-full border border-[#7f1d1d]/75 bg-[#7f1d1d]/12 hover:bg-[#7f1d1d]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#7f1d1d] transition-colors cursor-pointer"
+                                  className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                                    confirmDeleteManuscriptId === ms.id
+                                      ? "border-[#7f1d1d] bg-[#7f1d1d] text-[#fdf6e7]"
+                                      : "border-[#7f1d1d]/75 bg-[#7f1d1d]/12 hover:bg-[#7f1d1d]/22 text-[#7f1d1d]"
+                                  }`}
                                 >
-                                  Hapus
+                                  {confirmDeleteManuscriptId === ms.id
+                                    ? "Yakin Hapus?"
+                                    : "Hapus"}
                                 </button>
                               </div>
                             </div>
@@ -2505,33 +2650,49 @@ export function StudioTulisStageOverlay({
                             Halaman 4 · Bagian 2: Muncul Masalah
                           </span>
                           <span
-                            className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.komplikasiWords >= 10
+                            className={`text-[10.5px] font-bold whitespace-nowrap shrink-0 ${analysis.komplikasiWords >= 8
                               ? "text-[#14532d]"
                               : "text-[#7c2d12]"
                               }`}
                           >
-                            {analysis.komplikasiWords} kata
+                            {analysis.komplikasiWords} / min. 8 kata
                           </span>
                         </div>
 
+                        {/* Pengingat Aturan Dunia Fantasi (Peluang Peran Media #2 — Lembar Analisis Kel. 6) */}
+                        <div className="rounded border border-[#5c3d1e]/35 bg-[#5c3d1e]/8 px-2 py-1 text-[9.5px] leading-snug text-[#2f1d0c]">
+                          <strong className="text-[#4a2f15]">Pengingat Aturan Ajaibmu:</strong>{" "}
+                          {draft.worldRule.trim() ? (
+                            <span className="italic">&ldquo;{draft.worldRule.trim()}&rdquo;</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => triggerSpreadTransition(0)}
+                              className="cursor-pointer font-bold text-[#7c2d12] underline"
+                            >
+                              Belum diisi — klik untuk isi di Lembar 1 -&gt;
+                            </button>
+                          )}
+                        </div>
+
                         {/* Quick-Insert Time Conjunction + KBBI Reference Linker */}
-                        <div className="flex min-h-[26px] flex-wrap items-center justify-between gap-1.5 border-b border-[#5c3d1e]/30 pb-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 border-b border-[#5c3d1e]/30 pb-1.5">
                           <button
                             type="button"
                             onClick={handleInsertTimeConjunctionSnippet}
-                            className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                            className="self-start rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-2.5 py-0.5 text-[10px] font-bold text-[#3d250b] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                           >
                             + Kerangka &ldquo;Tiba-tiba...&rdquo;
                           </button>
 
-                          <div className="flex items-center gap-1 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0 w-full sm:w-auto">
                             <input
                               aria-label="Kata untuk dicek di Kamus Bahasa Indonesia"
                               type="text"
                               value={kbbiLookupQuery}
                               onChange={(e) => setKbbiLookupQuery(e.target.value)}
                               placeholder="Cari arti kata..."
-                              className="parchment-pen-input w-24 sm:w-28 px-1 py-0.5 text-base md:text-[10px] font-semibold text-[#241407]/95 placeholder:text-[#5c3d1e]/75"
+                              className="parchment-pen-input flex-1 sm:flex-none sm:w-28 min-w-0 px-1 py-0.5 text-xs sm:text-[10.5px] font-semibold text-[#241407]/95 placeholder:text-[#5c3d1e]/75"
                             />
                             <a
                               href={buildKbbiReferenceUrl(kbbiLookupQuery || "imajinasi")}
@@ -2826,6 +2987,12 @@ export function StudioTulisStageOverlay({
 
                       <div className="space-y-1.5 text-xs text-[#1e1106]">
                         <p>
+                          <strong>Gelar Penulis:</strong>{" "}
+                          <span className="font-bold text-[#14532d]">
+                            {metrics.masteryRankTitle}
+                          </span>
+                        </p>
+                        <p>
                           <strong>Judul Ceritamu:</strong>{" "}
                           {draft.storyTitle.trim() || "(Belum diberi judul)"}
                         </p>
@@ -2834,17 +3001,47 @@ export function StudioTulisStageOverlay({
                           {draft.authorName.trim() || "(Belum diisi)"} ({draft.authorClass})
                         </p>
                         <p>
-                          <strong>Tema Fantasi:</strong> {draft.themeCategory}
+                          <strong>Tema Fantasi:</strong> {draft.themeCategory || "(Belum diisi)"}
                         </p>
                         <p>
-                          <strong>Panjang Cerita:</strong> {analysis.totalWords} kata
-                        </p>
-                        <p>
-                          <strong>Skor Cerita:</strong> {analysis.studioScore}% ({analysis.passedIndicatorsCount}/5 Misi Beres)
+                          <strong>Panjang &amp; Skor Cerita:</strong> {analysis.totalWords} kata · {analysis.studioScore}% ({analysis.passedIndicatorsCount}/5 Misi Beres)
                         </p>
                         <p>
                           <strong>Total Skor Petualanganmu:</strong> {metrics.holisticTotalPercentage}% ({metrics.kelayakanCategory})
                         </p>
+                      </div>
+
+                      {/* Status Syarat Segel Studio (Jelas & Ramah Anak) */}
+                      <div
+                        className={`rounded border px-2 py-1.5 text-[10px] leading-snug font-semibold ${
+                          analysis.isReadyForSeal
+                            ? "border-[#14532d]/50 bg-[#14532d]/10 text-[#14532d]"
+                            : "border-[#5c3d1e]/40 bg-[#5c3d1e]/8 text-[#4a2f15]"
+                        }`}
+                      >
+                        {analysis.isReadyForSeal
+                          ? "Karyamu memenuhi semua syarat Segel Studio! Yuk klik Simpan & Cetak Piagam!"
+                          : `Syarat Segel Studio: min. 4/5 Misi (${analysis.passedIndicatorsCount}/5), min. 3 ceklis revisi (${analysis.revisionCheckedCount}/5), tanpa tanda [...] (${analysis.unfilledPlaceholderCount} tersisa), dan 0 ejaan keliru (${analysis.eydAndLexiconIssues.length}).`}
+                      </div>
+
+                      {/* Kolom Refleksi Singkat Penulis Muda (Penilaian Autentik PjBL: Proses + Produk + Refleksi) */}
+                      <div className="border-t border-[#5c3d1e]/35 pt-2 space-y-1">
+                        <label
+                          htmlFor="studio-author-reflection"
+                          className="block text-[10px] font-bold uppercase tracking-wider text-[#3d250b]"
+                        >
+                          Refleksi Singkatmu (Ikut Tercetak di Piagam):
+                        </label>
+                        <textarea
+                          id="studio-author-reflection"
+                          rows={2}
+                          value={draft.authorReflection ?? ""}
+                          onChange={(e) =>
+                            updateStudioDraft({ authorReflection: e.target.value })
+                          }
+                          placeholder="Bagian mana dari ceritamu yang paling seru ditulis atau paling menantang saat direvisi?"
+                          className={inkTextareaClass}
+                        />
                       </div>
 
                       <div className="border-t border-[#5c3d1e]/35 pt-2.5 space-y-2">
@@ -2988,6 +3185,73 @@ export function StudioTulisStageOverlay({
               >
                 {mobileSideLabels[1]}
               </button>
+            </div>
+          )}
+
+          {/* Guided 3-Step Interactive Walkthrough Card for Studio Tulis (Grade 7 Friendly) */}
+          {studioTourStep !== null && !isCalibrating && !isGuideDrawerOpen && (
+            <div className="pointer-events-auto fixed inset-x-3 bottom-16 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[340px] z-50 rounded-2xl border-2 border-[#f4d993] bg-slate-950/96 p-3.5 text-stone-100 shadow-[0_18px_45px_rgba(0,0,0,0.95)] backdrop-blur-md space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="rounded-full bg-[#cda250]/25 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#f4d993]">
+                  Panduan Studio Tulis
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playChime();
+                    setStudioTourStep(null);
+                    try {
+                      window.localStorage.setItem(STUDIO_TOUR_STORAGE_KEY, "1");
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className="text-[11px] font-semibold text-stone-400 hover:text-white cursor-pointer"
+                >
+                  Lewati [X]
+                </button>
+              </div>
+              <h3 className="font-serif text-sm font-bold text-white">
+                {STUDIO_TOUR_STEPS[studioTourStep]?.title}
+              </h3>
+              <p className="text-xs text-stone-200 leading-relaxed">
+                {STUDIO_TOUR_STEPS[studioTourStep]?.body}
+              </p>
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-1">
+                  {STUDIO_TOUR_STEPS.map((st, idx) => (
+                    <span
+                      key={st.title}
+                      className={`h-1.5 rounded-full transition-all ${
+                        idx === studioTourStep
+                          ? "w-5 bg-[#f4d993]"
+                          : "w-1.5 bg-white/25"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playChime();
+                    if (studioTourStep >= STUDIO_TOUR_STEPS.length - 1) {
+                      setStudioTourStep(null);
+                      try {
+                        window.localStorage.setItem(STUDIO_TOUR_STORAGE_KEY, "1");
+                      } catch {
+                        // ignore
+                      }
+                    } else {
+                      setStudioTourStep(studioTourStep + 1);
+                    }
+                  }}
+                  className="rounded-full bg-[#f4d993] px-3.5 py-1 text-[11px] font-bold text-[#030712] hover:bg-white transition-colors cursor-pointer"
+                >
+                  {studioTourStep === STUDIO_TOUR_STEPS.length - 1
+                    ? "Siap Mengarang!"
+                    : "Lanjut ->"}
+                </button>
+              </div>
             </div>
           )}
 

@@ -62,9 +62,10 @@ export interface StudioDraftData {
   readonly paragraphResolusi: string;
   readonly extraSpreads?: readonly StudioExtraSpread[];
   readonly isModelPresetReference?: boolean;
-  // Langkah 6: Judul, Amanat, & Daftar Periksa Revisi Mandiri (Peluang #3, #4, #5)
+  // Langkah 6: Judul, Amanat, Refleksi Penulis (PjBL), & Daftar Periksa Revisi Mandiri
   readonly storyTitle: string;
   readonly amanat: string;
+  readonly authorReflection?: string;
   readonly selfRevisionChecks: Readonly<Record<string, boolean>>;
 }
 
@@ -198,6 +199,7 @@ export const INITIAL_STUDIO_DRAFT: StudioDraftData = {
   isModelPresetReference: false,
   storyTitle: "",
   amanat: "",
+  authorReflection: "",
   selfRevisionChecks: {
     "rev-struktur": false,
     "rev-aturan": false,
