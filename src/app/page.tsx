@@ -99,6 +99,7 @@ export default function Home() {
   const [isKitabBookFocused, setIsKitabBookFocused] = useState<boolean>(false);
   const [kitab3dMobileSide, setKitab3dMobileSide] = useState<"left" | "right">("left");
   const [isStudioBookFocused, setIsStudioBookFocused] = useState<boolean>(false);
+  const [studio3dMobileSide, setStudio3dMobileSide] = useState<"left" | "right">("left");
   const [isPetaModalOpen, setIsPetaModalOpen] = useState<boolean>(false);
   const [portalPhase, setPortalPhase] = useState<PortalTransitionPhase>("idle");
   const [portalMeta, setPortalMeta] = useState<PortalVisualMeta>(DEFAULT_PORTAL_META);
@@ -158,7 +159,7 @@ export default function Home() {
 
     canvasControllerRef.current?.playTo("materi", TOTAL_MATERI_FRAMES, {
       startFrame: 1,
-      durationMs: 6400,
+      durationMs: 4983,
       interruptible: true,
       syncScrollOnComplete: true,
     });
@@ -167,7 +168,7 @@ export default function Home() {
   /**
    * Enter Latihan sequence via the Latihan Hub button at Hero Frame 240.
    * Seamlessly traverses latihan-frames (1-185) -> hallway-frames (186-373) -> studio-tulis-frames (374-561)
-   * on a single C1-continuous cruise curve (~59 FPS peak cruise).
+   * at locked 60 FPS (1:1 VSync hardware cadence).
    */
   const handleEnterLatihan = useCallback(() => {
     if (heroRef.current && heroRef.current.offsetHeight > 0) {
@@ -196,14 +197,14 @@ export default function Home() {
 
     canvasControllerRef.current?.playTo("latihan", TOTAL_LATIHAN_FRAMES, {
       startFrame: 1,
-      durationMs: 11800,
+      durationMs: 9350,
       interruptible: true,
       syncScrollOnComplete: true,
     });
   }, [lenis]);
 
   /**
-   * Enter Reading sequence via the Read Book CTA button at Materi Frame 299 (~58.3 FPS cruise).
+   * Enter Reading sequence via the Read Book CTA button at Materi Frame 299 (locked 60 FPS).
    */
   const handleEnterReading = useCallback(() => {
     if (materiRef.current && materiRef.current.offsetHeight > 0) {
@@ -227,7 +228,7 @@ export default function Home() {
 
     canvasControllerRef.current?.playTo("reading", TOTAL_READING_FRAMES, {
       startFrame: 1,
-      durationMs: 11500,
+      durationMs: 8950,
       interruptible: true,
       syncScrollOnComplete: true,
     });
@@ -319,8 +320,8 @@ export default function Home() {
         currentFrame,
         1,
         TOTAL_READING_FRAMES,
-        11250,
-        2500
+        8950,
+        2000
       );
 
       setIsReverseScrolling(true);
@@ -737,8 +738,8 @@ export default function Home() {
         currentFrame,
         1,
         TOTAL_MATERI_FRAMES,
-        6250,
-        1800
+        4983,
+        1500
       );
 
       setIsReverseScrolling(true);
@@ -754,7 +755,7 @@ export default function Home() {
   }, [isLatihanUnlocked, isMateriUnlocked, isReverseScrolling, handleReturnFromLatihanToHero]);
 
   /**
-   * Smoothly play from current Hero frame to Hero Frame 240 (~57.5 FPS cruise).
+   * Smoothly play from current Hero frame to Hero Frame 240 (locked 60 FPS).
    */
   const handleNavigateToHub = useCallback(() => {
     if (isMateriUnlocked || isReadingUnlocked || isLatihanUnlocked || isReverseScrolling) return;
@@ -766,7 +767,7 @@ export default function Home() {
       curFrame,
       TOTAL_HERO_FRAMES,
       TOTAL_HERO_FRAMES,
-      5200,
+      4000,
       800
     );
 
@@ -778,7 +779,7 @@ export default function Home() {
   }, [isMateriUnlocked, isReadingUnlocked, isLatihanUnlocked, isReverseScrolling]);
 
   /**
-   * Smoothly return from Hero hub/midway back to Hero Frame 1 (~59.8 FPS cruise).
+   * Smoothly return from Hero hub/midway back to Hero Frame 1 (locked 60 FPS).
    */
   const handleNavigateToTop = useCallback(() => {
     if (isMateriUnlocked || isReadingUnlocked || isLatihanUnlocked || isReverseScrolling) return;
@@ -788,7 +789,7 @@ export default function Home() {
     const curFrame = controller.getCurrentFrame("hero");
     if (curFrame <= 1.1) return;
 
-    const durationMs = calculateAutoplayDurationMs(curFrame, 1, TOTAL_HERO_FRAMES, 5000, 800);
+    const durationMs = calculateAutoplayDurationMs(curFrame, 1, TOTAL_HERO_FRAMES, 4000, 800);
     controller.playTo("hero", 1, {
       durationMs,
       interruptible: true,
@@ -825,7 +826,9 @@ export default function Home() {
         ? "kitab-left"
         : "kitab-right"
       : isStudioOverlayVisible && !isStudioBookFocused
-        ? "studio"
+        ? studio3dMobileSide === "left"
+          ? "studio-left"
+          : "studio-right"
         : "none";
 
   const showBackButton =
@@ -1053,6 +1056,8 @@ export default function Home() {
         isVisible={isStudioOverlayVisible}
         isBookFocused={isStudioBookFocused}
         onSetBookFocused={setIsStudioBookFocused}
+        mobile3dSide={studio3dMobileSide}
+        onChangeMobile3dSide={setStudio3dMobileSide}
         onJumpToKitabChapter={handleJumpToKitabChapter}
         onOpenPetaModal={() => setIsPetaModalOpen(true)}
       />

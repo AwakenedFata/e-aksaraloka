@@ -1034,17 +1034,33 @@ export function KitabMateriOverlay({
       {/* FLOATING TOAST NOTIFICATION                                         */}
       {/* =================================================================== */}
       {feedbackToast && (
-        <div className="pointer-events-none fixed top-14 left-1/2 z-50 -translate-x-1/2 px-4">
+        <div
+          className={`pointer-events-none fixed inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-[60] flex justify-center ${
+            isBookFocused ? "bottom-[72px] sm:bottom-auto sm:top-16" : "top-16 sm:top-20"
+          }`}
+        >
           <div
-            className={`rounded-full border px-4 py-1.5 text-[11px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.85)] backdrop-blur-md transition-all ${
+            role="status"
+            aria-live="polite"
+            className={`flex w-full max-w-[360px] sm:w-auto sm:max-w-lg items-center justify-center gap-2 rounded-2xl sm:rounded-full border px-4 py-2 text-center text-[11px] sm:text-xs font-semibold leading-snug shadow-[0_12px_28px_rgba(0,0,0,0.85)] md:backdrop-blur-md transition-all ${
               feedbackToast.tone === "emerald"
-                ? "border-emerald-300/60 bg-emerald-950/90 text-emerald-100"
+                ? "border-emerald-300/60 bg-emerald-950/95 text-emerald-100"
                 : feedbackToast.tone === "rose"
-                  ? "border-rose-300/60 bg-rose-950/90 text-rose-100"
-                  : "border-[#f3d89b]/60 bg-slate-950/90 text-[#ffe8b6]"
+                  ? "border-rose-300/60 bg-rose-950/95 text-rose-100"
+                  : "border-[#f3d89b]/60 bg-slate-950/95 text-[#ffe8b6]"
             }`}
           >
-            {feedbackToast.text}
+            <span
+              className={`h-2 w-2 shrink-0 rounded-full ${
+                feedbackToast.tone === "emerald"
+                  ? "bg-emerald-300"
+                  : feedbackToast.tone === "rose"
+                    ? "bg-rose-300"
+                    : "bg-[#f3d89b]"
+              }`}
+              aria-hidden="true"
+            />
+            <span>{feedbackToast.text}</span>
           </div>
         </div>
       )}
@@ -1054,70 +1070,68 @@ export function KitabMateriOverlay({
       {/* =================================================================== */}
       {!isBookFocused && (
         <>
-          {!isMobileBook && (
-            <svg
-              width="0"
-              height="0"
-              aria-hidden="true"
-              className="pointer-events-none absolute overflow-hidden"
-            >
-              <defs>
-                <filter
-                  id="reading-3d-curve-left"
-                  filterUnits="userSpaceOnUse"
-                  colorInterpolationFilters="sRGB"
-                  x={-leftFilterPad}
-                  y={-leftFilterPad}
-                  width={basePageWidth + leftFilterPad * 2}
-                  height={basePageHeight + leftFilterPad * 2}
-                >
-                  <feImage
-                    href={leftDisp.dataUri}
-                    x={0}
-                    y={0}
-                    width={basePageWidth}
-                    height={basePageHeight}
-                    preserveAspectRatio="none"
-                    result="leftDispMap"
-                  />
-                  <feDisplacementMap
-                    in="SourceGraphic"
-                    in2="leftDispMap"
-                    scale={leftDisp.filterScale}
-                    xChannelSelector="R"
-                    yChannelSelector="G"
-                  />
-                </filter>
+          <svg
+            width="0"
+            height="0"
+            aria-hidden="true"
+            className="pointer-events-none absolute overflow-hidden"
+          >
+            <defs>
+              <filter
+                id="reading-3d-curve-left"
+                filterUnits="userSpaceOnUse"
+                colorInterpolationFilters="sRGB"
+                x={-leftFilterPad}
+                y={-leftFilterPad}
+                width={basePageWidth + leftFilterPad * 2}
+                height={basePageHeight + leftFilterPad * 2}
+              >
+                <feImage
+                  href={leftDisp.dataUri}
+                  x={0}
+                  y={0}
+                  width={basePageWidth}
+                  height={basePageHeight}
+                  preserveAspectRatio="none"
+                  result="leftDispMap"
+                />
+                <feDisplacementMap
+                  in="SourceGraphic"
+                  in2="leftDispMap"
+                  scale={leftDisp.filterScale}
+                  xChannelSelector="R"
+                  yChannelSelector="G"
+                />
+              </filter>
 
-                <filter
-                  id="reading-3d-curve-right"
-                  filterUnits="userSpaceOnUse"
-                  colorInterpolationFilters="sRGB"
-                  x={-rightFilterPad}
-                  y={-rightFilterPad}
-                  width={basePageWidth + rightFilterPad * 2}
-                  height={basePageHeight + rightFilterPad * 2}
-                >
-                  <feImage
-                    href={rightDisp.dataUri}
-                    x={0}
-                    y={0}
-                    width={basePageWidth}
-                    height={basePageHeight}
-                    preserveAspectRatio="none"
-                    result="rightDispMap"
-                  />
-                  <feDisplacementMap
-                    in="SourceGraphic"
-                    in2="rightDispMap"
-                    scale={rightDisp.filterScale}
-                    xChannelSelector="R"
-                    yChannelSelector="G"
-                  />
-                </filter>
-              </defs>
-            </svg>
-          )}
+              <filter
+                id="reading-3d-curve-right"
+                filterUnits="userSpaceOnUse"
+                colorInterpolationFilters="sRGB"
+                x={-rightFilterPad}
+                y={-rightFilterPad}
+                width={basePageWidth + rightFilterPad * 2}
+                height={basePageHeight + rightFilterPad * 2}
+              >
+                <feImage
+                  href={rightDisp.dataUri}
+                  x={0}
+                  y={0}
+                  width={basePageWidth}
+                  height={basePageHeight}
+                  preserveAspectRatio="none"
+                  result="rightDispMap"
+                />
+                <feDisplacementMap
+                  in="SourceGraphic"
+                  in2="rightDispMap"
+                  scale={rightDisp.filterScale}
+                  xChannelSelector="R"
+                  yChannelSelector="G"
+                />
+              </filter>
+            </defs>
+          </svg>
 
           {/* Cover-Matched Stage Container: GPU-locked 1:1 with Canvas transform on Mobile Portrait, non-isolated on Desktop */}
           <div
@@ -1186,7 +1200,7 @@ export function KitabMateriOverlay({
                 padding: `${scalePx(20)} ${scalePx(22)} ${scalePx(26)} ${scalePx(22)}`,
                 transformOrigin: "0 0",
                 transform: leftMatrixCss,
-                filter: isMobileBook ? undefined : "url(#reading-3d-curve-left)",
+                filter: "url(#reading-3d-curve-left)",
                 maskImage:
                   "radial-gradient(ellipse 92% 90% at 58% 36%, black 60%, rgba(0,0,0,0.45) 82%, transparent 98%)",
                 WebkitMaskImage:
@@ -1358,7 +1372,7 @@ export function KitabMateriOverlay({
                 padding: `${scalePx(20)} ${scalePx(22)} ${scalePx(26)} ${scalePx(22)}`,
                 transformOrigin: "0 0",
                 transform: rightMatrixCss,
-                filter: isMobileBook ? undefined : "url(#reading-3d-curve-right)",
+                filter: "url(#reading-3d-curve-right)",
                 maskImage:
                   "radial-gradient(ellipse 92% 90% at 42% 36%, black 60%, rgba(0,0,0,0.45) 82%, transparent 98%)",
                 WebkitMaskImage:
@@ -1442,7 +1456,7 @@ export function KitabMateriOverlay({
           {!isCalibrating && (
             <div className="pointer-events-none fixed inset-x-0 bottom-2.5 sm:bottom-4 z-30 flex flex-col items-center gap-2 px-3 sm:px-6">
               {mobileCamera.active && (
-                <div className="pointer-events-auto grid grid-cols-2 gap-1 rounded-full border border-[#cda250]/55 bg-slate-950/92 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.85)] backdrop-blur-md">
+                <div className="pointer-events-auto grid grid-cols-2 gap-1 rounded-full border border-[#cda250]/55 bg-slate-950/95 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.85)] md:backdrop-blur-md">
                   <button
                     type="button"
                     onClick={() => {
@@ -1486,13 +1500,13 @@ export function KitabMateriOverlay({
                     playPageFlip();
                     onSetBookFocused(true);
                   }}
-                  className="pointer-events-auto cursor-pointer min-h-[44px] sm:min-h-0 rounded-full border border-[#f3d89b]/85 bg-slate-950/92 px-5 py-2 text-xs font-bold tracking-wider text-[#ffe8b6] shadow-[0_12px_30px_rgba(0,0,0,0.85)] backdrop-blur-md transition-transform duration-300 hover:scale-105 hover:bg-slate-900"
+                  className="pointer-events-auto cursor-pointer min-h-[44px] sm:min-h-0 rounded-full border border-[#f3d89b]/85 bg-slate-950/95 md:bg-slate-950/92 px-5 py-2 text-xs font-bold tracking-wider text-[#ffe8b6] shadow-[0_12px_30px_rgba(0,0,0,0.85)] md:backdrop-blur-md transition-transform duration-300 hover:scale-105 hover:bg-slate-900"
                 >
                   Buka Pustaka &amp; Mulai Misi Cerita! -&gt;
                 </button>
               </div>
 
-              <div className="pointer-events-auto flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto md:flex-wrap md:justify-between md:overflow-visible rounded-2xl border border-[#d6b26f]/35 bg-slate-950/85 px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] backdrop-blur-md">
+              <div className="pointer-events-auto flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto md:flex-wrap md:justify-between md:overflow-visible rounded-2xl border border-[#d6b26f]/35 bg-slate-950/94 md:bg-slate-950/85 px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] md:backdrop-blur-md">
                 <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                   <span className="text-[11px] font-medium text-amber-100/85 whitespace-nowrap">
                     Segel:{" "}

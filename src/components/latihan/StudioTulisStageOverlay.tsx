@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo, type CSSProperties } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, type CSSProperties } from "react";
 import {
   BookPageDisplacementDefs,
   ParchmentInkFilters,
@@ -51,6 +51,8 @@ interface StudioTulisStageOverlayProps {
   readonly isVisible: boolean;
   readonly isBookFocused: boolean;
   readonly onSetBookFocused: (focused: boolean) => void;
+  readonly mobile3dSide?: "left" | "right";
+  readonly onChangeMobile3dSide?: (side: "left" | "right") => void;
   readonly onJumpToKitabChapter: (chapter: GrimoireChapterId) => void;
   readonly onOpenPetaModal: () => void;
 }
@@ -94,6 +96,8 @@ export function StudioTulisStageOverlay({
   isVisible,
   isBookFocused,
   onSetBookFocused,
+  mobile3dSide = "left",
+  onChangeMobile3dSide,
   onJumpToKitabChapter,
   onOpenPetaModal,
 }: StudioTulisStageOverlayProps) {
@@ -107,6 +111,20 @@ export function StudioTulisStageOverlay({
   const [currentSpread, setCurrentSpread] = useState<number>(0);
   const [isMobileBook, setIsMobileBook] = useState<boolean>(false);
   const [mobilePageSide, setMobilePageSide] = useState<"left" | "right">("left");
+  const [internal3dSide, setInternal3dSide] = useState<"left" | "right">("left");
+  const active3dSide = onChangeMobile3dSide ? mobile3dSide : internal3dSide;
+  const setActive3dSide = useCallback(
+    (side: "left" | "right") => {
+      if (onChangeMobile3dSide) {
+        onChangeMobile3dSide(side);
+      } else {
+        setInternal3dSide(side);
+      }
+    },
+    [onChangeMobile3dSide]
+  );
+  const touchStartRef = useRef<{ readonly x: number; readonly y: number } | null>(null);
+  const didSwipeRef = useRef<boolean>(false);
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
   const [isGuideDrawerOpen, setIsGuideDrawerOpen] = useState<boolean>(false);
   const [kbbiLookupQuery, setKbbiLookupQuery] = useState("");
@@ -167,14 +185,14 @@ export function StudioTulisStageOverlay({
         ? computeMobile3dCameraTransform(
             viewportSize.width,
             viewportSize.height,
-            "studio"
+            active3dSide === "left" ? "studio-left" : "studio-right"
           )
         : computeMobile3dCameraTransform(
             viewportSize.width,
             viewportSize.height,
             "none"
           ),
-    [isBookFocused, isCalibrating, viewportSize.height, viewportSize.width]
+    [active3dSide, isBookFocused, isCalibrating, viewportSize.height, viewportSize.width]
   );
 
   const stageMetrics: CoverStageMetrics = useMemo(
@@ -993,20 +1011,38 @@ export function StudioTulisStageOverlay({
       {/* ===================================================================== */}
       {!isBookFocused && (
         <>
-          {!isMobileBook && (
-            <BookPageDisplacementDefs
-              prefix="studio-3d"
-              leftWidth={studio3dBaseWidth}
-              rightWidth={studio3dBaseWidth}
-              pageHeight={studio3dBaseHeight}
-              leftDisp={studio3dProj.leftDisp}
-              rightDisp={studio3dProj.rightDisp}
-              inkAbsorption
-            />
-          )}
+          <BookPageDisplacementDefs
+            prefix="studio-3d"
+            leftWidth={studio3dBaseWidth}
+            rightWidth={studio3dBaseWidth}
+            pageHeight={studio3dBaseHeight}
+            leftDisp={studio3dProj.leftDisp}
+            rightDisp={studio3dProj.rightDisp}
+            inkAbsorption={!isMobileBook}
+          />
 
-          {/* Cover-Matched Stage Container: GPU-locked 1:1 with Canvas transform on Mobile Portrait, non-isolated on Desktop */}
+          {/* Cover-Matched Stage Container: GPU-locked 1:1 with Canvas transform on Narrow Portrait, non-isolated on Desktop/Tablet */}
           <div
+            onTouchStart={(e) => {
+              if (!mobileCamera.active || e.touches.length !== 1) return;
+              const t = e.touches[0];
+              if (!t) return;
+              touchStartRef.current = { x: t.clientX, y: t.clientY };
+              didSwipeRef.current = false;
+            }}
+            onTouchEnd={(e) => {
+              if (!mobileCamera.active || !touchStartRef.current) return;
+              const t = e.changedTouches[0];
+              if (!t) return;
+              const dx = t.clientX - touchStartRef.current.x;
+              const dy = t.clientY - touchStartRef.current.y;
+              touchStartRef.current = null;
+              if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                didSwipeRef.current = true;
+                playPageFlip();
+                setActive3dSide(dx < 0 ? "right" : "left");
+              }
+            }}
             className={`pointer-events-none fixed overflow-hidden ${
               mobileCamera.active
                 ? "mix-blend-multiply transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform"
@@ -1027,6 +1063,10 @@ export function StudioTulisStageOverlay({
               tabIndex={0}
               onClick={() => {
                 if (isCalibrating) return;
+                if (didSwipeRef.current) {
+                  didSwipeRef.current = false;
+                  return;
+                }
                 handleEnterFocusBook();
               }}
               onKeyDown={(e) => {
@@ -1044,7 +1084,7 @@ export function StudioTulisStageOverlay({
                 padding: `${scalePx(22)} ${scalePx(16)} ${scalePx(18)} ${scalePx(20)}`,
                 transformOrigin: "0 0",
                 transform: studio3dProj.leftMatrixCss,
-                filter: isMobileBook ? undefined : "url(#studio-3d-curve-left)",
+                filter: "url(#studio-3d-curve-left)",
                 maskImage:
                   "radial-gradient(ellipse 90% 90% at 62% 39%, black 63%, rgba(0,0,0,0.5) 84%, transparent 98%)",
                 WebkitMaskImage:
@@ -1088,6 +1128,10 @@ export function StudioTulisStageOverlay({
               tabIndex={0}
               onClick={() => {
                 if (isCalibrating) return;
+                if (didSwipeRef.current) {
+                  didSwipeRef.current = false;
+                  return;
+                }
                 handleEnterFocusBook();
               }}
               onKeyDown={(e) => {
@@ -1105,7 +1149,7 @@ export function StudioTulisStageOverlay({
                 padding: `${scalePx(22)} ${scalePx(22)} ${scalePx(18)} ${scalePx(15)}`,
                 transformOrigin: "0 0",
                 transform: studio3dProj.rightMatrixCss,
-                filter: isMobileBook ? undefined : "url(#studio-3d-curve-right)",
+                filter: "url(#studio-3d-curve-right)",
                 maskImage:
                   "radial-gradient(ellipse 90% 90% at 38% 39%, black 63%, rgba(0,0,0,0.5) 84%, transparent 98%)",
                 WebkitMaskImage:
@@ -1140,9 +1184,41 @@ export function StudioTulisStageOverlay({
             </div>
           </div>
 
-          {/* Unified Bottom 3D Thumb Stack (CTA + Action Dock Bar — Zero Overlap on Mobile) */}
+          {/* Unified Bottom 3D Thumb Stack (Page Switcher + CTA + Action Dock Bar — Zero Overlap on Mobile) */}
           {!isCalibrating && (
             <div className="pointer-events-none fixed inset-x-0 bottom-2.5 sm:bottom-4 z-30 flex flex-col items-center gap-2 px-3 sm:px-6">
+              {mobileCamera.active && (
+                <div className="pointer-events-auto grid grid-cols-2 gap-1 rounded-full border border-[#cda250]/55 bg-slate-950/95 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.85)] md:backdrop-blur-md">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playPageFlip();
+                      setActive3dSide("left");
+                    }}
+                    className={`min-h-[34px] rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      active3dSide === "left"
+                        ? "bg-[#f3d89b] text-slate-950 shadow"
+                        : "text-amber-100/85 hover:text-white"
+                    }`}
+                  >
+                    &lt;- Hal. 1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playPageFlip();
+                      setActive3dSide("right");
+                    }}
+                    className={`min-h-[34px] rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      active3dSide === "right"
+                        ? "bg-[#f3d89b] text-slate-950 shadow"
+                        : "text-amber-100/85 hover:text-white"
+                    }`}
+                  >
+                    Hal. 2 -&gt;
+                  </button>
+                </div>
+              )}
               <div className="flex flex-col items-center gap-1">
                 {analysis.totalWords === 0 && (
                   <span className="hidden sm:inline-block rounded-full border border-[#f4d993]/75 bg-[#040915]/92 px-3 py-0.5 text-[10px] font-bold text-[#f4d993] shadow-lg animate-float-gentle text-center">
@@ -1152,7 +1228,7 @@ export function StudioTulisStageOverlay({
                 <button
                   type="button"
                   onClick={() => handleEnterFocusBook()}
-                  className="pointer-events-auto cursor-pointer min-h-[44px] sm:min-h-0 rounded-full border border-[#f4d993]/85 bg-[#040917]/92 px-5 py-2 text-xs font-bold uppercase tracking-wider text-[#f4d993] shadow-[0_10px_28px_rgba(0,0,0,0.85)] backdrop-blur-md transition-transform duration-300 hover:scale-105"
+                  className="pointer-events-auto cursor-pointer min-h-[44px] sm:min-h-0 rounded-full border border-[#f4d993]/85 bg-[#040917]/95 md:bg-[#040917]/92 px-5 py-2 text-xs font-bold uppercase tracking-wider text-[#f4d993] shadow-[0_10px_28px_rgba(0,0,0,0.85)] md:backdrop-blur-md transition-transform duration-300 hover:scale-105"
                 >
                   Buka Buku &amp; Mulai Mengarang Ceritamu! -&gt;
                 </button>
@@ -1171,7 +1247,7 @@ export function StudioTulisStageOverlay({
                 </div>
               )}
 
-              <div className="pointer-events-auto flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto md:flex-wrap md:justify-between md:overflow-visible rounded-2xl border border-[#d6b26f]/35 bg-slate-950/85 px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] backdrop-blur-md">
+              <div className="pointer-events-auto flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto md:flex-wrap md:justify-between md:overflow-visible rounded-2xl border border-[#d6b26f]/35 bg-slate-950/94 md:bg-slate-950/85 px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] md:backdrop-blur-md">
                 <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                   <span className="hidden md:inline-block rounded-full bg-[#090d16]/75 border border-white/10 px-3 py-1 text-[11px] font-medium text-stone-200 shadow-md">
                     Status:{" "}

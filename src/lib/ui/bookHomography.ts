@@ -405,7 +405,9 @@ export type Mobile3dCameraTarget =
   | "none"
   | "kitab-left"
   | "kitab-right"
-  | "studio";
+  | "studio"
+  | "studio-left"
+  | "studio-right";
 
 export interface Mobile3dCameraTransform {
   readonly active: boolean;
@@ -425,8 +427,10 @@ const IDENTITY_MOBILE_3D_CAMERA: Mobile3dCameraTransform = {
   transformCss: "translate3d(0px, 0px, 0px) scale(1)",
 };
 
-const KITAB_UNIFORM_SPAN_X = 0.323;
-const KITAB_UNIFORM_SPAN_Y = 0.66;
+const KITAB_UNIFORM_SPAN_X = 0.288;
+const KITAB_UNIFORM_SPAN_Y = 0.64;
+const STUDIO_SINGLE_SPAN_X = 0.21;
+const STUDIO_SINGLE_SPAN_Y = 0.34;
 
 const MOBILE_3D_TARGET_SPECS: Record<
   Exclude<Mobile3dCameraTarget, "none">,
@@ -435,32 +439,55 @@ const MOBILE_3D_TARGET_SPECS: Record<
     readonly centerY: number;
     readonly spanX: number;
     readonly spanY: number;
+    /** Full 2-page spread width ratio in 1920px stage space: if this already fits unclipped at zoom=1, stay identity. */
+    readonly fullSpreadWidthNorm?: number;
   }
 > = {
   "kitab-left": {
-    centerX: 0.3165,
+    centerX: 0.314,
     centerY: 0.505,
     spanX: KITAB_UNIFORM_SPAN_X,
     spanY: KITAB_UNIFORM_SPAN_Y,
+    fullSpreadWidthNorm: 0.64,
   },
   "kitab-right": {
-    centerX: 0.638,
+    centerX: 0.637,
     centerY: 0.505,
     spanX: KITAB_UNIFORM_SPAN_X,
     spanY: KITAB_UNIFORM_SPAN_Y,
+    fullSpreadWidthNorm: 0.64,
+  },
+  "studio-left": {
+    centerX: 0.404,
+    centerY: 0.618,
+    spanX: STUDIO_SINGLE_SPAN_X,
+    spanY: STUDIO_SINGLE_SPAN_Y,
+    fullSpreadWidthNorm: 0.362,
+  },
+  "studio-right": {
+    centerX: 0.583,
+    centerY: 0.61,
+    spanX: STUDIO_SINGLE_SPAN_X,
+    spanY: STUDIO_SINGLE_SPAN_Y,
+    fullSpreadWidthNorm: 0.362,
   },
   studio: {
     centerX: 0.49,
     centerY: 0.515,
     spanX: 0.396,
     spanY: 0.54,
+    fullSpreadWidthNorm: 0.362,
   },
 };
 
 /**
- * Computes synchronized camera zoom & pan on mobile portrait (< 768px & vw < vh)
- * so 16:9 3D book perspectives remain 100% unclipped and centered between Navbar and bottom Dock.
- * Desktop, tablet, and landscape viewports always keep identity transform.
+ * Computes synchronized camera zoom & pan on narrow portrait screens (phones AND portrait tablets < 1024px)
+ * so 16:9 3D book perspectives remain unclipped and centered between Navbar and bottom Dock.
+ *
+ * Keeps `zoom = 1` (100% real full-height artwork, zero vertical gap/blur) whenever a single page fits
+ * within the viewport width — including ALL phones & tablets for Studio Tulis (`studio-left`/`studio-right`)
+ * and ALL portrait tablets + 9:16 phones for Kitab Materi.
+ * When both pages already fit unclipped (landscape, desktop, and iPad portrait on Studio Tulis), returns identity.
  */
 export function computeMobile3dCameraTransform(
   viewportWidth: number,
@@ -473,7 +500,7 @@ export function computeMobile3dCameraTransform(
     target === "none" ||
     !Number.isFinite(viewportWidth) ||
     !Number.isFinite(viewportHeight) ||
-    viewportWidth >= 768 ||
+    viewportWidth >= 1024 ||
     viewportWidth >= viewportHeight
   ) {
     return IDENTITY_MOBILE_3D_CAMERA;
@@ -487,20 +514,35 @@ export function computeMobile3dCameraTransform(
   );
   const spec = MOBILE_3D_TARGET_SPECS[target];
 
-  const topSafePx = 104;
-  const bottomSafePx = 162;
+  // If the full 2-page spread already fits cleanly inside viewportWidth at zoom=1 (e.g. iPad portrait in Studio),
+  // keep full dual-page view untouched at identity transform.
+  if (
+    spec.fullSpreadWidthNorm !== undefined &&
+    spec.fullSpreadWidthNorm * base.width <= viewportWidth * 0.94
+  ) {
+    return IDENTITY_MOBILE_3D_CAMERA;
+  }
+
+  const topSafePx = 88;
+  const bottomSafePx = 156;
   const safeHeight = Math.max(160, viewportHeight - topSafePx - bottomSafePx);
   const safeCenterY = topSafePx + safeHeight / 2;
 
-  const widthFitZoom = (viewportWidth * 0.94) / (spec.spanX * base.width);
+  const widthFitZoom = (viewportWidth * 0.96) / (spec.spanX * base.width);
   const heightFitZoom = safeHeight / (spec.spanY * base.height);
   const zoom = Math.max(0.25, Math.min(1, widthFitZoom, heightFitZoom));
 
-  const panX = (0.5 - spec.centerX) * base.width * zoom;
+  const maxPanX = Math.max(0, (base.width * zoom - viewportWidth) / 2);
+  const rawPanX = (0.5 - spec.centerX) * base.width * zoom;
+  const panX = Math.max(-maxPanX, Math.min(maxPanX, rawPanX));
+
+  // Lock panY = 0 whenever zoom === 1 so 100% of screen height shows real unblurred 16:9 artwork
   const panY =
-    safeCenterY -
-    viewportHeight / 2 +
-    (0.5 - spec.centerY) * base.height * zoom;
+    zoom >= 0.999
+      ? 0
+      : safeCenterY -
+        viewportHeight / 2 +
+        (0.5 - spec.centerY) * base.height * zoom;
 
   return {
     active: true,

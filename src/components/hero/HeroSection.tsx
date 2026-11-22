@@ -29,10 +29,10 @@ export function HeroSection({
       aria-labelledby="hero-heading"
       className="relative h-[300vh] w-full bg-transparent"
     >
-      {/* Pinned Viewport (Stays sticky during the hero scroll distance) */}
+      {/* Pinned Viewport (Stays sticky during the hero scroll distance; uses 100dvh so mobile URL/nav bars never sink the bottom card) */}
       <div
         ref={heroOverlayRef}
-        className={`sticky top-0 h-screen w-full overflow-hidden bg-transparent transition-opacity duration-300 ${
+        className={`sticky top-0 h-dvh w-full overflow-hidden bg-transparent transition-opacity duration-300 ${
           isMateriUnlocked ? "pointer-events-none invisible opacity-0" : "opacity-100"
         }`}
       >

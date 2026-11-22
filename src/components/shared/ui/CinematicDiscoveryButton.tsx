@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { TheaterSpotlight } from "@/components/shared/ui/Spotlight";
 
 /**
@@ -43,7 +43,6 @@ export function CinematicDiscoveryButton({
   const [prevReady, setPrevReady] = useState<boolean>(isReady);
   const [isSettledAndReady, setIsSettledAndReady] = useState<boolean>(false);
   const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
-  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   if (prevReady !== isReady) {
     setPrevReady(isReady);
@@ -67,31 +66,16 @@ export function CinematicDiscoveryButton({
     };
   }, [isReady, isFadingOut]);
 
-  useEffect(() => {
-    return () => {
-      if (clickTimerRef.current !== null) {
-        clearTimeout(clickTimerRef.current);
-      }
-    };
-  }, []);
-
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (!isReady || isFadingOut) return;
 
-    if (!fadeOutOnClick) {
-      onSelect?.();
-      return;
+    if (fadeOutOnClick) {
+      setIsFadingOut(true);
     }
-
-    setIsFadingOut(true);
-    if (clickTimerRef.current !== null) {
-      clearTimeout(clickTimerRef.current);
-    }
-    clickTimerRef.current = setTimeout(() => {
-      clickTimerRef.current = null;
-      onSelect?.();
-    }, 260);
+    // Invoke synchronously inside the native tap/click gesture so mobile iOS/Android
+    // grant immediate hardware <video>.play() activation without losing UserActivation.
+    onSelect?.();
   };
 
   const isVisible = isSettledAndReady && isReady && !isFadingOut;

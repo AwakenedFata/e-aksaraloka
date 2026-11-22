@@ -62,60 +62,26 @@ export function Spotlight({ className = "", fill = "#f4d993" }: SpotlightProps) 
 }
 
 /**
- * Aceternity-Style Theater Stage Spotlight (Downward Beam)
- * Specifically configured for vertical followspot projection onto scene elements.
+ * GPU-composited Theater Stage Spotlight (Downward Beam)
+ * Replaces heavy SVG <feGaussianBlur stdDeviation="32"> with pure CSS gradients
+ * so 3 simultaneous Hub followspots cost ~0ms on mobile GPUs.
  */
 export function TheaterSpotlight({
   className = "",
   fill = "#fef08a",
 }: SpotlightProps) {
-  const filterId = `theater-filter-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-
   return (
-    <svg
+    <div
+      aria-hidden="true"
       className={`pointer-events-none absolute select-none ${className}`}
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 400 600"
-      fill="none"
     >
-      <g filter={`url(#${filterId})`}>
-        {/* Soft Volumetric Downward Cone */}
-        <polygon
-          points="180,10 220,10 360,540 40,540"
-          fill={fill}
-          fillOpacity="0.18"
-        />
-        {/* Intense Core Followspot Beam */}
-        <polygon
-          points="190,10 210,10 300,540 100,540"
-          fill={fill}
-          fillOpacity="0.28"
-        />
-        {/* Illuminated Floor / Stair Pool */}
-        <ellipse
-          cx="200"
-          cy="540"
-          rx="140"
-          ry="35"
-          fill={fill}
-          fillOpacity="0.22"
-        />
-      </g>
-      <defs>
-        <filter
-          id={filterId}
-          x="-50"
-          y="-50"
-          width="500"
-          height="700"
-          filterUnits="userSpaceOnUse"
-          colorInterpolationFilters="sRGB"
-        >
-          <feFlood floodOpacity="0" result="BackgroundImageFix" />
-          <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
-          <feGaussianBlur stdDeviation="32" result="theaterBlur" />
-        </filter>
-      </defs>
-    </svg>
+      <div
+        className="h-full w-full"
+        style={{
+          background: `radial-gradient(ellipse 46% 62% at 50% 34%, ${fill}36 0%, ${fill}1a 42%, transparent 74%), radial-gradient(ellipse 52% 16% at 50% 88%, ${fill}2c 0%, transparent 72%)`,
+          clipPath: "polygon(43% 0%, 57% 0%, 96% 96%, 4% 96%)",
+        }}
+      />
+    </div>
   );
 }

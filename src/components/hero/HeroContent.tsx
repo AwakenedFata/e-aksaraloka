@@ -114,20 +114,20 @@ export const HeroContent = memo(function HeroContent({
 
   return (
     <div
-      className={`relative z-10 flex h-screen max-h-screen w-full flex-col justify-between px-6 sm:px-10 lg:px-16 2xl:px-24 pt-24 sm:pt-28 lg:pt-28 2xl:pt-32 pb-6 sm:pb-8 lg:pb-10 overflow-hidden ${!isHeroInteractive ? "pointer-events-none" : ""
+      className={`relative z-10 flex h-dvh max-h-dvh w-full flex-col justify-between px-5 sm:px-10 lg:px-16 2xl:px-24 pt-18 min-[380px]:pt-20 sm:pt-28 lg:pt-28 2xl:pt-32 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-8 lg:pb-10 overflow-hidden ${!isHeroInteractive ? "pointer-events-none" : ""
         }`}
     >
       {/* Top / Middle Grid Area */}
-      <div className="mx-auto flex w-full max-w-7xl 2xl:max-w-[1536px] flex-1 min-h-0 items-center justify-between">
+      <div className="mx-auto flex w-full max-w-7xl 2xl:max-w-[1536px] flex-1 min-h-0 items-center justify-between py-2 sm:py-0">
         {/* Left Column: Editorial Headline & Actions */}
         <div className="max-w-2xl 2xl:max-w-3xl">
           {/* Eyebrow with Left Dash (matching reference layout) */}
           <div
             style={eyebrowStyle}
-            className="flex items-center gap-3 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]"
+            className="flex items-center gap-2.5 sm:gap-3 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]"
           >
-            <span className="h-[1.5px] w-8 bg-white/70" />
-            <span className="text-[11px] sm:text-xs 2xl:text-sm font-semibold tracking-[0.25em] text-white uppercase">
+            <span className="h-[1.5px] w-6 sm:w-8 bg-white/70" />
+            <span className="text-[10.5px] sm:text-xs 2xl:text-sm font-semibold tracking-[0.22em] sm:tracking-[0.25em] text-white uppercase">
               TEKS NARASI · KELAS VII SMP
             </span>
           </div>
@@ -136,7 +136,7 @@ export const HeroContent = memo(function HeroContent({
           <h1
             id="hero-heading"
             style={headingStyle}
-            className="mt-4 sm:mt-5 2xl:mt-6 font-serif text-4xl sm:text-5xl md:text-6xl lg:text-[4.75rem] 2xl:text-[5.5rem] font-medium tracking-tight text-white leading-[1.04] select-text drop-shadow-[0_4px_24px_rgba(0,0,0,0.9)] origin-left"
+            className="mt-2.5 min-[380px]:mt-3.5 sm:mt-5 2xl:mt-6 font-serif text-[2.1rem] min-[380px]:text-4xl sm:text-5xl md:text-6xl lg:text-[4.75rem] 2xl:text-[5.5rem] font-medium tracking-tight text-white leading-[1.04] select-text drop-shadow-[0_4px_24px_rgba(0,0,0,0.9)] origin-left"
           >
             Setiap Cerita.
             <br />
@@ -146,7 +146,7 @@ export const HeroContent = memo(function HeroContent({
           {/* Supporting Copy (Tailored to Indonesian narrative writing skills) */}
           <p
             style={paragraphStyle}
-            className="mt-4 sm:mt-5 2xl:mt-6 max-w-lg 2xl:max-w-xl text-sm sm:text-base lg:text-lg 2xl:text-xl text-white/95 font-normal leading-relaxed select-text drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]"
+            className="mt-2.5 min-[380px]:mt-3.5 sm:mt-5 2xl:mt-6 max-w-lg 2xl:max-w-xl text-[13px] min-[380px]:text-sm sm:text-base lg:text-lg 2xl:text-xl text-white/95 font-normal leading-relaxed select-text drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]"
           >
             Rangkai orientasi yang memikat, susun komplikasi mendebarkan, dan hidupkan resolusi ceritamu!.
           </p>
@@ -154,14 +154,14 @@ export const HeroContent = memo(function HeroContent({
           {/* Action Buttons Row: White Pill Button + Translucent Play Button */}
           <div
             style={buttonsStyle}
-            className="mt-6 sm:mt-7 2xl:mt-9 flex flex-wrap items-center gap-4 sm:gap-6"
+            className="mt-4 min-[380px]:mt-5 sm:mt-7 2xl:mt-9 flex flex-wrap items-center gap-3 sm:gap-6"
           >
             {/* Primary Action Button (Solid White Pill with Circular Arrow) */}
             <button
               type="button"
               onClick={onNavigateToHub}
               data-scroll-duration="4"
-              className="group inline-flex items-center gap-3 rounded-full bg-white px-7 py-3 sm:py-3.5 2xl:px-8 2xl:py-4 text-xs sm:text-sm font-semibold tracking-wider text-black transition-all duration-300 hover:bg-[#f4d993] hover:shadow-xl hover:shadow-white/10 hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-white cursor-pointer"
+              className="group inline-flex items-center gap-3 rounded-full bg-white px-6 py-2.5 min-[380px]:px-7 min-[380px]:py-3 sm:py-3.5 2xl:px-8 2xl:py-4 text-xs sm:text-sm font-semibold tracking-wider text-black transition-all duration-300 hover:bg-[#f4d993] hover:shadow-xl hover:shadow-white/10 hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-white cursor-pointer"
               aria-label="Mulai Petualangan - Gulir ke Ruang Pustaka"
             >
               <span className="uppercase">Mulai Petualangan</span>
@@ -184,10 +184,10 @@ export const HeroContent = memo(function HeroContent({
               type="button"
               onClick={onNavigateToHub}
               data-scroll-duration="4"
-              className="group inline-flex items-center gap-3 text-xs sm:text-sm font-medium tracking-wide text-white transition-colors hover:text-[#f4d993] focus-visible:outline-2 focus-visible:outline-white rounded-full p-1 cursor-pointer"
+              className="group inline-flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm font-medium tracking-wide text-white transition-colors hover:text-[#f4d993] focus-visible:outline-2 focus-visible:outline-white rounded-full p-1 cursor-pointer"
               aria-label="Pratinjau Alur - Gulir ke Ruang Pustaka"
             >
-              <span className="flex h-11 w-11 2xl:h-12 2xl:w-12 items-center justify-center rounded-full border border-white/20 bg-white/10 transition-all duration-300 group-hover:border-white/50 group-hover:bg-white/20 group-hover:scale-105">
+              <span className="flex h-10 w-10 sm:h-11 sm:w-11 2xl:h-12 2xl:w-12 items-center justify-center rounded-full border border-white/20 bg-white/10 transition-all duration-300 group-hover:border-white/50 group-hover:bg-white/20 group-hover:scale-105">
                 <svg
                   viewBox="0 0 24 24"
                   fill="currentColor"
@@ -207,7 +207,7 @@ export const HeroContent = memo(function HeroContent({
           style={rightCardStyle}
           className="hidden lg:flex flex-col items-end gap-6"
         >
-          <div className="group relative flex items-center gap-3.5 rounded-2xl border border-white/15 bg-[#0a1220]/75 p-2.5 pr-4 backdrop-blur-sm shadow-2xl ring-1 ring-white/5 transition-all duration-300 hover:border-white/30 hover:bg-[#0f1b2e]/85 hover:-translate-y-0.5">
+          <div className="group relative flex items-center gap-3.5 rounded-2xl border border-white/15 bg-[#0a1220]/85 md:bg-[#0a1220]/75 p-2.5 pr-4 md:backdrop-blur-sm shadow-2xl ring-1 ring-white/5 transition-all duration-300 hover:border-white/30 hover:bg-[#0f1b2e]/85 hover:-translate-y-0.5">
             {/* Thumbnail */}
             <div className="relative h-12 w-12 2xl:h-14 2xl:w-14 flex-shrink-0 overflow-hidden rounded-xl border border-white/20">
               <Image
@@ -295,11 +295,11 @@ export const HeroContent = memo(function HeroContent({
       {/* Bottom Row (Matching reference bottom-left preview & bottom-right quote) */}
       <div
         style={bottomRowStyle}
-        className="mx-auto flex w-full max-w-7xl 2xl:max-w-[1536px] items-center justify-between pt-5 sm:pt-6 border-t border-white/15 flex-shrink-0"
+        className="mx-auto flex w-full max-w-7xl 2xl:max-w-[1536px] items-center justify-between pt-3.5 sm:pt-6 border-t border-white/15 flex-shrink-0"
       >
         {/* Bottom Left Card (Circular Thumbnail + Copy matching reference) */}
-        <div className="flex items-center gap-4 max-w-md 2xl:max-w-lg">
-          <div className="relative h-11 w-11 sm:h-12 sm:w-12 2xl:h-14 2xl:w-14 flex-shrink-0 overflow-hidden rounded-full border border-white/30 shadow-lg ring-2 ring-white/10">
+        <div className="flex items-center gap-3 sm:gap-4 max-w-md 2xl:max-w-lg min-w-0">
+          <div className="relative h-10 w-10 sm:h-12 sm:w-12 2xl:h-14 2xl:w-14 flex-shrink-0 overflow-hidden rounded-full border border-white/30 shadow-lg ring-2 ring-white/10">
             <Image
               src="/hero-frames/frame-001.webp"
               alt="Eksplorasi Alur Magis"
@@ -308,11 +308,11 @@ export const HeroContent = memo(function HeroContent({
               className="object-cover"
             />
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs sm:text-sm font-semibold tracking-wide text-white">
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs sm:text-sm font-semibold tracking-wide text-white leading-snug">
               Keterampilan Menulis Teks Fantasi
             </span>
-            <span className="text-[11px] sm:text-xs leading-relaxed text-stone-300">
+            <span className="text-[11px] sm:text-xs leading-snug sm:leading-relaxed text-stone-300">
               Dari ruang nyata menuju latar ajaib, mulailah merangkai ceritamu.
             </span>
           </div>

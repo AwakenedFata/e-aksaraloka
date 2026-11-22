@@ -94,6 +94,15 @@ interface ScrollCanvasSequenceProps {
   readonly onDiscreteStateChange?: (state: DiscreteSequenceState) => void;
 }
 
+type VideoClipKey =
+  | "hero"
+  | "hero-rev"
+  | "materi"
+  | "materi-rev"
+  | "reading"
+  | "reading-rev"
+  | "latihan";
+
 interface ActiveAutoplay {
   mode: "canvas" | "video";
   sequence: SequenceType;
@@ -111,6 +120,8 @@ interface ActiveAutoplay {
   totalStallMs: number;
   videoSessionId: number;
   videoStartedAt: number;
+  videoDirection: 1 | -1;
+  videoClipKey: VideoClipKey | null;
   videoStartTimeSec: number;
   videoTargetTimeSec: number;
   videoSeekReady: boolean;
@@ -123,13 +134,24 @@ interface ActiveAutoplay {
   onComplete?: () => void;
 }
 
-const SEQUENCE_VIDEO_URLS: Readonly<Record<SequenceType, string>> = {
+const SEQUENCE_VIDEO_URLS: Readonly<Record<VideoClipKey, string>> = {
   hero: "/seq-videos/hero.mp4",
+  "hero-rev": "/seq-videos/hero-rev.mp4",
   materi: "/seq-videos/materi.mp4",
+  "materi-rev": "/seq-videos/materi-rev.mp4",
   reading: "/seq-videos/reading.mp4",
+  "reading-rev": "/seq-videos/reading-rev.mp4",
   latihan: "/seq-videos/latihan.mp4",
 };
-const SEQUENCE_VIDEO_FPS = 48;
+const SEQUENCE_VIDEO_FPS = 60;
+
+function resolveVideoClipKey(sequence: SequenceType, direction: 1 | -1): VideoClipKey | null {
+  if (direction === 1) return sequence;
+  if (sequence === "hero") return "hero-rev";
+  if (sequence === "materi") return "materi-rev";
+  if (sequence === "reading") return "reading-rev";
+  return null;
+}
 
 const TOTAL_HERO_FRAMES_DEFAULT = 240;
 const TOTAL_MATERI_FRAMES_DEFAULT = 299;
@@ -205,8 +227,6 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const backdropCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const backdropCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const [viewportSize, setViewportSize] = useState<{
     readonly width: number;
     readonly height: number;
@@ -264,14 +284,6 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     width: SOURCE_WIDTH,
     height: SOURCE_HEIGHT,
   });
-  const backdropDrawBoundsRef = useRef<{ x: number; y: number; width: number; height: number }>({
-    x: 0,
-    y: 0,
-    width: 192,
-    height: 108,
-  });
-  const lastBackdropBitmapRef = useRef<ImageBitmap | null>(null);
-  const hasMobileAmbientBackdropRef = useRef<boolean>(false);
 
   const lastDrawnSeqRef = useRef<SequenceType | null>(null);
   const lastDrawnFrameRef = useRef<number>(-1);
@@ -288,6 +300,11 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const videoSessionIdRef = useRef<number>(0);
   const isVideoActiveRef = useRef<boolean>(false);
+  const videoBlobUrlsRef = useRef<Map<VideoClipKey, string>>(new Map());
+  const videoPrefetchQueueRef = useRef<VideoClipKey[]>([]);
+  const videoPrefetchInFlightRef = useRef<VideoClipKey | null>(null);
+  const videoPrefetchAbortRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef<boolean>(true);
   const lastViewportRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   const pendingResizeAfterAutoplayRef = useRef<boolean>(false);
   const suppressScrollReadRef = useRef<boolean>(false);
@@ -311,6 +328,116 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
 
   const [isFirstFrameReady, setIsFirstFrameReady] = useState<boolean>(false);
   const [isVideoVisible, setIsVideoVisible] = useState<boolean>(false);
+
+  const drainVideoPrefetchRef = useRef<() => void>(() => {});
+
+  const queueVideoPrefetch = useCallback((clips: readonly VideoClipKey[]) => {
+    if (cacheBudgetRef.current.isConstrainedNetwork) return;
+    const queue = videoPrefetchQueueRef.current;
+    for (const clip of clips) {
+      if (
+        videoBlobUrlsRef.current.has(clip) ||
+        videoPrefetchInFlightRef.current === clip ||
+        queue.includes(clip)
+      ) {
+        continue;
+      }
+      queue.push(clip);
+    }
+    drainVideoPrefetchRef.current();
+  }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    const drainVideoPrefetch = () => {
+      if (
+        !isMountedRef.current ||
+        videoPrefetchInFlightRef.current !== null ||
+        autoplayRef.current !== null ||
+        isVideoActiveRef.current
+      ) {
+        return;
+      }
+
+      const nextClip = videoPrefetchQueueRef.current.shift();
+      if (!nextClip) return;
+      if (videoBlobUrlsRef.current.has(nextClip)) {
+        drainVideoPrefetch();
+        return;
+      }
+
+      videoPrefetchInFlightRef.current = nextClip;
+      const controller = new AbortController();
+      videoPrefetchAbortRef.current = controller;
+
+      void fetch(SEQUENCE_VIDEO_URLS[nextClip], {
+        signal: controller.signal,
+        cache: "force-cache",
+      })
+        .then((res) => (res.ok ? res.blob() : null))
+        .then((blob) => {
+          if (!blob || !isMountedRef.current) return;
+          const objectUrl = URL.createObjectURL(blob);
+          videoBlobUrlsRef.current.set(nextClip, objectUrl);
+
+          // If this clip is the primary next clip and <video> is idle, prime decoder from RAM immediately
+          const videoEl = videoRef.current;
+          if (
+            videoEl &&
+            !isVideoActiveRef.current &&
+            autoplayRef.current === null &&
+            ((nextClip === "hero" && activeSequenceRef.current === "hero" && currentFramesRef.current.hero < 10) ||
+              (nextClip === "reading" && activeSequenceRef.current === "materi") ||
+              (nextClip === "materi" && activeSequenceRef.current === "hero" && currentFramesRef.current.hero >= totalHeroFrames - 2))
+          ) {
+            videoEl.setAttribute("data-clip", nextClip);
+            videoEl.preload = "auto";
+            videoEl.src = objectUrl;
+            videoEl.load();
+          }
+
+          // On mobile, only start hero WebP chunk warmup AFTER hero.mp4 is safely cached in RAM
+          if (
+            nextClip === "hero" &&
+            cacheBudgetRef.current.tier === "low" &&
+            cacheManagerRef.current
+          ) {
+            cacheManagerRef.current.queueBlobWarmup("hero", 1, totalHeroFrames, 1);
+          }
+        })
+        .catch(() => {
+          // Non-fatal prefetch abort/network error — direct CDN URL fallback remains active
+        })
+        .finally(() => {
+          if (videoPrefetchAbortRef.current === controller) {
+            videoPrefetchAbortRef.current = null;
+          }
+          if (videoPrefetchInFlightRef.current === nextClip) {
+            videoPrefetchInFlightRef.current = null;
+          }
+          if (isMountedRef.current) {
+            drainVideoPrefetch();
+          }
+        });
+    };
+
+    drainVideoPrefetchRef.current = drainVideoPrefetch;
+    const blobMap = videoBlobUrlsRef.current;
+    const prefetchQueue = videoPrefetchQueueRef.current;
+
+    return () => {
+      isMountedRef.current = false;
+      videoPrefetchAbortRef.current?.abort();
+      videoPrefetchAbortRef.current = null;
+      videoPrefetchInFlightRef.current = null;
+      prefetchQueue.length = 0;
+      for (const url of blobMap.values()) {
+        URL.revokeObjectURL(url);
+      }
+      blobMap.clear();
+    };
+  }, [totalHeroFrames]);
 
   const stopHardwareVideo = useCallback(() => {
     videoSessionIdRef.current++;
@@ -353,63 +480,40 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     scrollableHeightsRef.current.latihan = clampActiveTrack(latihanContainerRef?.current, 3.6);
   }, [containerRef, materiContainerRef, readingContainerRef, latihanContainerRef]);
 
-  const drawBackdropBitmap = useCallback((bitmap: ImageBitmap | null) => {
-    if (!bitmap || !hasMobileAmbientBackdropRef.current) return;
-    if (bitmap === lastBackdropBitmapRef.current) return;
+  const drawFrame = useCallback((seq: SequenceType, rawFrame: number) => {
+    const cache = cacheManagerRef.current;
+    const ctx = ctxRef.current;
+    if (!cache || !ctx) return;
 
-    const backdropCanvas = backdropCanvasRef.current;
-    if (!backdropCanvas) return;
-    if (!backdropCtxRef.current || backdropCtxRef.current.canvas !== backdropCanvas) {
-      backdropCtxRef.current = backdropCanvas.getContext("2d", {
-        alpha: false,
-      });
-    }
-    const backdropCtx = backdropCtxRef.current;
-    if (!backdropCtx) return;
+    const frame = Math.max(1, Math.min(cache.getMaxFrames(seq), Math.round(rawFrame)));
+    const best = cache.getBestBitmapWithFrame(seq, frame, scrollDirectionRef.current);
+    if (!best) return;
 
-    const bBounds = backdropDrawBoundsRef.current;
-    backdropCtx.drawImage(bitmap, bBounds.x, bBounds.y, bBounds.width, bBounds.height);
-    lastBackdropBitmapRef.current = bitmap;
-  }, []);
+    const sameSequence = lastDisplayedSourceSeqRef.current === seq;
+    const dir = scrollDirectionRef.current;
+    const isMonotonicRegression =
+      !best.exact &&
+      sameSequence &&
+      lastDrawnBitmapRef.current !== null &&
+      lastDisplayedSourceFrameRef.current > 0 &&
+      ((dir >= 0 && best.frame < lastDisplayedSourceFrameRef.current) ||
+        (dir < 0 && best.frame > lastDisplayedSourceFrameRef.current));
 
-  const drawFrame = useCallback(
-    (seq: SequenceType, rawFrame: number) => {
-      const cache = cacheManagerRef.current;
-      const ctx = ctxRef.current;
-      if (!cache || !ctx) return;
-
-      const frame = Math.max(1, Math.min(cache.getMaxFrames(seq), Math.round(rawFrame)));
-      const best = cache.getBestBitmapWithFrame(seq, frame, scrollDirectionRef.current);
-      if (!best) return;
-
-      const sameSequence = lastDisplayedSourceSeqRef.current === seq;
-      const dir = scrollDirectionRef.current;
-      const isMonotonicRegression =
-        !best.exact &&
-        sameSequence &&
-        lastDrawnBitmapRef.current !== null &&
-        lastDisplayedSourceFrameRef.current > 0 &&
-        ((dir >= 0 && best.frame < lastDisplayedSourceFrameRef.current) ||
-          (dir < 0 && best.frame > lastDisplayedSourceFrameRef.current));
-
-      if (!isMonotonicRegression) {
-        if (best.bitmap !== lastDrawnBitmapRef.current) {
-          const bounds = drawBoundsRef.current;
-          ctx.drawImage(best.bitmap, bounds.x, bounds.y, bounds.width, bounds.height);
-          lastDrawnBitmapRef.current = best.bitmap;
-        }
-        drawBackdropBitmap(best.bitmap);
-        lastDisplayedSourceSeqRef.current = seq;
-        lastDisplayedSourceFrameRef.current = best.frame;
+    if (!isMonotonicRegression) {
+      if (best.bitmap !== lastDrawnBitmapRef.current) {
+        const bounds = drawBoundsRef.current;
+        ctx.drawImage(best.bitmap, bounds.x, bounds.y, bounds.width, bounds.height);
+        lastDrawnBitmapRef.current = best.bitmap;
       }
+      lastDisplayedSourceSeqRef.current = seq;
+      lastDisplayedSourceFrameRef.current = best.frame;
+    }
 
-      cache.setLastDrawn(seq, frame);
-      lastDrawnSeqRef.current = seq;
-      lastDrawnFrameRef.current = frame;
-      lastDrawWasExactRef.current = best.exact;
-    },
-    [drawBackdropBitmap]
-  );
+    cache.setLastDrawn(seq, frame);
+    lastDrawnSeqRef.current = seq;
+    lastDrawnFrameRef.current = frame;
+    lastDrawWasExactRef.current = best.exact;
+  }, []);
 
   const syncHeroCssVar = useCallback(
     (seq: SequenceType, heroFrame: number) => {
@@ -534,6 +638,8 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
         void cache.loadFrame("latihan", LATIHAN_SEGMENT_COUNTS.latihan, false, true);
         void cache.loadFrame("latihan", LATIHAN_SEGMENT_COUNTS.latihan + 1, false, true);
         void cache.loadFrame("latihan", totalLatihanFrames, false, true);
+        // Pre-warm next stage MP4s into local RAM Blobs so tapping Materi / Latihan / Back starts in 0ms
+        queueVideoPrefetch(["materi", "latihan", "hero-rev"]);
         if (budget.tier !== "low") {
           cache.warmSequenceHead("materi", headBudget, false);
           cache.warmSequenceHead("latihan", headBudget, true);
@@ -542,18 +648,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       } else if (cache && seq === "materi" && isMateriAtEnd && !warmupTriggeredRef.current.materiToReading) {
         warmupTriggeredRef.current.materiToReading = true;
         void cache.loadFrame("reading", totalReadingFrames, false, true);
-        const videoEl = videoRef.current;
-        if (
-          videoEl &&
-          !budget.isConstrainedNetwork &&
-          !isVideoActiveRef.current &&
-          autoplayRef.current === null &&
-          videoEl.getAttribute("data-seq") !== "reading"
-        ) {
-          videoEl.setAttribute("data-seq", "reading");
-          videoEl.preload = "auto";
-          videoEl.src = SEQUENCE_VIDEO_URLS.reading;
-        }
+        queueVideoPrefetch(["reading", "materi-rev"]);
         if (budget.tier !== "low") {
           cache.warmSequenceHead(
             "reading",
@@ -568,13 +663,21 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
         !warmupTriggeredRef.current.readingPageFlip
       ) {
         warmupTriggeredRef.current.readingPageFlip = true;
+        queueVideoPrefetch(["reading-rev"]);
         if (!budget.isConstrainedNetwork) {
           // Warm only the compact 3D page-turn clip (~1.2 MB) so book page flips stay instant even on mobile
           cache.queueBlobWarmup("reading", 355, Math.min(445, totalReadingFrames), budget.tier === "low" ? 2 : 1);
         }
       }
     },
-    [heroMaxFrame, totalHeroFrames, totalMateriFrames, totalReadingFrames, totalLatihanFrames]
+    [
+      heroMaxFrame,
+      totalHeroFrames,
+      totalMateriFrames,
+      totalReadingFrames,
+      totalLatihanFrames,
+      queueVideoPrefetch,
+    ]
   );
 
   const syncDomScrollInstant = useCallback(
@@ -720,29 +823,37 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
         const direction: 1 | -1 = clampedTarget >= startFrame ? 1 : -1;
         scrollDirectionRef.current = direction;
 
-        if (!(options.interruptible ?? true)) {
+        const now = performance.now();
+        const spanFrames = Math.ceil(Math.abs(clampedTarget - startFrame));
+        const videoEl = videoRef.current;
+        const isShortBookFlip =
+          sequence === "reading" && startFrame >= 340 && clampedTarget <= 460;
+        const clipKey = resolveVideoClipKey(sequence, direction);
+        const useHardwareVideo =
+          Boolean(videoEl) &&
+          clipKey !== null &&
+          !prefersReducedMotionRef.current &&
+          spanFrames > 15 &&
+          !isShortBookFlip;
+
+        if (useHardwareVideo || !(options.interruptible ?? true)) {
+          // Pause Lenis rAF & native overscroll during hardware video playback
           lenisRef.current.stop();
         } else {
           // Cancel any leftover wheel momentum cleanly before direct timeline playback
           lenisRef.current.scrollTo(window.scrollY, { immediate: true, force: true });
         }
 
-        const now = performance.now();
-        const spanFrames = Math.ceil(Math.abs(clampedTarget - startFrame));
-        const videoEl = videoRef.current;
-        const isShortBookFlip =
-          sequence === "reading" && startFrame >= 340 && clampedTarget <= 460;
-        const useHardwareVideo =
-          Boolean(videoEl) &&
-          !prefersReducedMotionRef.current &&
-          direction === 1 &&
-          spanFrames > 15 &&
-          !isShortBookFlip;
-
         const expectedDurationSec = maxFrames / SEQUENCE_VIDEO_FPS;
-        const estStartSec = ((startFrame - 1) / Math.max(1, maxFrames - 1)) * expectedDurationSec;
+        const maxSpan = Math.max(1, maxFrames - 1);
+        const estStartSec =
+          direction === 1
+            ? ((startFrame - 1) / maxSpan) * expectedDurationSec
+            : ((maxFrames - startFrame) / maxSpan) * expectedDurationSec;
         const estTargetSec =
-          ((clampedTarget - 1) / Math.max(1, maxFrames - 1)) * expectedDurationSec;
+          direction === 1
+            ? ((clampedTarget - 1) / maxSpan) * expectedDurationSec
+            : ((maxFrames - clampedTarget) / maxSpan) * expectedDurationSec;
         const sessionId = useHardwareVideo ? ++videoSessionIdRef.current : videoSessionIdRef.current;
 
         const primeTargetCount = Math.min(12, Math.max(1, spanFrames));
@@ -767,6 +878,8 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
           totalStallMs: 0,
           videoSessionId: sessionId,
           videoStartedAt: now,
+          videoDirection: direction,
+          videoClipKey: clipKey,
           videoStartTimeSec: estStartSec,
           videoTargetTimeSec: estTargetSec,
           videoSeekReady: false,
@@ -797,21 +910,34 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
           }
         }
 
-        if (useHardwareVideo && videoEl) {
+        if (useHardwareVideo && videoEl && clipKey) {
           isVideoActiveRef.current = true;
-          const videoUrl = SEQUENCE_VIDEO_URLS[sequence];
-          const desiredRate = Math.max(
-            0.5,
-            Math.min(
-              2.0,
-              (Math.max(0.05, estTargetSec - estStartSec) * 1000) / Math.max(100, options.durationMs)
-            )
-          );
+          // Yield cellular bandwidth immediately if a different background clip is being fetched
+          if (videoPrefetchInFlightRef.current && videoPrefetchInFlightRef.current !== clipKey) {
+            const abortedClip = videoPrefetchInFlightRef.current;
+            videoPrefetchAbortRef.current?.abort();
+            if (!videoPrefetchQueueRef.current.includes(abortedClip)) {
+              videoPrefetchQueueRef.current.unshift(abortedClip);
+            }
+          }
 
-          if (videoEl.getAttribute("data-seq") !== sequence) {
-            videoEl.setAttribute("data-seq", sequence);
+          const cachedBlobUrl = videoBlobUrlsRef.current.get(clipKey);
+          const mediaSrc = cachedBlobUrl ?? SEQUENCE_VIDEO_URLS[clipKey];
+          const rawDesiredRate =
+            (Math.max(0.05, estTargetSec - estStartSec) * 1000) / Math.max(100, options.durationMs);
+          // Lock to exact 1.0x whenever within 14% of native 60fps so iOS/Android stay on zero-copy HW video overlay
+          const desiredRate =
+            Math.abs(rawDesiredRate - 1.0) < 0.14
+              ? 1.0
+              : Math.max(0.5, Math.min(2.0, rawDesiredRate));
+
+          const prevClip = videoEl.getAttribute("data-clip");
+          const needsReload =
+            prevClip !== clipKey || (Boolean(cachedBlobUrl) && videoEl.src !== cachedBlobUrl);
+          if (needsReload) {
+            videoEl.setAttribute("data-clip", clipKey);
             videoEl.preload = "auto";
-            videoEl.src = videoUrl;
+            videoEl.src = mediaSrc;
             videoEl.load();
           }
           videoEl.muted = true;
@@ -844,7 +970,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
               cache.requestWindow(
                 sequence,
                 Math.round(active.startFrame),
-                1,
+                direction,
                 getRuntimeLookahead(budget),
                 budget.lookbehind
               );
@@ -857,22 +983,25 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
               Number.isFinite(videoEl.duration) && videoEl.duration > 0.1
                 ? videoEl.duration
                 : expectedDurationSec;
-            const exactStartSec = ((startFrame - 1) / Math.max(1, maxFrames - 1)) * realDur;
-            const exactTargetSec = ((clampedTarget - 1) / Math.max(1, maxFrames - 1)) * realDur;
+            const exactStartSec =
+              direction === 1
+                ? ((startFrame - 1) / maxSpan) * realDur
+                : ((maxFrames - startFrame) / maxSpan) * realDur;
+            const exactTargetSec =
+              direction === 1
+                ? ((clampedTarget - 1) / maxSpan) * realDur
+                : ((maxFrames - clampedTarget) / maxSpan) * realDur;
             const active = autoplayRef.current;
             if (active && active.videoSessionId === sessionId) {
               active.videoStartTimeSec = exactStartSec;
               active.videoTargetTimeSec = exactTargetSec;
               active.videoLastTime = exactStartSec;
             }
-            const rate = Math.max(
-              0.5,
-              Math.min(
-                2.0,
-                (Math.max(0.05, exactTargetSec - exactStartSec) * 1000) /
-                  Math.max(100, options.durationMs)
-              )
-            );
+            const rawRate =
+              (Math.max(0.05, exactTargetSec - exactStartSec) * 1000) /
+              Math.max(100, options.durationMs);
+            const rate =
+              Math.abs(rawRate - 1.0) < 0.14 ? 1.0 : Math.max(0.5, Math.min(2.0, rawRate));
             videoEl.playbackRate = rate;
             if (Math.abs(videoEl.currentTime - exactStartSec) > 0.08) {
               if (active && active.videoSessionId === sessionId) {
@@ -1016,41 +1145,6 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     stopHardwareVideo,
   ]);
 
-  const syncBackdropCanvasSize = useCallback((displayWidth: number, displayHeight: number) => {
-    const backdropCanvas = backdropCanvasRef.current;
-    if (!backdropCanvas) return;
-
-    const bgHeight = 160;
-    const bgWidth = Math.max(
-      64,
-      Math.min(288, Math.round((bgHeight * displayWidth) / Math.max(1, displayHeight)))
-    );
-
-    if (backdropCanvas.width !== bgWidth || backdropCanvas.height !== bgHeight) {
-      backdropCanvas.width = bgWidth;
-      backdropCanvas.height = bgHeight;
-      lastBackdropBitmapRef.current = null;
-    }
-
-    if (!backdropCtxRef.current || backdropCtxRef.current.canvas !== backdropCanvas) {
-      backdropCtxRef.current = backdropCanvas.getContext("2d", {
-        alpha: false,
-      });
-    }
-    if (backdropCtxRef.current) {
-      backdropCtxRef.current.imageSmoothingEnabled = true;
-      backdropCtxRef.current.imageSmoothingQuality = "medium";
-    }
-
-    const bgCover = computeCoverStageMetrics(bgWidth, bgHeight, SOURCE_WIDTH, SOURCE_HEIGHT);
-    backdropDrawBoundsRef.current = {
-      x: bgCover.offsetX,
-      y: bgCover.offsetY,
-      width: bgCover.width,
-      height: bgCover.height,
-    };
-  }, []);
-
   const handleResize = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1109,13 +1203,11 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       height: physicalHeight,
     };
 
-    syncBackdropCanvasSize(displayWidth, displayHeight);
-
     measureScrollableHeights();
 
     const seq = activeSequenceRef.current;
     drawFrame(seq, Math.round(currentFramesRef.current[seq]));
-  }, [drawFrame, measureScrollableHeights, syncBackdropCanvasSize]);
+  }, [drawFrame, measureScrollableHeights]);
 
   // Keep scrollable track dimensions synced whenever stage components mount/unmount
   useEffect(() => {
@@ -1211,6 +1303,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
           isMoving = false;
         } else if (autoplay.mode === "video") {
           const videoEl = videoRef.current;
+          const vDir = autoplay.videoDirection;
           const fallbackToCanvas = () => {
             autoplay.videoFallbackTriggered = true;
             autoplay.mode = "canvas";
@@ -1225,7 +1318,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
             cache.requestWindow(
               seq,
               Math.round(autoplay.startFrame),
-              1,
+              vDir,
               getRuntimeLookahead(curBudget),
               curBudget.lookbehind
             );
@@ -1270,18 +1363,23 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
               }
 
               const progress = Math.max(0, Math.min(1, videoEl.currentTime / Math.max(0.05, realDur)));
-              const videoFrame = 1 + progress * (maxSeqFrames - 1);
-              const nextFrame = Math.max(
-                currentFramesRef.current[seq],
-                Math.min(autoplay.targetFrame, videoFrame)
-              );
+              const videoFrame =
+                vDir === 1
+                  ? 1 + progress * (maxSeqFrames - 1)
+                  : maxSeqFrames - progress * (maxSeqFrames - 1);
+              const nextFrame =
+                vDir === 1
+                  ? Math.max(currentFramesRef.current[seq], Math.min(autoplay.targetFrame, videoFrame))
+                  : Math.min(currentFramesRef.current[seq], Math.max(autoplay.targetFrame, videoFrame));
               currentFramesRef.current[seq] = nextFrame;
               targetFramesRef.current[seq] = nextFrame;
 
               const reachedEnd =
                 videoEl.ended ||
-                videoEl.currentTime >= autoplay.videoTargetTimeSec - 0.03 ||
-                nextFrame >= autoplay.targetFrame - 0.25;
+                videoEl.currentTime >= autoplay.videoTargetTimeSec - 0.025 ||
+                (vDir === 1
+                  ? nextFrame >= autoplay.targetFrame - 0.25
+                  : nextFrame <= autoplay.targetFrame + 0.25);
 
               if (reachedEnd) {
                 if (!videoEl.paused) {
@@ -1510,12 +1608,16 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
         if (completedAutoplay.syncScrollOnComplete) {
           syncDomScrollInstant(doneSeq, completedAutoplay.targetFrame);
         }
+        if (!isScrollLockedRef.current && !completedAutoplay.onComplete) {
+          lenisRef.current.start();
+        }
         completedAutoplay.onComplete?.();
 
         if (pendingResizeAfterAutoplayRef.current) {
           pendingResizeAfterAutoplayRef.current = false;
           handleResize();
         }
+        drainVideoPrefetchRef.current();
       } else {
         emitDiscreteStateIfChanged(isMoving);
       }
@@ -1550,33 +1652,30 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
         setIsFirstFrameReady(true);
         drawFrame(startSeq, initialFrame);
       }
+      // Queue hero.mp4 RAM-blob prefetch right after frame 1 paints so CTA starts in 0ms
+      queueVideoPrefetch(["hero"]);
     });
 
     cache.requestWindow(
       startSeq,
       initialFrame,
       1,
-      getRuntimeLookahead(budget),
-      Math.max(6, budget.lookbehind - 4)
+      budget.tier === "low" ? 18 : getRuntimeLookahead(budget),
+      Math.max(4, budget.lookbehind - 4)
     );
     void cache.loadFrame("hero", totalHeroFrames, false, true);
     void cache.loadFrame("materi", 1, false, true);
     void cache.loadFrame("latihan", 1, false, true);
-    cache.queueBlobWarmup("hero", 1, totalHeroFrames, 1);
 
-    // Prime hero.mp4 metadata/buffer silently in background so first CTA auto-scroll starts in 0ms
     const mountVideoEl = videoRef.current;
-    if (mountVideoEl && !budget.isConstrainedNetwork && !mountVideoEl.getAttribute("data-seq")) {
-      mountVideoEl.setAttribute("data-seq", "hero");
-      mountVideoEl.preload = budget.tier === "low" ? "metadata" : "auto";
-      mountVideoEl.src = SEQUENCE_VIDEO_URLS.hero;
-    }
-
-    if (!budget.isConstrainedNetwork && budget.tier !== "low") {
-      // Desktop/high-tier: also warm WebP chunks behind Hero for instant manual reverse/scrub
-      cache.queueBlobWarmup("materi", 1, Math.min(36, totalMateriFrames), 1);
-      cache.queueBlobWarmup("latihan", 1, Math.min(36, totalLatihanFrames), 1);
-      getRuntimeWarmBlocks(cache, totalMateriFrames, totalLatihanFrames, 1);
+    if (budget.tier !== "low") {
+      cache.queueBlobWarmup("hero", 1, totalHeroFrames, 1);
+      if (!budget.isConstrainedNetwork) {
+        // Desktop/high-tier: also warm WebP chunks behind Hero for instant manual reverse/scrub
+        cache.queueBlobWarmup("materi", 1, Math.min(36, totalMateriFrames), 1);
+        cache.queueBlobWarmup("latihan", 1, Math.min(36, totalLatihanFrames), 1);
+        getRuntimeWarmBlocks(cache, totalMateriFrames, totalLatihanFrames, 1);
+      }
     }
 
     syncHeroCssVar(startSeq, initialFrame);
@@ -1604,6 +1703,10 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       autoplayRef.current = null;
       cache.setPlaybackActive(false);
 
+      if (!isScrollLockedRef.current) {
+        lenisRef.current.start();
+      }
+
       if (wasVideo) {
         const rounded = Math.max(1, Math.min(getMaxFrames(seq), Math.round(curFrame)));
         const curBudget = cacheBudgetRef.current;
@@ -1624,6 +1727,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       syncDomScrollInstant(seq, curFrame);
       emitDiscreteStateIfChanged(false);
       ensureLoopActive();
+      drainVideoPrefetchRef.current();
     };
 
     let touchStartPos: { x: number; y: number } | null = null;
@@ -1728,7 +1832,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
       stopHardwareVideo();
       if (mountVideoEl) {
         mountVideoEl.removeAttribute("src");
-        mountVideoEl.removeAttribute("data-seq");
+        mountVideoEl.removeAttribute("data-clip");
         try {
           mountVideoEl.load();
         } catch {
@@ -1764,6 +1868,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     syncDomScrollInstant,
     ensureLoopActive,
     stopHardwareVideo,
+    queueVideoPrefetch,
   ]);
 
   const baseStage = useMemo(
@@ -1789,39 +1894,19 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     [isStudioBookFocused, mobile3dCameraTarget, viewportSize.height, viewportSize.width]
   );
 
-  const isMobilePortrait =
-    viewportSize.width < 768 && viewportSize.width < viewportSize.height;
-  const hasMobileAmbientBackdrop = Boolean(mobileCamera?.active && mobileCamera.zoom < 0.99);
+  const hasVerticalEdgeFade = Boolean(mobileCamera?.active && mobileCamera.zoom < 0.99);
 
-  useEffect(() => {
-    hasMobileAmbientBackdropRef.current = hasMobileAmbientBackdrop;
-    if (hasMobileAmbientBackdrop) {
-      syncBackdropCanvasSize(viewportSize.width, viewportSize.height);
-      drawBackdropBitmap(lastDrawnBitmapRef.current);
-    } else {
-      backdropCtxRef.current = null;
-      lastBackdropBitmapRef.current = null;
-    }
-  }, [
-    drawBackdropBitmap,
-    hasMobileAmbientBackdrop,
-    syncBackdropCanvasSize,
-    viewportSize.height,
-    viewportSize.width,
-  ]);
-
-  const studioFocusStyle: React.CSSProperties = isStudioBookFocused
+  // Keep wrapper transform unset unless Studio 2D Focus zoom is active so mobile browsers
+  // can promote <video> directly onto the zero-copy OS Hardware Video Overlay plane.
+  const studioFocusStyle: React.CSSProperties | undefined = isStudioBookFocused
     ? {
         transformOrigin: "50% 68%",
         transform: "translate3d(0px, -4%, 0px) scale(1.36)",
       }
-    : {
-        transformOrigin: "50% 50%",
-        transform: "translate3d(0px, 0px, 0px) scale(1)",
-      };
+    : undefined;
 
-  const verticalFadeMask = hasMobileAmbientBackdrop
-    ? "linear-gradient(to bottom, transparent 0%, black 9%, black 88%, transparent 100%)"
+  const verticalFadeMask = hasVerticalEdgeFade
+    ? "linear-gradient(to bottom, transparent 0%, black 7%, black 90%, transparent 100%)"
     : undefined;
 
   const canvasCameraStyle: React.CSSProperties = {
@@ -1843,46 +1928,33 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
     width: `${baseStage.width}px`,
     height: `${baseStage.height}px`,
     transformOrigin: mobileCamera?.active ? mobileCamera.transformOrigin : "50% 50%",
-    transform: mobileCamera?.active
-      ? mobileCamera.transformCss
-      : "translate3d(0px, 0px, 0px) scale(1)",
+    transform: mobileCamera?.active ? mobileCamera.transformCss : undefined,
   };
 
   return (
     <div
-      className="fixed inset-0 z-0 h-screen w-screen overflow-hidden select-none bg-[#030712] pointer-events-none"
+      className="fixed inset-0 z-0 h-dvh w-screen overflow-hidden select-none bg-[#030712] pointer-events-none"
       aria-hidden="true"
     >
-      {isMobilePortrait && hasMobileAmbientBackdrop && (
-        <div
-          className={`absolute inset-0 overflow-hidden transition-opacity duration-500 ease-out ${
-            isFirstFrameReady ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          {/* Downsampled full-bleed ambient scene extension behind letterboxed 16:9 3D stages */}
-          <canvas
-            ref={backdropCanvasRef}
-            className="h-full w-full scale-[1.14]"
-            style={{ filter: "blur(26px) brightness(0.52) saturate(1.18)" }}
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(3,7,18,0.62)_0%,rgba(3,7,18,0.16)_24%,rgba(3,7,18,0.12)_72%,rgba(3,7,18,0.68)_100%)]" />
-        </div>
-      )}
       <div
-        className="relative h-full w-full transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        className={`relative h-full w-full ${
+          isStudioBookFocused
+            ? "transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            : ""
+        }`}
         style={studioFocusStyle}
       >
-        {/* Pinned HTML5 Canvas — Unclipped 16:9 Cover Stage ImageBitmap Renderer */}
+        {/* Pinned HTML5 Canvas — Hidden while hardware <video> owns playback to eliminate 2x GPU overdraw */}
         <canvas
           ref={canvasRef}
           role="img"
           aria-label="Animasi sinematik sekuens gerbang perpustakaan fantasi Aksaraloka"
           style={canvasCameraStyle}
-          className={`absolute block max-w-none transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            isFirstFrameReady ? "opacity-100" : "opacity-0"
+          className={`absolute block max-w-none transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            isVideoVisible ? "invisible" : isFirstFrameReady ? "opacity-100" : "opacity-0"
           }`}
         />
-        {/* Hardware-accelerated H.264 video layer for silky 60 FPS forward autoplay across all devices */}
+        {/* Hardware-accelerated 60 FPS H.264 video layer for zero-judder forward & reverse autoplay */}
         <video
           ref={videoRef}
           muted
@@ -1892,7 +1964,7 @@ export const ScrollCanvasSequence = memo(function ScrollCanvasSequence({
           aria-hidden="true"
           style={videoStageStyle}
           className={`absolute z-[1] block max-w-none object-fill pointer-events-none ${
-            isVideoVisible ? "opacity-100" : "opacity-0"
+            isVideoVisible ? "opacity-100 visible" : "opacity-0 invisible"
           }`}
         />
       </div>
