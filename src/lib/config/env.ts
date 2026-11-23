@@ -52,6 +52,50 @@ export const serverEnvSchema = z.object({
     z.string().min(1).max(80).default("openai/gpt-oss-120b"),
   ),
 
+  // Google Sheets API v4 (Service Account primary) & Apps Script webhook fallback
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.preprocess(
+    emptyToUndefined,
+    z.string().email("must be a valid service account email").optional(),
+  ),
+  GOOGLE_PRIVATE_KEY: optionalString,
+  GOOGLE_SPREADSHEET_ID: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{10,120}$/, "must be a valid Google Spreadsheet ID")
+      .optional(),
+  ),
+  GOOGLE_APPS_SCRIPT_WEBHOOK_URL: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .url("must be a valid HTTPS webhook URL")
+      .refine((v) => v.startsWith("https://"), "must start with https://")
+      .optional(),
+  ),
+  GOOGLE_APPS_SCRIPT_SECRET: optionalString,
+
+  // Panel Guru authentication & canonical public URL for spreadsheet deep links
+  TEACHER_ACCESS_CODE: z.preprocess(
+    emptyToUndefined,
+    z.string().min(4, "must be at least 4 characters").max(128).optional(),
+  ),
+  TEACHER_SESSION_SECRET: z.preprocess(
+    emptyToUndefined,
+    z.string().min(16, "must be at least 16 characters").max(256).optional(),
+  ),
+  APP_PUBLIC_URL: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .url("must be a valid http(s) URL")
+      .refine(
+        (v) => v.startsWith("http://") || v.startsWith("https://"),
+        "must start with http:// or https://"
+      )
+      .optional(),
+  ),
+
   APP_COMMIT_SHA: optionalString,
 });
 

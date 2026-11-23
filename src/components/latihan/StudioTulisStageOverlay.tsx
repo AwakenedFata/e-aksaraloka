@@ -50,6 +50,7 @@ import {
   type TargetParagraphKey,
 } from "@/components/latihan/StudioHybridToolkitDrawer";
 import { StudioAiSocraticPanel } from "@/components/latihan/StudioAiSocraticPanel";
+import { SubmitToTeacherModal } from "@/components/latihan/SubmitToTeacherModal";
 import {
   playChime,
   playErrorTone,
@@ -104,7 +105,7 @@ const SEAL_BADGES: readonly {
   readonly label: string;
 }[] = [
     { id: "alur", label: "Misi 1 · Alur" },
-    { id: "watak", label: "Misi 2 · Tokoh & Indra" },
+    { id: "watak", label: "Misi 2 · Tokoh & Indera" },
     { id: "bahasa", label: "Misi 3 · Perumpamaan & Dialog" },
   ];
 
@@ -186,6 +187,8 @@ export function StudioTulisStageOverlay({
   });
   const [kbbiLookupQuery, setKbbiLookupQuery] = useState("");
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
+  const [isSubmitTeacherModalOpen, setIsSubmitTeacherModalOpen] =
+    useState<boolean>(false);
 
   const isPresetTheme = (PRESET_FANTASY_THEMES as readonly string[]).includes(
     draft.themeCategory
@@ -1104,7 +1107,7 @@ export function StudioTulisStageOverlay({
           <td><strong>${safeAntagName}</strong> — ${safeAntagTrigger}</td>
         </tr>
         <tr>
-          <th>Latar Tempat &amp; Peta Lima Indra</th>
+          <th>Latar Tempat &amp; Peta Lima Indera</th>
           <td>
             <strong>Latar:</strong> ${safePlace}<br/>
             <strong>Penglihatan:</strong> ${safeSight} |
@@ -1512,10 +1515,7 @@ export function StudioTulisStageOverlay({
 
                   <button
                     type="button"
-                    onClick={() => {
-                      playChime();
-                      onOpenPetaModal();
-                    }}
+                    onClick={onOpenPetaModal}
                     className="whitespace-nowrap rounded-full border border-[#cda250]/55 bg-[#090d16]/90 hover:bg-[#090d16] px-3 py-1.5 md:py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-lg"
                   >
                     Peta &amp; LKS
@@ -1545,6 +1545,19 @@ export function StudioTulisStageOverlay({
                     className="whitespace-nowrap rounded-full border border-emerald-400/55 bg-emerald-950/90 hover:bg-emerald-900/95 px-3.5 py-1.5 md:py-1 text-xs font-bold text-emerald-200 transition-colors cursor-pointer shadow-lg"
                   >
                     Simpan Cerita
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playChime();
+                      setIsSubmitTeacherModalOpen(true);
+                    }}
+                    className="whitespace-nowrap rounded-full border border-sky-300/60 bg-sky-950/90 hover:bg-sky-900/95 px-3.5 py-1.5 md:py-1 text-xs font-bold text-sky-100 transition-colors cursor-pointer shadow-lg"
+                  >
+                    {state.lastSubmissionMeta
+                      ? `Kirim Revisi (v${state.lastSubmissionMeta.version})`
+                      : "Kumpulkan ke Guru"}
                   </button>
 
                   <button
@@ -2464,7 +2477,7 @@ export function StudioTulisStageOverlay({
                     className="book-ink-sweep-right flex flex-1 min-h-0 flex-col justify-between"
                   >
                     <div className="parchment-scroll flex flex-1 min-h-0 flex-col overflow-y-auto pr-1.5">
-                      {/* TAB 1, SPREAD 0 — HALAMAN 2: LANGKAH 3 (5 Indra) & LANGKAH 4 (KERANGKA ALUR) */}
+                      {/* TAB 1, SPREAD 0 — HALAMAN 2: LANGKAH 3 (5 Indera) & LANGKAH 4 (KERANGKA ALUR) */}
                       {activeViewTab === "dual_book" && safeCurrentSpread === 0 && (
                         <div className="space-y-1.5">
                           <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
@@ -2480,10 +2493,10 @@ export function StudioTulisStageOverlay({
                             </button>
                           </div>
 
-                          {/* Langkah 3: Latar Tempat & Peta Lima Indra (Tanpa Kotak Background) */}
+                          {/* Langkah 3: Latar Tempat & Peta Lima Indera (Tanpa Kotak Background) */}
                           <div className="space-y-1">
                             <p className="font-brand text-[10px] font-bold uppercase tracking-[0.08em] text-[#3d250b] truncate">
-                              DI MANA CERITAMU TERJADI? (PANCA INDRA)
+                              DI MANA CERITAMU TERJADI? (PANCA Indera)
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5">
                               <div className="min-w-0">
@@ -3034,22 +3047,42 @@ export function StudioTulisStageOverlay({
 
                           <div className="border-t border-[#5c3d1e]/35 pt-2.5 space-y-2">
                             <p className="text-[11px] leading-relaxed text-[#2f1d0c]">
-                              Simpan ceritamu ke Galeri atau cetak <strong>Piagam Penulis Muda &amp; Cerita Fantasimu</strong> dalam format siap cetak/PDF!
+                              Simpan ceritamu ke Galeri, kumpulkan langsung ke <strong>Guru &amp; Spreadsheet</strong>, atau cetak <strong>Piagam Penulis Muda</strong>!
                             </p>
+                            {state.lastSubmissionMeta && (
+                              <div className="rounded border border-[#14532d]/45 bg-[#14532d]/10 px-2 py-1 text-[10px] font-semibold text-[#14532d]">
+                                Terkirim ke Guru · ID {state.lastSubmissionMeta.submissionId} (v{state.lastSubmissionMeta.version}) ·{" "}
+                                {state.lastSubmissionMeta.sheetSyncStatus === "synced"
+                                  ? "Tersinkron ke Spreadsheet"
+                                  : "Tersimpan di Server Guru"}
+                              </div>
+                            )}
                             <div className="flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
                                 onClick={handleSaveManuscript}
-                                className="rounded-full border border-[#14532d]/75 bg-[#14532d]/12 hover:bg-[#14532d]/22 px-3.5 py-1 text-xs font-bold text-[#14532d] transition-colors cursor-pointer"
+                                className="rounded-full border border-[#14532d]/75 bg-[#14532d]/12 hover:bg-[#14532d]/22 px-3 py-1 text-xs font-bold text-[#14532d] transition-colors cursor-pointer"
                               >
-                                + Simpan Ceritaku Sekarang
+                                + Simpan Galeri
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  playChime();
+                                  setIsSubmitTeacherModalOpen(true);
+                                }}
+                                className="rounded-full border border-[#14532d] bg-[#14532d] hover:bg-[#0f3f22] px-3.5 py-1 text-xs font-bold text-[#fdf6e7] transition-colors cursor-pointer"
+                              >
+                                {state.lastSubmissionMeta
+                                  ? "Kirim Revisi ke Guru ->"
+                                  : "Kumpulkan ke Guru ->"}
                               </button>
                               <button
                                 type="button"
                                 onClick={handlePrintManuscriptAndCharter}
-                                className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-3.5 py-1 text-xs font-bold text-[#3d250b] transition-colors cursor-pointer"
+                                className="rounded-full border border-[#5c3d1e]/75 bg-[#3d250b]/12 hover:bg-[#3d250b]/22 px-3 py-1 text-xs font-bold text-[#3d250b] transition-colors cursor-pointer"
                               >
-                                Cetak Piagam &amp; Ceritaku -&gt;
+                                Cetak Piagam -&gt;
                               </button>
                             </div>
                           </div>
@@ -3259,6 +3292,15 @@ export function StudioTulisStageOverlay({
           )}
         </div>
       )}
+
+      <SubmitToTeacherModal
+        isOpen={isSubmitTeacherModalOpen}
+        onClose={() => setIsSubmitTeacherModalOpen(false)}
+        state={state}
+        metrics={metrics}
+        analysis={analysis}
+        onSubmitted={(msg) => showTempBanner(msg)}
+      />
     </div>
   );
 }

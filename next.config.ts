@@ -32,6 +32,17 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // Audio assets (BGM, SFX, narrations) can be replaced in place during authoring;
+        // revalidate via ETag instead of locking clients into a 1-year immutable cache.
+        source: "/assets/audio/:file*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=0, must-revalidate",
+          },
+        ],
+      },
     ];
   },
 };

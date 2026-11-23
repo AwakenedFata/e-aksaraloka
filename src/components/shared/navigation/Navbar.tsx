@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   getAudioMutedSnapshot,
-  playChime,
   subscribeAudioState,
   toggleAudioMuted,
 } from "@/lib/learning/audioEngine";
@@ -124,7 +123,6 @@ export function Navbar({
   const handlePustakaClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (onOpenPetaModal) {
-      playChime();
       onOpenPetaModal();
     }
   };

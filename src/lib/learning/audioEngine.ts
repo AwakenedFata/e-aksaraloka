@@ -44,6 +44,15 @@ export const AUDIO_ASSETS = {
   readonly narration: Record<NarrationTrackId, string>;
 };
 
+const AUDIO_ASSET_VERSIONS: Readonly<Partial<Record<string, string>>> = {
+  "/assets/audio/narasi-pembuka-pustaka.mp3": "2",
+};
+
+export function resolveAudioAssetUrl(assetPath: string): string {
+  const version = AUDIO_ASSET_VERSIONS[assetPath];
+  return version ? `${assetPath}?v=${version}` : assetPath;
+}
+
 const BGM_BASE_VOLUME = 0.22;
 const BGM_STUDIO_VOLUME = 0.14;
 const BGM_DUCK_NARRATION_VOLUME = 0.045;
@@ -55,7 +64,7 @@ const SFX_COOLDOWN_MS: Record<SfxKey, number> = {
   pageFlip: 120,
   sealUnlock: 200,
   error: 80,
-  portal: 180,
+  portal: 350,
 };
 
 interface SfxPlaybackProfile {
@@ -66,7 +75,7 @@ interface SfxPlaybackProfile {
   readonly fadeOutSec: number;
 }
 
-const SFX_PLAYBACK_PROFILES: Record<SfxKey, SfxPlaybackProfile> = {
+export const SFX_PLAYBACK_PROFILES: Record<SfxKey, SfxPlaybackProfile> = {
   click: {
     gain: 0.42,
     onsetThreshold: 0.015,
@@ -96,11 +105,11 @@ const SFX_PLAYBACK_PROFILES: Record<SfxKey, SfxPlaybackProfile> = {
     fadeOutSec: 0.22,
   },
   portal: {
-    gain: 0.48,
-    onsetThreshold: 0.015,
-    playbackRate: 1.05,
-    maxDurationSec: 2.3,
-    fadeOutSec: 0.65,
+    gain: 0.52,
+    onsetThreshold: 0,
+    playbackRate: 1.0,
+    maxDurationSec: null,
+    fadeOutSec: 0,
   },
 };
 
@@ -120,7 +129,7 @@ export function detectLeadingSilenceOffset(
   threshold: number = 0.02,
   preRollSec: number = 0.01
 ): number {
-  if (channels.length === 0 || sampleRate <= 0) return 0;
+  if (channels.length === 0 || sampleRate <= 0 || threshold <= 0) return 0;
   const totalSamples = channels[0]?.length ?? 0;
   if (totalSamples === 0) return 0;
 
@@ -153,8 +162,12 @@ let fanfareDuckTimer: number | null = null;
 let bgmElement: HTMLAudioElement | null = null;
 let bgmUnlocked = false;
 let bgmPlaying = false;
+let bgmPlayInFlight = false;
+let bgmPlayFromGesture = false;
+let bgmPlayAttemptId = 0;
 let bgmPausedForHiddenTab = false;
 let bgmFadeRaf: number | null = null;
+const bgmUnlockCallbacks = new Set<() => void>();
 
 let activeNarrationAudio: HTMLAudioElement | null = null;
 const narrationAudioPool = new Map<NarrationTrackId, HTMLAudioElement>();
@@ -262,13 +275,25 @@ function ensureBgmElement(): HTMLAudioElement | null {
     return null;
   }
   if (!bgmElement) {
-    const el = new Audio(AUDIO_ASSETS.bgm);
+    const el = new Audio();
     el.loop = true;
-    el.preload = "none";
+    // Pre-buffer opening frames immediately on mount so BGM starts without
+    // cold network stall on page open or first user interaction.
+    el.preload = "auto";
     el.volume = 0;
+    el.src = resolveAudioAssetUrl(AUDIO_ASSETS.bgm);
     bgmElement = el;
   }
   return bgmElement;
+}
+
+function notifyBgmUnlocked(): void {
+  if (bgmUnlockCallbacks.size === 0) return;
+  const callbacks = Array.from(bgmUnlockCallbacks);
+  bgmUnlockCallbacks.clear();
+  for (const cb of callbacks) {
+    cb();
+  }
 }
 
 function syncBgmVolume(durationMs = 420): void {
@@ -276,7 +301,7 @@ function syncBgmVolume(durationMs = 420): void {
   fadeBgmTo(computeTargetBgmVolume(), durationMs);
 }
 
-function startBgmPlayback(fadeInMs = 1100): void {
+function startBgmPlayback(fadeInMs = 380, fromUserGesture = false): void {
   if (typeof window === "undefined" || isMutedState) return;
   if (typeof document !== "undefined" && document.hidden) return;
 
@@ -284,29 +309,65 @@ function startBgmPlayback(fadeInMs = 1100): void {
   if (!el) return;
 
   if (!el.paused && bgmPlaying) {
-    syncBgmVolume(360);
+    bgmUnlocked = true;
+    notifyBgmUnlocked();
+    syncBgmVolume(320);
     return;
   }
 
-  el.volume = 0;
+  // Avoid duplicate play() calls (e.g. StrictMode double-mount or rapid clicks),
+  // while still allowing an explicit user gesture to upgrade a pending non-gesture
+  // mount attempt before browser user-activation expires.
+  if (bgmPlayInFlight && (!fromUserGesture || bgmPlayFromGesture)) {
+    return;
+  }
+
+  const targetVolume = computeTargetBgmVolume();
+  // Begin at a soft audible floor (instead of dead 0) so the opening harp notes
+  // are heard immediately without a click/pop or a ~1s silent swell.
+  const initialFloor = Math.min(0.05, targetVolume);
+  el.volume = Math.max(el.volume, initialFloor);
+
+  const attemptId = ++bgmPlayAttemptId;
+  bgmPlayInFlight = true;
+  bgmPlayFromGesture = fromUserGesture;
+
+  const finishStart = () => {
+    if (attemptId !== bgmPlayAttemptId) return;
+    bgmPlayInFlight = false;
+    bgmPlayFromGesture = false;
+
+    if (isMutedState || (typeof document !== "undefined" && document.hidden)) {
+      el.pause();
+      bgmPlaying = false;
+      emitChange();
+      return;
+    }
+
+    bgmUnlocked = true;
+    bgmPlaying = true;
+    notifyBgmUnlocked();
+    preloadAllSfx();
+    fadeBgmTo(computeTargetBgmVolume(), fadeInMs);
+    emitChange();
+  };
+
   const playPromise = el.play();
   if (playPromise && typeof playPromise.then === "function") {
     playPromise
       .then(() => {
-        bgmUnlocked = true;
-        bgmPlaying = true;
-        fadeBgmTo(computeTargetBgmVolume(), fadeInMs);
-        emitChange();
+        finishStart();
       })
       .catch((err) => {
-        // Autoplay blocked until next explicit user gesture
+        // Autoplay blocked by browser policy until the next explicit user gesture
+        if (attemptId === bgmPlayAttemptId) {
+          bgmPlayInFlight = false;
+          bgmPlayFromGesture = false;
+        }
         void err;
       });
   } else {
-    bgmUnlocked = true;
-    bgmPlaying = true;
-    fadeBgmTo(computeTargetBgmVolume(), fadeInMs);
-    emitChange();
+    finishStart();
   }
 }
 
@@ -322,7 +383,7 @@ function preloadSfxBuffer(key: SfxKey): Promise<CachedSfxEntry | null> {
   if (!ctx) return Promise.resolve(null);
 
   const profile = SFX_PLAYBACK_PROFILES[key];
-  const promise = fetch(AUDIO_ASSETS.sfx[key])
+  const promise = fetch(resolveAudioAssetUrl(AUDIO_ASSETS.sfx[key]))
     .then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.arrayBuffer();
@@ -371,22 +432,30 @@ function preloadAllSfx(): void {
 }
 
 /**
- * Registers once-only passive gesture unlock listeners + tab-visibility BGM
- * pause/resume so royal fantasy ambience starts gracefully without violating
- * browser autoplay policies.
+ * Pre-buffers BGM immediately on mount, attempts immediate playback when
+ * permitted by browser autoplay policy (e.g. returning / high-MEI sessions),
+ * and arms capture-phase gesture fallback listeners + tab-visibility handling.
  */
 export function initAudioAutoUnlock(): () => void {
   if (typeof window === "undefined") return () => {};
+
+  const gestureEvents = ["pointerdown", "click", "touchend", "keydown"] as const;
+  let gesturesAttached = false;
+
+  const detachGestureListeners = () => {
+    if (!gesturesAttached) return;
+    gesturesAttached = false;
+    for (const evt of gestureEvents) {
+      window.removeEventListener(evt, handleFirstGesture, true);
+    }
+    bgmUnlockCallbacks.delete(detachGestureListeners);
+  };
 
   const handleFirstGesture = () => {
     if (isMutedState) return;
     getAudioContext();
     preloadAllSfx();
-    startBgmPlayback(1200);
-    if (bgmUnlocked) {
-      window.removeEventListener("pointerdown", handleFirstGesture);
-      window.removeEventListener("keydown", handleFirstGesture);
-    }
+    startBgmPlayback(300, true);
   };
 
   const handleVisibilityChange = () => {
@@ -399,17 +468,35 @@ export function initAudioAutoUnlock(): () => void {
       }
     } else if (bgmPausedForHiddenTab && !isMutedState) {
       bgmPausedForHiddenTab = false;
-      startBgmPlayback(700);
+      startBgmPlayback(450, false);
     }
   };
 
-  window.addEventListener("pointerdown", handleFirstGesture, { passive: true });
-  window.addEventListener("keydown", handleFirstGesture, { passive: true });
+  // Start pre-buffering BGM right away on page open.
+  ensureBgmElement();
+
+  if (!bgmUnlocked) {
+    gesturesAttached = true;
+    bgmUnlockCallbacks.add(detachGestureListeners);
+    for (const evt of gestureEvents) {
+      window.addEventListener(evt, handleFirstGesture, {
+        passive: true,
+        capture: true,
+      });
+    }
+  }
+
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
+  // Attempt immediate playback on page open; if allowed by browser policy
+  // (e.g. localhost / returning desktop visitor), music starts right away
+  // and detaches the gesture fallback listeners automatically.
+  if (!isMutedState) {
+    startBgmPlayback(380, false);
+  }
+
   return () => {
-    window.removeEventListener("pointerdown", handleFirstGesture);
-    window.removeEventListener("keydown", handleFirstGesture);
+    detachGestureListeners();
     document.removeEventListener("visibilitychange", handleVisibilityChange);
   };
 }
@@ -446,6 +533,9 @@ export function getBgmPlayingSnapshot(): boolean {
 export function toggleAudioMuted(): boolean {
   isMutedState = !isMutedState;
   if (isMutedState) {
+    bgmPlayAttemptId++;
+    bgmPlayInFlight = false;
+    bgmPlayFromGesture = false;
     stopSpeechNarration();
     if (bgmElement && !bgmElement.paused) {
       const targetEl = bgmElement;
@@ -462,7 +552,7 @@ export function toggleAudioMuted(): boolean {
   } else {
     getAudioContext();
     preloadAllSfx();
-    startBgmPlayback(800);
+    startBgmPlayback(420, true);
     playChime();
   }
   emitChange();
@@ -692,10 +782,29 @@ export function playErrorTone(): void {
 }
 
 /**
- * Ethereal golden portal shimmer (`sfx-portal.mp3`) for scene transitions & fast-travel.
+ * Full-duration ethereal golden portal shimmer (`sfx-portal.mp3`) reserved
+ * exclusively for entering Studio Tulis and opening Peta Pembelajaran.
  */
 export function playPortalTransition(): void {
-  playDecodedSfx("portal", playSynthPortal);
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  if (sfxBuffers.has("portal")) {
+    playDecodedSfx("portal", playSynthPortal);
+    return;
+  }
+
+  void preloadSfxBuffer("portal").then((entry) => {
+    if (isMutedState) return;
+    if (entry) {
+      playDecodedSfx("portal", playSynthPortal);
+    } else {
+      const activeCtx = getAudioContext();
+      if (activeCtx) {
+        playSynthPortal(activeCtx);
+      }
+    }
+  });
 }
 
 // ============================================================================
@@ -780,7 +889,7 @@ export function toggleNarrationTrack(
     isMutedState = false;
     getAudioContext();
     preloadAllSfx();
-    startBgmPlayback(600);
+    startBgmPlayback(450, true);
   }
 
   if (typeof Audio === "undefined") {
@@ -788,9 +897,10 @@ export function toggleNarrationTrack(
   }
 
   try {
+    const expectedUrl = resolveAudioAssetUrl(AUDIO_ASSETS.narration[trackId]);
     let el = narrationAudioPool.get(trackId);
-    if (!el) {
-      el = new Audio(AUDIO_ASSETS.narration[trackId]);
+    if (!el || !el.src.endsWith(expectedUrl)) {
+      el = new Audio(expectedUrl);
       el.preload = "auto";
       narrationAudioPool.set(trackId, el);
     }
@@ -870,7 +980,7 @@ export function toggleSpeechNarration(
   }
   if (isMutedState) {
     isMutedState = false;
-    startBgmPlayback(600);
+    startBgmPlayback(450, true);
   }
   return speakWithBrowserFallback(text, null);
 }

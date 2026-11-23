@@ -55,4 +55,33 @@ describe("parseServerEnv", () => {
       EnvValidationError,
     );
   });
+
+  it("validates optional Google Sheets and Panel Guru env variables cleanly", () => {
+    const valid = parseServerEnv({
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: "sync@aksaraloka.iam.gserviceaccount.com",
+      GOOGLE_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\\nKEY\\n-----END PRIVATE KEY-----",
+      GOOGLE_SPREADSHEET_ID: "1AbCdEfGhIjKlMnOpQrStUvWxYz123456",
+      GOOGLE_APPS_SCRIPT_WEBHOOK_URL: "https://script.google.com/macros/s/abc/exec",
+      TEACHER_ACCESS_CODE: "guru2026",
+      TEACHER_SESSION_SECRET: "super-secret-session-key-2026",
+      APP_PUBLIC_URL: "https://e-aksaraloka.vercel.app",
+    });
+
+    expect(valid.GOOGLE_SERVICE_ACCOUNT_EMAIL).toBe(
+      "sync@aksaraloka.iam.gserviceaccount.com"
+    );
+    expect(valid.GOOGLE_SPREADSHEET_ID).toBe("1AbCdEfGhIjKlMnOpQrStUvWxYz123456");
+    expect(valid.TEACHER_ACCESS_CODE).toBe("guru2026");
+    expect(valid.APP_PUBLIC_URL).toBe("https://e-aksaraloka.vercel.app");
+
+    expect(() =>
+      parseServerEnv({ GOOGLE_APPS_SCRIPT_WEBHOOK_URL: "http://insecure.example/exec" })
+    ).toThrow(EnvValidationError);
+    expect(() =>
+      parseServerEnv({ GOOGLE_SPREADSHEET_ID: "short" })
+    ).toThrow(EnvValidationError);
+    expect(() =>
+      parseServerEnv({ TEACHER_ACCESS_CODE: "123" })
+    ).toThrow(EnvValidationError);
+  });
 });

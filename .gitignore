@@ -34,12 +34,22 @@ yarn-error.log*
 .env*
 !.env.example
 
+# google cloud service account credentials (never commit secrets)
+sinuous-analog-*.json
+*service-account*.json
+*credentials*.json
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# documents
+/docs
+/authority-sources-audit.md
+database-and-sheets-setup.md
 
 # local workspace scratch & non-runtime reference docs (keep out of Vercel public bundle)
 bottom_rendered.png

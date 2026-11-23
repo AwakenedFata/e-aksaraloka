@@ -146,7 +146,7 @@ export default function Home() {
     }
 
     stopSpeechNarration();
-    playPortalTransition();
+    playChime();
     setIsPetaModalOpen(false);
     setIsKitabBookFocused(false);
     setIsStudioBookFocused(false);
@@ -222,7 +222,7 @@ export default function Home() {
     }
 
     stopSpeechNarration();
-    playPortalTransition();
+    playChime();
     setIsKitabBookFocused(false);
     setIsReadingUnlocked(true);
     setSequenceState((prev) => ({
@@ -357,12 +357,17 @@ export default function Home() {
       readonly targetSequence: SequenceType;
       readonly targetFrame: number;
       readonly meta: PortalVisualMeta;
+      readonly playPortalSfx?: boolean;
       readonly applyStageState: () => void;
     }) => {
       if (isReverseScrolling || portalPhase !== "idle") return;
 
       stopSpeechNarration();
-      playPortalTransition();
+      if (params.playPortalSfx) {
+        playPortalTransition();
+      } else {
+        playChime();
+      }
       const runId = ++portalRunIdRef.current;
       const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const isFast = params.meta.speed === "fast";
@@ -535,6 +540,7 @@ export default function Home() {
     void runPortalJump({
       targetSequence: "latihan",
       targetFrame: TOTAL_LATIHAN_FRAMES,
+      playPortalSfx: true,
       meta: {
         speed: "fast",
         eyebrow: "LOMPATAN PUSTAKA",
@@ -813,6 +819,11 @@ export default function Home() {
     });
   }, [isMateriUnlocked, isReadingUnlocked, isLatihanUnlocked, isReverseScrolling]);
 
+  const handleOpenPetaModal = useCallback(() => {
+    playPortalTransition();
+    setIsPetaModalOpen(true);
+  }, []);
+
   const activeStage = isLatihanUnlocked
     ? "latihan"
     : isReadingUnlocked
@@ -949,7 +960,7 @@ export default function Home() {
         onNavigateToTop={handleNavigateToTop}
         onOpenKitabChapter={handleJumpToKitabChapter}
         onNavigateToStudioTulis={handleNavigateToStudioTulis}
-        onOpenPetaModal={() => setIsPetaModalOpen(true)}
+        onOpenPetaModal={handleOpenPetaModal}
       />
 
       {/* Contextual Back Button placed directly beneath the Navbar Brand Logo */}
@@ -1040,10 +1051,7 @@ export default function Home() {
           />
           <PetaHubButton
             isHeroAtEnd={sequenceState.isHeroAtEnd}
-            onSelect={() => {
-              playChime();
-              setIsPetaModalOpen(true);
-            }}
+            onSelect={handleOpenPetaModal}
           />
         </div>
       )}
@@ -1070,7 +1078,7 @@ export default function Home() {
         onTriggerPageFlip={handleTriggerBookPageFlip}
         mobile3dSide={kitab3dMobileSide}
         onChangeMobile3dSide={setKitab3dMobileSide}
-        onOpenPetaModal={() => setIsPetaModalOpen(true)}
+        onOpenPetaModal={handleOpenPetaModal}
         onNavigateToStudioTulis={handleNavigateToStudioTulis}
       />
 
@@ -1082,7 +1090,7 @@ export default function Home() {
         mobile3dSide={studio3dMobileSide}
         onChangeMobile3dSide={setStudio3dMobileSide}
         onJumpToKitabChapter={handleJumpToKitabChapter}
-        onOpenPetaModal={() => setIsPetaModalOpen(true)}
+        onOpenPetaModal={handleOpenPetaModal}
       />
 
       {/* Interactive Astrolabe Peta Pembelajaran, Side-Quest & Printable LKS Modal */}

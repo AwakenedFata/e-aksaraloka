@@ -17,7 +17,7 @@ describe("literaryDetector & Authority Layer", () => {
         selfRevisionChecks: {
           "rev-struktur": true,
           "rev-aturan": true,
-          "rev-watak-Indra": true,
+          "rev-watak-Indera": true,
           "rev-majas-dialog": true,
           "rev-eyd": true,
         },
@@ -86,7 +86,7 @@ describe("literaryDetector & Authority Layer", () => {
       selfRevisionChecks: {
         "rev-struktur": true,
         "rev-aturan": true,
-        "rev-watak-Indra": true,
+        "rev-watak-Indera": true,
         "rev-majas-dialog": true,
         "rev-eyd": true,
       },
@@ -117,7 +117,7 @@ describe("literaryDetector & Authority Layer", () => {
       selfRevisionChecks: {
         "rev-struktur": true,
         "rev-aturan": true,
-        "rev-watak-Indra": true,
+        "rev-watak-Indera": true,
         "rev-majas-dialog": true,
         "rev-eyd": true,
       },
@@ -125,12 +125,12 @@ describe("literaryDetector & Authority Layer", () => {
 
     const result = analyzeStudentManuscript(flawedDraft);
     const struktur = result.indicators.find((i) => i.id === "struktur");
-    const Indra = result.indicators.find((i) => i.id === "konsistensi_Indra");
+    const Indera = result.indicators.find((i) => i.id === "konsistensi_Indera");
     const majas = result.indicators.find((i) => i.id === "majas_asosiasi");
     const takLangsung = result.indicators.find((i) => i.id === "tak_langsung_konjungsi");
 
     expect(struktur?.passed).toBe(false);
-    expect(Indra?.passed).toBe(false);
+    expect(Indera?.passed).toBe(false);
     expect(majas?.passed).toBe(false);
     expect(takLangsung?.passed).toBe(true);
     expect(result.unfilledPlaceholderCount).toBe(1);

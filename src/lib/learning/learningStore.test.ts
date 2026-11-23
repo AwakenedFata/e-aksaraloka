@@ -90,7 +90,7 @@ describe("learningStore & competency metrics", () => {
         selfRevisionChecks: {
           "rev-struktur": true,
           "rev-aturan": true,
-          "rev-watak-Indra": true,
+          "rev-watak-Indera": true,
           "rev-majas-dialog": true,
           "rev-eyd": true,
         },

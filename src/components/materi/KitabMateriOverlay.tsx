@@ -99,9 +99,9 @@ const CHAPTER_ORDER: readonly ChapterOrderItem[] = [
   },
   {
     id: "watak",
-    shortLabel: "Misi 2: Tokoh & Indra",
-    label: "Misi 2: Sifat Tokoh, 4 Kantong Ajaib & Panca Indra",
-    subtitle: "Bukti Sifat Mao & Yari, 4 Kantong Emas & Kalimat Panca Indra",
+    shortLabel: "Misi 2: Tokoh & Indera",
+    label: "Misi 2: Sifat Tokoh, 4 Kantong Ajaib & Panca Indera",
+    subtitle: "Bukti Sifat Mao & Yari, 4 Kantong Emas & Kalimat Panca Indera",
     tpTag: "Misi 2 · Sifat Tokoh & Suasana Tempat",
     leftPageNo: 3,
     rightPageNo: 4,
@@ -183,7 +183,7 @@ const MATERI_TOUR_STEPS: readonly {
 const FIVE_SENSES_GUIDE = [
   {
     id: "sense-visual",
-    sense: "1. Indra Penglihatan (Mata)",
+    sense: "1. Indera Penglihatan (Mata)",
     sceneContext: "Kisah Bola-Bola Waktu",
     weakExample: "Ivan melihat bola waktu yang bagus di tangan pria itu.",
     vividExample:
@@ -191,7 +191,7 @@ const FIVE_SENSES_GUIDE = [
   },
   {
     id: "sense-auditori",
-    sense: "2. Indra Pendengaran (Telinga)",
+    sense: "2. Indera Pendengaran (Telinga)",
     sceneContext: "Kisah Keberanian Emas",
     weakExample: "Suara langkah Raksasa terdengar sangat keras.",
     vividExample:
@@ -199,7 +199,7 @@ const FIVE_SENSES_GUIDE = [
   },
   {
     id: "sense-penciuman",
-    sense: "3. Indra Penciuman & Peraba (Hidung & Kulit)",
+    sense: "3. Indera Penciuman & Peraba (Hidung & Kulit)",
     sceneContext: "Kisah Sihir Unik Mao",
     weakExample: "Mao menyihir kue cokelat dan stroberi yang enak.",
     vividExample:
@@ -267,7 +267,7 @@ export function KitabMateriOverlay({
   const [climaxWarningMessage, setClimaxWarningMessage] = useState<
     string | null
   >(null);
-  const [watakLeftTab, setWatakLeftTab] = useState<"mao" | "emas" | "Indra">(
+  const [watakLeftTab, setWatakLeftTab] = useState<"mao" | "emas" | "Indera">(
     "mao"
   );
   const [selectedLexiconCatId, setSelectedLexiconCatId] = useState<string>(
@@ -750,7 +750,7 @@ export function KitabMateriOverlay({
   }, []);
 
   // =========================================================================
-  // BABAK 2 HANDLERS: WATAK, 4 KANTONG EMAS & 5 Indra
+  // BABAK 2 HANDLERS: WATAK, 4 KANTONG EMAS & 5 Indera
   // =========================================================================
   const handleSelectCharacterTrait = useCallback(
     (challengeId: string, optionId: string) => {
@@ -1385,7 +1385,7 @@ export function KitabMateriOverlay({
                           className="font-serif font-bold text-[#241306]/92"
                           style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
                         >
-                          Sifat Mao &amp; Yari, 4 Kantong Emas &amp; Panca Indra
+                          Sifat Mao &amp; Yari, 4 Kantong Emas &amp; Panca Indera
                         </p>
                         <p
                           className="font-serif text-[#2f1a09]/92"
@@ -1518,11 +1518,11 @@ export function KitabMateriOverlay({
                       </span>
                     </p>
                     <p className="text-[#2f1a09]/92">
-                      • Segel 2 (Tokoh &amp; Indra):{" "}
+                      • Segel 2 (Tokoh &amp; Indera):{" "}
                       <span className="font-bold">
                         {state.sealWatakUnlocked
                           ? "SELESAI ✓"
-                          : `Tokoh ${charDone ? "✓" : "Belum"} · Kantong ${state.pouchOrderIds.length}/4 · Indra ${sensoryDone ? "✓" : "Belum"}`}
+                          : `Tokoh ${charDone ? "✓" : "Belum"} · Kantong ${state.pouchOrderIds.length}/4 · Indera ${sensoryDone ? "✓" : "Belum"}`}
                       </span>
                     </p>
                     <p className="text-[#2f1a09]/92">
@@ -2013,7 +2013,7 @@ export function KitabMateriOverlay({
                               berlatih menunjukkan sifat yang pantang menyerah.
                             </p>
                             <p className="text-[10.5px] leading-snug text-[#3a2512] sm:text-[11px]">
-                              <strong>3. Pakai Panca Indra &amp; Perumpamaan:</strong>{" "}
+                              <strong>3. Pakai Panca Indera &amp; Perumpamaan:</strong>{" "}
                               Buatlah cerita lebih hidup dengan menggambarkan apa
                               yang dilihat, didengar, dicium, dirasakan, atau
                               disentuh tokoh. Untuk membandingkan sesuatu, kamu
@@ -2063,7 +2063,7 @@ export function KitabMateriOverlay({
                           <div className="border-b border-[#5c3d1e]/30 pb-2">
                             <div className="flex items-center justify-between">
                               <span className="text-[11px] font-bold text-[#2b1a0c] sm:text-xs">
-                                Misi 2 — Sifat Tokoh, 4 Kantong Emas &amp; Panca Indra
+                                Misi 2 — Sifat Tokoh, 4 Kantong Emas &amp; Panca Indera
                               </span>
                               <span className="text-[10px] font-bold text-[#14532d]">
                                 {state.sealWatakUnlocked
@@ -2074,7 +2074,7 @@ export function KitabMateriOverlay({
                             <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
                               Tebak bukti sifat Mao &amp; Yari (<em>Sihir Unik Mao</em>),
                               urutkan 4 kantong ajaib Emas (<em>Keberanian Emas</em>),
-                              dan pilih kalimat panca Indra yang hidup!
+                              dan pilih kalimat panca Indera yang hidup!
                             </p>
                           </div>
 
@@ -2666,7 +2666,7 @@ export function KitabMateriOverlay({
                           onClick={() => switchToChapter("watak")}
                           className="cursor-pointer font-bold text-[#2b1a0c] underline decoration-[#5c3d1e]/50 underline-offset-2 transition hover:text-black"
                         >
-                          Lanjut Misi 2: Tokoh &amp; Indra -&gt;
+                          Lanjut Misi 2: Tokoh &amp; Indera -&gt;
                         </button>
                       </div>
                     </div>
@@ -2674,11 +2674,11 @@ export function KitabMateriOverlay({
                 )}
 
                 {/* ============================================================= */}
-                {/* SPREAD 2: BABAK II (PENOKOHAN, 4 KANTONG EMAS & 5 Indra)     */}
+                {/* SPREAD 2: BABAK II (PENOKOHAN, 4 KANTONG EMAS & 5 Indera)     */}
                 {/* ============================================================= */}
                 {!isShowingIntroSpread && activeChapter === "watak" && (
                   <>
-                    {/* LEFT PAGE (HALAMAN 3): TOKOH, 4 KANTONG EMAS & 5 Indra */}
+                    {/* LEFT PAGE (HALAMAN 3): TOKOH, 4 KANTONG EMAS & 5 Indera */}
                     <div style={get2dPageStyle("left")} className={page2dContainerClass}>
                       <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                         <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-1 border-b border-[#5c3d1e]/35 pb-1">
@@ -2720,13 +2720,13 @@ export function KitabMateriOverlay({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setWatakLeftTab("Indra")}
-                            className={`cursor-pointer border-b-2 py-1 font-serif text-[10px] font-bold transition ${watakLeftTab === "Indra"
+                            onClick={() => setWatakLeftTab("Indera")}
+                            className={`cursor-pointer border-b-2 py-1 font-serif text-[10px] font-bold transition ${watakLeftTab === "Indera"
                               ? "border-[#2b1a0c] text-[#1f1207]"
                               : "border-transparent text-[#6b4826] hover:text-[#2b1a0c]"
                               }`}
                           >
-                            3. Panca Indra
+                            3. Panca Indera
                           </button>
                         </div>
 
@@ -2874,11 +2874,11 @@ export function KitabMateriOverlay({
                           </div>
                         )}
 
-                        {watakLeftTab === "Indra" && (
+                        {watakLeftTab === "Indera" && (
                           <div className="space-y-1.5 font-serif text-[#2b1a0c]">
                             <p className="text-[10.5px] leading-relaxed text-[#3a2512]">
                               Bandingkan <strong>Kalimat Biasa</strong> dengan{" "}
-                              <strong>Kalimat Panca Indra</strong> yang bikin
+                              <strong>Kalimat Panca Indera</strong> yang bikin
                               pembaca ikut merasakan suasananya:
                             </p>
                             {FIVE_SENSES_GUIDE.map((gem) => (
@@ -2917,7 +2917,7 @@ export function KitabMateriOverlay({
                       </div>
                     </div>
 
-                    {/* RIGHT PAGE (HALAMAN 4): TANTANGAN BUKTI WATAK & CITRAAN Indra */}
+                    {/* RIGHT PAGE (HALAMAN 4): TANTANGAN BUKTI WATAK & CITRAAN Indera */}
                     <div style={get2dPageStyle("right")} className={page2dContainerClass}>
                       <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
                         <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-[#5c3d1e]/35 pb-1">
@@ -2927,7 +2927,7 @@ export function KitabMateriOverlay({
                           <span className="shrink-0 whitespace-nowrap font-serif text-[9px] font-bold text-[#14532d] sm:text-[9.5px]">
                             {state.sealWatakUnlocked
                               ? "Segel 2 Selesai ✓"
-                              : `Tokoh ${charDone ? "✓" : "○"} · Kantong ${state.pouchOrderIds.length}/4 · Indra ${sensoryDone ? "✓" : "○"}`}
+                              : `Tokoh ${charDone ? "✓" : "○"} · Kantong ${state.pouchOrderIds.length}/4 · Indera ${sensoryDone ? "✓" : "○"}`}
                           </span>
                         </div>
 
@@ -2935,7 +2935,7 @@ export function KitabMateriOverlay({
                           {/* Live 1-Line Quest Prompt for Segel 2 */}
                           {state.sealWatakUnlocked ? (
                             <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-[#14532d]/55 bg-[#14532d]/12 px-2 py-1.5 text-[10px] font-bold text-[#14532d]">
-                              <span>Mantap! Segel 2 (Tokoh &amp; Indra) Terbuka!</span>
+                              <span>Mantap! Segel 2 (Tokoh &amp; Indera) Terbuka!</span>
                               <button
                                 type="button"
                                 onClick={() => switchToChapter("bahasa")}
@@ -2950,7 +2950,7 @@ export function KitabMateriOverlay({
                               {!charDone
                                 ? "Pilih bukti perbuatan yang cocok untuk sifat Mao & Yari di Bagian A."
                                 : !sensoryDone
-                                  ? "Pilih 3 kalimat Panca Indra yang paling hidup di Bagian B."
+                                  ? "Pilih 3 kalimat Panca Indera yang paling hidup di Bagian B."
                                   : `Tinggal 1 lagi! Urutkan 4 Kantong Emas (${state.pouchOrderIds.length}/4) di Halaman 3 (kiri)!`}
                             </div>
                           )}
@@ -3022,10 +3022,10 @@ export function KitabMateriOverlay({
                             })}
                           </div>
 
-                          {/* Bagian B: Transformasi Kalimat Datar ke 5 Indra */}
+                          {/* Bagian B: Transformasi Kalimat Datar ke 5 Indera */}
                           <div className="space-y-1.5">
                             <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                              B. Misi Panca Indra (Pilih Kalimat yang Paling Hidup):
+                              B. Misi Panca Indera (Pilih Kalimat yang Paling Hidup):
                             </span>
                             {SENSORY_UPGRADE_CHALLENGES.map((sens) => {
                               const selectedOptId =
@@ -3282,7 +3282,7 @@ export function KitabMateriOverlay({
                           onClick={() => switchToChapter("watak")}
                           className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
                         >
-                          &lt;- Misi 2: Tokoh &amp; Indra
+                          &lt;- Misi 2: Tokoh &amp; Indera
                         </button>
                         <span className="font-semibold">Halaman 5</span>
                       </div>

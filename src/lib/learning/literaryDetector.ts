@@ -38,6 +38,8 @@ export interface StudioExtraSpread {
 export interface StudioDraftData {
   readonly authorName: string;
   readonly authorClass: string;
+  readonly authorAbsen?: string;
+  readonly classCode?: string;
   // Langkah 1: Tema & Aturan Dunia Fantasi (Peluang Peran Media #1 & #2)
   readonly themeCategory: FantasyThemeCategory;
   readonly worldRule: string;
@@ -46,7 +48,7 @@ export interface StudioDraftData {
   readonly protagonistTraitAction: string;
   readonly antagonistName: string;
   readonly antagonistConflictTrigger: string;
-  // Langkah 3: Latar Tempat & Peta Lima Indra (Peluang Peran Media #4)
+  // Langkah 3: Latar Tempat & Peta Lima Indera (Peluang Peran Media #4)
   readonly settingPlace: string;
   readonly sensorySight: string;
   readonly sensorySound: string;
@@ -105,7 +107,7 @@ export interface EydAndLexiconIssue {
 export interface LiteraryIndicatorStatus {
   readonly id:
   | "struktur"
-  | "konsistensi_Indra"
+  | "konsistensi_Indera"
   | "majas_asosiasi"
   | "dialog_langsung"
   | "tak_langsung_konjungsi";
@@ -156,9 +158,9 @@ export const SELF_REVISION_CHECKLIST: readonly SelfRevisionChecklistItem[] = [
     category: "Struktur & Logika",
   },
   {
-    id: "rev-watak-Indra",
+    id: "rev-watak-Indera",
     label:
-      "Sifat tokohku sudah terlihat dari perbuatannya dan ada gambaran panca Indra (cahaya, suara, atau aroma/suhu).",
+      "Sifat tokohku sudah terlihat dari perbuatannya dan ada gambaran panca Indera (cahaya, suara, atau aroma/suhu).",
     category: "Detail & Tokoh",
   },
   {
@@ -178,6 +180,8 @@ export const SELF_REVISION_CHECKLIST: readonly SelfRevisionChecklistItem[] = [
 export const INITIAL_STUDIO_DRAFT: StudioDraftData = {
   authorName: "",
   authorClass: "VII-A",
+  authorAbsen: "",
+  classCode: "",
   themeCategory: "Lintas Waktu & Konsekuensi",
   worldRule: "",
   protagonistName: "",
@@ -203,7 +207,7 @@ export const INITIAL_STUDIO_DRAFT: StudioDraftData = {
   selfRevisionChecks: {
     "rev-struktur": false,
     "rev-aturan": false,
-    "rev-watak-Indra": false,
+    "rev-watak-Indera": false,
     "rev-majas-dialog": false,
     "rev-eyd": false,
   },
@@ -914,7 +918,7 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   if (resolusiWords > 0) strukturSnippets.push(`Resolusi: ${resolusiWords} kata`);
 
   // --------------------------------------------------------------------------
-  // 2. Indikator Konsistensi Tokoh, Latar, & Detail Lima Indra (Bobot 20)
+  // 2. Indikator Konsistensi Tokoh, Latar, & Detail Lima Indera (Bobot 20)
   // --------------------------------------------------------------------------
   const protag = draft.protagonistName.trim();
   const antag = draft.antagonistName.trim();
@@ -942,7 +946,7 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   if (placeUsed) konsistensiSnippets.push(`Latar: "${place}"`);
   if (detectedSensoryWords.length > 0) {
     konsistensiSnippets.push(
-      `Diksi Indra (${detectedSensoryWords.length}): ${detectedSensoryWords.slice(0, 4).join(", ")}`
+      `Diksi Indera (${detectedSensoryWords.length}): ${detectedSensoryWords.slice(0, 4).join(", ")}`
     );
   }
 
@@ -1037,15 +1041,15 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
         "Isi semua 4 bagian cerita (Awal, Muncul Masalah, Puncak, Akhir), lalu lengkapi Judul, Aturan Keajaiban, dan Pesan Kebaikan.",
     },
     {
-      id: "konsistensi_Indra",
-      title: "2. Nama Tokoh, Tempat, & Kata Panca Indra",
+      id: "konsistensi_Indera",
+      title: "2. Nama Tokoh, Tempat, & Kata Panca Indera",
       tpCode: "TP 3",
       passed: konsistensiPassed,
       scoreWeight: 20,
       earnedScore: konsistensiEarned,
       summary: konsistensiPassed
-        ? "Mantap! Nama tokoh, tempat kejadian, dan kata-kata panca Indra sudah hidup di dalam ceritamu."
-        : "Sebutkan nama Tokoh Utama dan Lawan/Tempat dari Lembar 1 di dalam ceritamu, lalu tambahkan minimal 2 kata panca Indra.",
+        ? "Mantap! Nama tokoh, tempat kejadian, dan kata-kata panca Indera sudah hidup di dalam ceritamu."
+        : "Sebutkan nama Tokoh Utama dan Lawan/Tempat dari Lembar 1 di dalam ceritamu, lalu tambahkan minimal 2 kata panca Indera.",
       detectedSnippets: konsistensiSnippets,
       improvementHint:
         "Pakai nama tokoh dan tempat yang kamu tulis di Lembar 1, lalu tambahkan kata suasana seperti 'berpendar', 'gemuruh', 'harum', atau 'dingin'.",
