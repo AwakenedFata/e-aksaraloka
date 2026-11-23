@@ -294,6 +294,7 @@ export function AstrolabProgressionMap({
             src="/peta-frame/map-frame.jpg"
             alt=""
             fill
+            unoptimized
             sizes="100vw"
             className="object-cover opacity-20 blur-md scale-105 select-none"
             draggable={false}
@@ -310,6 +311,7 @@ export function AstrolabProgressionMap({
                 alt="Peta Petualangan Dunia Cerita Fantasi Aksaraloka"
                 fill
                 priority
+                unoptimized
                 sizes="(max-width: 767px) 100vw, 480px"
                 className="object-cover select-none"
                 draggable={false}
@@ -554,6 +556,7 @@ export function AstrolabProgressionMap({
           alt="Peta Petualangan Dunia Cerita Fantasi Aksaraloka"
           fill
           priority
+          unoptimized
           sizes="100vw"
           className="object-cover select-none"
           draggable={false}

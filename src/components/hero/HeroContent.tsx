@@ -214,6 +214,7 @@ export const HeroContent = memo(function HeroContent({
                 src="/hero-frames/frame-240.webp"
                 alt="Pustaka Aksaraloka"
                 fill
+                unoptimized
                 sizes="56px"
                 className="object-cover transition-transform duration-500 group-hover:scale-110"
               />
@@ -304,6 +305,7 @@ export const HeroContent = memo(function HeroContent({
               src="/hero-frames/frame-001.webp"
               alt="Eksplorasi Alur Magis"
               fill
+              unoptimized
               sizes="56px"
               className="object-cover"
             />

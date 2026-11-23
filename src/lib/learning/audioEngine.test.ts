@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   AUDIO_ASSETS,
+  detectLeadingSilenceOffset,
   getActiveNarrationTrackSnapshot,
   getAudioMutedSnapshot,
   getAudioNarratingSnapshot,
@@ -66,5 +67,21 @@ describe("audioEngine manifest & SSR-safe state transitions", () => {
     expect(getActiveNarrationTrackSnapshot()).toBeNull();
 
     unsub();
+  });
+
+  it("detects leading silence offset accurately so delayed SFX MP3s play on transient onset", () => {
+    const sampleRate = 44100;
+    const samples = new Float32Array(sampleRate * 2);
+    // Simulate 0.45s of silence followed by a sharp parchment transient
+    const onsetSample = Math.floor(0.45 * sampleRate);
+    samples[onsetSample] = 0.25;
+
+    const detected = detectLeadingSilenceOffset([samples], sampleRate, 0.03, 0.01);
+    expect(detected).toBeCloseTo(0.44, 2);
+
+    // Sound starting right at sample 0 returns 0 offset
+    const immediate = new Float32Array(1024);
+    immediate[0] = 0.5;
+    expect(detectLeadingSilenceOffset([immediate], sampleRate, 0.03, 0.01)).toBe(0);
   });
 });

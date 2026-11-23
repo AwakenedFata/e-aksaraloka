@@ -58,6 +58,88 @@ const SFX_COOLDOWN_MS: Record<SfxKey, number> = {
   portal: 180,
 };
 
+interface SfxPlaybackProfile {
+  readonly gain: number;
+  readonly onsetThreshold: number;
+  readonly playbackRate: number;
+  readonly maxDurationSec: number | null;
+  readonly fadeOutSec: number;
+}
+
+const SFX_PLAYBACK_PROFILES: Record<SfxKey, SfxPlaybackProfile> = {
+  click: {
+    gain: 0.42,
+    onsetThreshold: 0.015,
+    playbackRate: 1.0,
+    maxDurationSec: null,
+    fadeOutSec: 0.04,
+  },
+  pageFlip: {
+    gain: 0.6,
+    onsetThreshold: 0.032,
+    playbackRate: 1.18,
+    maxDurationSec: 0.68,
+    fadeOutSec: 0.16,
+  },
+  sealUnlock: {
+    gain: 0.58,
+    onsetThreshold: 0.015,
+    playbackRate: 1.0,
+    maxDurationSec: 3.6,
+    fadeOutSec: 0.35,
+  },
+  error: {
+    gain: 0.44,
+    onsetThreshold: 0.02,
+    playbackRate: 1.0,
+    maxDurationSec: 1.35,
+    fadeOutSec: 0.22,
+  },
+  portal: {
+    gain: 0.48,
+    onsetThreshold: 0.015,
+    playbackRate: 1.05,
+    maxDurationSec: 2.3,
+    fadeOutSec: 0.65,
+  },
+};
+
+interface CachedSfxEntry {
+  readonly buffer: AudioBuffer;
+  readonly onsetSec: number;
+}
+
+/**
+ * Scans decoded PCM channels to skip MP3 encoder padding and AI-generated
+ * leading silence so transient SFX (especially `sfx-page-flip.mp3`) align
+ * immediately with visual animations.
+ */
+export function detectLeadingSilenceOffset(
+  channels: readonly Float32Array[],
+  sampleRate: number,
+  threshold: number = 0.02,
+  preRollSec: number = 0.01
+): number {
+  if (channels.length === 0 || sampleRate <= 0) return 0;
+  const totalSamples = channels[0]?.length ?? 0;
+  if (totalSamples === 0) return 0;
+
+  let firstActiveSample = -1;
+  for (let i = 0; i < totalSamples; i++) {
+    for (let ch = 0; ch < channels.length; ch++) {
+      if (Math.abs(channels[ch]![i] ?? 0) >= threshold) {
+        firstActiveSample = i;
+        break;
+      }
+    }
+    if (firstActiveSample !== -1) break;
+  }
+
+  if (firstActiveSample <= 0) return 0;
+  const onsetSec = firstActiveSample / sampleRate - preRollSec;
+  return Math.max(0, onsetSec);
+}
+
 type AudioListener = () => void;
 
 let audioCtx: AudioContext | null = null;
@@ -77,8 +159,8 @@ let bgmFadeRaf: number | null = null;
 let activeNarrationAudio: HTMLAudioElement | null = null;
 const narrationAudioPool = new Map<NarrationTrackId, HTMLAudioElement>();
 
-const sfxBuffers = new Map<SfxKey, AudioBuffer>();
-const sfxLoadingPromises = new Map<SfxKey, Promise<AudioBuffer | null>>();
+const sfxBuffers = new Map<SfxKey, CachedSfxEntry>();
+const sfxLoadingPromises = new Map<SfxKey, Promise<CachedSfxEntry | null>>();
 const sfxLastPlayedAt = new Map<SfxKey, number>();
 
 const listeners = new Set<AudioListener>();
@@ -228,7 +310,7 @@ function startBgmPlayback(fadeInMs = 1100): void {
   }
 }
 
-function preloadSfxBuffer(key: SfxKey): Promise<AudioBuffer | null> {
+function preloadSfxBuffer(key: SfxKey): Promise<CachedSfxEntry | null> {
   if (typeof window === "undefined") return Promise.resolve(null);
   const existing = sfxBuffers.get(key);
   if (existing) return Promise.resolve(existing);
@@ -239,6 +321,7 @@ function preloadSfxBuffer(key: SfxKey): Promise<AudioBuffer | null> {
   const ctx = getAudioContext();
   if (!ctx) return Promise.resolve(null);
 
+  const profile = SFX_PLAYBACK_PROFILES[key];
   const promise = fetch(AUDIO_ASSETS.sfx[key])
     .then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -246,8 +329,21 @@ function preloadSfxBuffer(key: SfxKey): Promise<AudioBuffer | null> {
     })
     .then((arrayBuf) => ctx.decodeAudioData(arrayBuf.slice(0)))
     .then((decoded) => {
-      sfxBuffers.set(key, decoded);
-      return decoded;
+      const channels: Float32Array[] = [];
+      for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
+        channels.push(decoded.getChannelData(ch));
+      }
+      const rawOnset = detectLeadingSilenceOffset(
+        channels,
+        decoded.sampleRate,
+        profile.onsetThreshold,
+        0.01
+      );
+      // Never seek past the buffer if an audio file is quieter than threshold
+      const onsetSec = rawOnset < decoded.duration - 0.1 ? rawOnset : 0;
+      const entry: CachedSfxEntry = { buffer: decoded, onsetSec };
+      sfxBuffers.set(key, entry);
+      return entry;
     })
     .catch((err) => {
       void err;
@@ -375,7 +471,6 @@ export function toggleAudioMuted(): boolean {
 
 function playDecodedSfx(
   key: SfxKey,
-  gainValue: number,
   fallbackSynth: (ctx: AudioContext) => void
 ): void {
   const ctx = getAudioContext();
@@ -388,16 +483,37 @@ function playDecodedSfx(
   }
   sfxLastPlayedAt.set(key, nowMs);
 
-  const buffer = sfxBuffers.get(key);
-  if (buffer) {
+  const entry = sfxBuffers.get(key);
+  if (entry) {
     try {
+      const profile = SFX_PLAYBACK_PROFILES[key];
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
-      source.buffer = buffer;
-      gain.gain.setValueAtTime(gainValue, ctx.currentTime);
+      const now = ctx.currentTime;
+
+      source.buffer = entry.buffer;
+      source.playbackRate.setValueAtTime(profile.playbackRate, now);
+
+      const remainingBufferSec = Math.max(
+        0.05,
+        entry.buffer.duration - entry.onsetSec
+      );
+      const effectiveSourceDur =
+        profile.maxDurationSec !== null
+          ? Math.min(remainingBufferSec, profile.maxDurationSec * profile.playbackRate)
+          : remainingBufferSec;
+      const wallDurationSec = effectiveSourceDur / profile.playbackRate;
+
+      gain.gain.setValueAtTime(profile.gain, now);
+      if (profile.maxDurationSec !== null && wallDurationSec > profile.fadeOutSec + 0.03) {
+        const fadeStart = now + wallDurationSec - profile.fadeOutSec;
+        gain.gain.setValueAtTime(profile.gain, fadeStart);
+        gain.gain.exponentialRampToValueAtTime(0.0008, now + wallDurationSec);
+      }
+
       source.connect(gain);
       gain.connect(ctx.destination);
-      source.start(ctx.currentTime);
+      source.start(now, entry.onsetSec, effectiveSourceDur);
       return;
     } catch (err) {
       void err;
@@ -538,14 +654,15 @@ function playSynthPortal(ctx: AudioContext): void {
  * Royal harp/crystal UI click chime (`sfx-royal-click.mp3`).
  */
 export function playChime(): void {
-  playDecodedSfx("click", 0.42, playSynthChime);
+  playDecodedSfx("click", playSynthChime);
 }
 
 /**
- * Heavy parchment page-turn foley (`sfx-page-flip.mp3`).
+ * Heavy parchment page-turn foley (`sfx-page-flip.mp3`), onset-trimmed and tightened
+ * to stay locked to the 420-460ms visual page-turn animation.
  */
 export function playPageFlip(): void {
-  playDecodedSfx("pageFlip", 0.56, playSynthPageFlip);
+  playDecodedSfx("pageFlip", playSynthPageFlip);
 }
 
 /**
@@ -564,21 +681,21 @@ export function playSealUnlock(): void {
       syncBgmVolume(650);
     }, 1800);
   }
-  playDecodedSfx("sealUnlock", 0.58, playSynthSealUnlock);
+  playDecodedSfx("sealUnlock", playSynthSealUnlock);
 }
 
 /**
  * Gentle muted wooden nudge when an answer needs revision (`sfx-soft-error.mp3`).
  */
 export function playErrorTone(): void {
-  playDecodedSfx("error", 0.44, playSynthErrorTone);
+  playDecodedSfx("error", playSynthErrorTone);
 }
 
 /**
  * Ethereal golden portal shimmer (`sfx-portal.mp3`) for scene transitions & fast-travel.
  */
 export function playPortalTransition(): void {
-  playDecodedSfx("portal", 0.48, playSynthPortal);
+  playDecodedSfx("portal", playSynthPortal);
 }
 
 // ============================================================================
