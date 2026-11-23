@@ -165,7 +165,7 @@ export function buildProgressionMapModel(
     {
       id: "babak-2",
       orderLabel: "Misi 2",
-      title: "Tokoh & Indera",
+      title: "Tokoh & Indra",
       landmarkLabel: "Menara Kristal Selatan",
       shortBadge: "2",
       xPct: 35.3,
@@ -175,7 +175,7 @@ export function buildProgressionMapModel(
       isRecommendedNext: recommendedNodeId === "babak-2",
       coachMarkText: "Segel 1 beres! Lanjut ke Misi 2",
       questPrompt:
-        "Buktikan sifat Mao & Yari lewat aksinya, urutkan 4 kantong ajaib Emas saat dikejar Raksasa, dan hidupkan panca indera!",
+        "Buktikan sifat Mao & Yari lewat aksinya, urutkan 4 kantong ajaib Emas saat dikejar Raksasa, dan hidupkan panca Indra!",
       tpCodes: ["TP 1", "TP 3"],
       summary:
         "Kenali sifat tokoh dari perbuatannya, urutkan 4 kantong ajaib, dan pilih kalimat yang bikin pembaca ikut merasakan suasana.",
@@ -195,7 +195,7 @@ export function buildProgressionMapModel(
           done: pouchDone,
         },
         {
-          label: "Kalimat Panca Indera",
+          label: "Kalimat Panca Indra",
           done: sensoryDone,
         },
       ],

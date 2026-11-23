@@ -185,11 +185,10 @@ export function StudioHybridToolkitDrawer({
                 playChime();
                 setActiveTab(tab.id);
               }}
-              className={`min-h-[32px] sm:min-h-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer text-center ${
-                activeTab === tab.id
+              className={`min-h-[32px] sm:min-h-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer text-center ${activeTab === tab.id
                   ? "bg-[#f4d993] text-slate-950"
                   : "border border-[#cda250]/35 bg-white/5 text-amber-100 hover:bg-white/10"
-              }`}
+                }`}
             >
               {tab.label}
             </button>
@@ -333,11 +332,10 @@ export function StudioHybridToolkitDrawer({
                     playChime();
                     setInsertTarget(t.id);
                   }}
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold cursor-pointer transition-colors ${
-                    insertTarget === t.id
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold cursor-pointer transition-colors ${insertTarget === t.id
                       ? "bg-[#f4d993] text-slate-950"
                       : "border border-white/15 bg-white/5 text-stone-300 hover:border-[#f4d993]/50"
-                  }`}
+                    }`}
                 >
                   {t.label}
                 </button>
@@ -355,11 +353,10 @@ export function StudioHybridToolkitDrawer({
                     playChime();
                     setSelectedLexiconCatId(cat.id);
                   }}
-                  className={`rounded-lg px-2 py-1 text-[10px] font-bold transition-colors cursor-pointer ${
-                    selectedCategory.id === cat.id
+                  className={`rounded-lg px-2 py-1 text-[10px] font-bold transition-colors cursor-pointer ${selectedCategory.id === cat.id
                       ? "bg-[#f4d993] text-slate-950"
                       : "border border-white/15 bg-white/5 text-stone-200 hover:border-[#f4d993]/50"
-                  }`}
+                    }`}
                 >
                   {cat.category}
                 </button>
@@ -375,11 +372,10 @@ export function StudioHybridToolkitDrawer({
                     playChime();
                     setMeaningFilter(mf);
                   }}
-                  className={`rounded-full px-2 py-0.5 text-[9.5px] font-bold cursor-pointer ${
-                    meaningFilter === mf
+                  className={`rounded-full px-2 py-0.5 text-[9.5px] font-bold cursor-pointer ${meaningFilter === mf
                       ? "bg-emerald-400 text-slate-950"
                       : "border border-white/15 bg-white/5 text-stone-300"
-                  }`}
+                    }`}
                 >
                   {mf}
                 </button>
@@ -427,7 +423,7 @@ export function StudioHybridToolkitDrawer({
                 Cari Kata &amp; Perumpamaan untuk Temamu!
               </span>
               <p className="text-[11px] text-stone-300 leading-snug">
-                Tulis tema fantasimu sendiri (misalnya: <em>Kerajaan Awan</em> atau <em>Kota Bawah Laut</em>). Asisten AI akan memberi 6 kata panca indera dan 3 kerangka kalimat rumpang [...] untuk kamu lengkapi sendiri!
+                Tulis tema fantasimu sendiri (misalnya: <em>Kerajaan Awan</em> atau <em>Kota Bawah Laut</em>). Asisten AI akan memberi 6 kata panca Indra dan 3 kerangka kalimat rumpang [...] untuk kamu lengkapi sendiri!
               </p>
             </div>
 
@@ -462,9 +458,8 @@ export function StudioHybridToolkitDrawer({
               <div className="flex flex-wrap items-center justify-between gap-1.5">
                 <span
                   title={`Sumber: ${aiResult.provider} (${aiResult.model})`}
-                  className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${
-                    formatProviderBadge(aiResult).className
-                  }`}
+                  className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${formatProviderBadge(aiResult).className
+                    }`}
                 >
                   {formatProviderBadge(aiResult).label}
                 </span>
@@ -498,11 +493,10 @@ export function StudioHybridToolkitDrawer({
                         playChime();
                         setInsertTarget(t.id);
                       }}
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold cursor-pointer transition-colors ${
-                        insertTarget === t.id
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold cursor-pointer transition-colors ${insertTarget === t.id
                           ? "bg-[#f4d993] text-slate-950"
                           : "border border-white/15 bg-white/5 text-stone-300 hover:border-[#f4d993]/50"
-                      }`}
+                        }`}
                     >
                       {t.label}
                     </button>
@@ -599,11 +593,10 @@ export function StudioHybridToolkitDrawer({
                   playChime();
                   onJumpToKitabChapter(sb.id);
                 }}
-                className={`rounded-full px-3 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
-                  unlocked
+                className={`rounded-full px-3 py-1 text-[11px] font-bold transition-colors cursor-pointer ${unlocked
                     ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/45"
                     : "bg-amber-500/15 text-amber-200 border border-amber-400/40 hover:bg-amber-500/25"
-                }`}
+                  }`}
               >
                 {sb.label}: {unlocked ? "Selesai ✓" : "Buka di Pustaka ->"}
               </button>

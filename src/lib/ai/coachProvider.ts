@@ -81,8 +81,8 @@ const SYSTEM_PROMPT = [
   "Kamu adalah Pelatih Menulis Sokratik E-Aksaraloka untuk siswa kelas VII SMP (usia 12-13 tahun) mata pelajaran Bahasa Indonesia (Cerita Fantasi).",
   "ATURAN PEDAGOGIS WAJIB:",
   "1. JANGAN PERNAH menuliskan paragraf cerita utuh, melanjutkan cerita siswa, atau menulis ulang seluruh karangan siswa.",
-  "2. Tugasmu HANYA memantik imajinasi lewat kata-kata panca indera, kerangka rumpang bertanda [...], dan pertanyaan Sokratik yang singkat, ramah, dan membangun.",
-  "3. JANGAN mengklaim hasilmu sebagai aturan resmi KBBI atau EYD V; fokus pada imajinasi, kelogisan aturan dunia cerita, watak tokoh, dan panca indera.",
+  "2. Tugasmu HANYA memantik imajinasi lewat kata-kata panca Indra, kerangka rumpang bertanda [...], dan pertanyaan Sokratik yang singkat, ramah, dan membangun.",
+  "3. JANGAN mengklaim hasilmu sebagai aturan resmi KBBI atau EYD V; fokus pada imajinasi, kelogisan aturan dunia cerita, watak tokoh, dan panca Indra.",
   "4. Pastikan seluruh bahasa baku, santun, bebas kekerasan ekstrem, bebas konten dewasa, dan sesuai untuk anak kelas VII SMP.",
   "5. Balas HANYA dengan satu objek JSON valid tanpa markdown fence (tanpa ```json) yang persis mengikuti skema yang diminta.",
 ].join("\n");
@@ -147,7 +147,7 @@ function buildUserPrompt(req: CoachRequest): string {
     "Hasilkan JSON persis dengan kunci berikut:",
     "{",
     '  "appreciations": ["2 pujian konkret menyebut tokoh/ide/suasana yang sudah ditulis siswa"],',
-    '  "guidingQuestions": ["2-3 pertanyaan penuntun revisi agar siswa memperkaya watak, indera, atau penyelesaian ceritanya sendiri"],',
+    '  "guidingQuestions": ["2-3 pertanyaan penuntun revisi agar siswa memperkaya watak, Indra, atau penyelesaian ceritanya sendiri"],',
     '  "nextMiniChallenge": "1 tantangan mini seru (maks 1 kalimat) untuk revisi berikutnya"',
     "}",
   ].join("\n");
@@ -324,7 +324,7 @@ function normalizeRawPayload(
     nextMiniChallenge: clipText(
       obj.nextMiniChallenge,
       215,
-      "Coba tambahkan 1 detail panca indera atau perumpamaan pada puncak masalahmu!"
+      "Coba tambahkan 1 detail panca Indra atau perumpamaan pada puncak masalahmu!"
     ),
   };
 }
@@ -515,51 +515,51 @@ export function buildOfflineCoachFallback(
 
     const sensoryWords: ThemeLexiconPayload["sensoryWords"] = isKingdom
       ? [
-          {
-            word: "Gemerlap aula pualam",
-            sense: "Penglihatan",
-            type: "Denotatif",
-            meaning: "Kilau megah lantai batu istana yang memantulkan sinar obor.",
-            usageHint: "Cocok dipakai saat tokoh pertama kali memasuki balairung kerajaan.",
-          },
-          {
-            word: "Kilau mahkota emas",
-            sense: "Penglihatan",
-            type: "Denotatif",
-            meaning: "Pantulan cahaya keemasan dari lambang kekuasaan raja/ratu.",
-            usageHint: "Gambarkan saat mengenalkan tokoh penguasa atau pusaka kerajaan.",
-          },
-          {
-            word: "Dering terompet gerbang",
-            sense: "Pendengaran",
-            type: "Denotatif",
-            meaning: "Bunyi nyaring penanda tamu penting atau bahaya mendekati benteng.",
-            usageHint: "Pas untuk membuka paragraf Muncul Masalah (Komplikasi).",
-          },
-          {
-            word: "Derap langkah penjaga",
-            sense: "Pendengaran",
-            type: "Denotatif",
-            meaning: "Suara langkah kaki berirama yang menggema di lorong batu istana.",
-            usageHint: "Membangun ketegangan saat tokoh harus menyelinap atau bersembunyi.",
-          },
-          {
-            word: "Harum lilin damar",
-            sense: "Aroma / Sentuhan",
-            type: "Denotatif",
-            meaning: "Wangi hangat dari lilin dan lentera yang menerangi ruang kerajaan.",
-            usageHint: "Tambahkan di Orientasi agar suasana istana terasa nyata.",
-          },
-          {
-            word: "Dinding batu sedingin es",
-            sense: "Aroma / Sentuhan",
-            type: "Kiasan / Majas",
-            meaning: "Permukaan tembok benteng yang terasa amat dingin saat disentuh.",
-            usageHint: "Tunjukkan sensasi perabaan saat tokoh terjebak di menara atau lorong.",
-          },
-        ]
+        {
+          word: "Gemerlap aula pualam",
+          sense: "Penglihatan",
+          type: "Denotatif",
+          meaning: "Kilau megah lantai batu istana yang memantulkan sinar obor.",
+          usageHint: "Cocok dipakai saat tokoh pertama kali memasuki balairung kerajaan.",
+        },
+        {
+          word: "Kilau mahkota emas",
+          sense: "Penglihatan",
+          type: "Denotatif",
+          meaning: "Pantulan cahaya keemasan dari lambang kekuasaan raja/ratu.",
+          usageHint: "Gambarkan saat mengenalkan tokoh penguasa atau pusaka kerajaan.",
+        },
+        {
+          word: "Dering terompet gerbang",
+          sense: "Pendengaran",
+          type: "Denotatif",
+          meaning: "Bunyi nyaring penanda tamu penting atau bahaya mendekati benteng.",
+          usageHint: "Pas untuk membuka paragraf Muncul Masalah (Komplikasi).",
+        },
+        {
+          word: "Derap langkah penjaga",
+          sense: "Pendengaran",
+          type: "Denotatif",
+          meaning: "Suara langkah kaki berirama yang menggema di lorong batu istana.",
+          usageHint: "Membangun ketegangan saat tokoh harus menyelinap atau bersembunyi.",
+        },
+        {
+          word: "Harum lilin damar",
+          sense: "Aroma / Sentuhan",
+          type: "Denotatif",
+          meaning: "Wangi hangat dari lilin dan lentera yang menerangi ruang kerajaan.",
+          usageHint: "Tambahkan di Orientasi agar suasana istana terasa nyata.",
+        },
+        {
+          word: "Dinding batu sedingin es",
+          sense: "Aroma / Sentuhan",
+          type: "Kiasan / Majas",
+          meaning: "Permukaan tembok benteng yang terasa amat dingin saat disentuh.",
+          usageHint: "Tunjukkan sensasi perabaan saat tokoh terjebak di menara atau lorong.",
+        },
+      ]
       : isOcean
-      ? [
+        ? [
           {
             word: "Berpendar biru safir",
             sense: "Penglihatan",
@@ -603,8 +603,8 @@ export function buildOfflineCoachFallback(
             usageHint: "Gambarkan saat tokoh menyentuh pintu atau pusaka basah.",
           },
         ]
-      : isSky
-        ? [
+        : isSky
+          ? [
             {
               word: "Kabut keperakan",
               sense: "Penglihatan",
@@ -648,8 +648,8 @@ export function buildOfflineCoachFallback(
               usageHint: "Cocok untuk ketenangan di paragraf Resolusi.",
             },
           ]
-        : isTech
-          ? [
+          : isTech
+            ? [
               {
                 word: "Kilau kuningan temaram",
                 sense: "Penglihatan",
@@ -693,7 +693,7 @@ export function buildOfflineCoachFallback(
                 usageHint: "Tunjukkan bahaya yang mendekat sebelum lawan terlihat.",
               },
             ]
-          : [
+            : [
               {
                 word: "Berpendar keemasan",
                 sense: "Penglihatan",

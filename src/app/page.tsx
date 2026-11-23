@@ -30,7 +30,13 @@ import { useLenis } from "@/components/shared/providers/SmoothScrollProvider";
 import type { Mobile3dCameraTarget } from "@/lib/ui/bookHomography";
 import type { GrimoireChapterId } from "@/lib/learning/narrativeCurriculumData";
 import { setActiveGrimoireChapter } from "@/lib/learning/learningStore";
-import { stopSpeechNarration } from "@/lib/learning/audioEngine";
+import {
+  initAudioAutoUnlock,
+  playChime,
+  playPortalTransition,
+  setAudioStageContext,
+  stopSpeechNarration,
+} from "@/lib/learning/audioEngine";
 
 const TOTAL_HERO_FRAMES = 240;
 const TOTAL_MATERI_FRAMES = 299;
@@ -112,10 +118,12 @@ export default function Home() {
 
   useEffect(() => {
     isMountedRef.current = true;
+    const cleanupAudio = initAudioAutoUnlock();
     const timers = portalTimersRef.current;
     const rafs = portalRafsRef.current;
     return () => {
       isMountedRef.current = false;
+      cleanupAudio();
       stopSpeechNarration();
       for (const id of timers) clearTimeout(id);
       timers.clear();
@@ -138,6 +146,7 @@ export default function Home() {
     }
 
     stopSpeechNarration();
+    playPortalTransition();
     setIsPetaModalOpen(false);
     setIsKitabBookFocused(false);
     setIsStudioBookFocused(false);
@@ -176,6 +185,7 @@ export default function Home() {
     }
 
     stopSpeechNarration();
+    playPortalTransition();
     setIsPetaModalOpen(false);
     setIsKitabBookFocused(false);
     setIsStudioBookFocused(false);
@@ -212,6 +222,7 @@ export default function Home() {
     }
 
     stopSpeechNarration();
+    playPortalTransition();
     setIsKitabBookFocused(false);
     setIsReadingUnlocked(true);
     setSequenceState((prev) => ({
@@ -283,6 +294,7 @@ export default function Home() {
     if (!isReadingUnlocked || isReverseScrolling || isBookPageFlipping) return;
 
     stopSpeechNarration();
+    playChime();
     const controller = canvasControllerRef.current;
     const currentFrame = controller?.getCurrentFrame("reading") ?? TOTAL_READING_FRAMES;
 
@@ -350,6 +362,7 @@ export default function Home() {
       if (isReverseScrolling || portalPhase !== "idle") return;
 
       stopSpeechNarration();
+      playPortalTransition();
       const runId = ++portalRunIdRef.current;
       const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const isFast = params.meta.speed === "fast";
@@ -697,6 +710,7 @@ export default function Home() {
     }
     if (!isMateriUnlocked || isReverseScrolling) return;
 
+    playChime();
     const controller = canvasControllerRef.current;
     const currentFrame = controller?.getCurrentFrame("materi") ?? TOTAL_MATERI_FRAMES;
 
@@ -763,6 +777,7 @@ export default function Home() {
     if (!controller) return;
 
     const curFrame = controller.getCurrentFrame("hero");
+    playChime();
     const durationMs = calculateAutoplayDurationMs(
       curFrame,
       TOTAL_HERO_FRAMES,
@@ -789,6 +804,7 @@ export default function Home() {
     const curFrame = controller.getCurrentFrame("hero");
     if (curFrame <= 1.1) return;
 
+    playChime();
     const durationMs = calculateAutoplayDurationMs(curFrame, 1, TOTAL_HERO_FRAMES, 4000, 800);
     controller.playTo("hero", 1, {
       durationMs,
@@ -804,6 +820,10 @@ export default function Home() {
     : isMateriUnlocked
     ? "materi"
     : "hero";
+
+  useEffect(() => {
+    setAudioStageContext(activeStage);
+  }, [activeStage]);
   const isStudioOverlayVisible =
     isLatihanUnlocked &&
     sequenceState.isLatihanAtEnd &&
@@ -1020,7 +1040,10 @@ export default function Home() {
           />
           <PetaHubButton
             isHeroAtEnd={sequenceState.isHeroAtEnd}
-            onSelect={() => setIsPetaModalOpen(true)}
+            onSelect={() => {
+              playChime();
+              setIsPetaModalOpen(true);
+            }}
           />
         </div>
       )}

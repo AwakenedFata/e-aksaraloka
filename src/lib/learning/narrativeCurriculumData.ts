@@ -41,11 +41,11 @@ export const TUJUAN_PEMBELAJARAN_LIST: readonly TujuanPembelajaranItem[] = [
   {
     id: "tp-3",
     code: "TP 3",
-    title: "Menghidupkan Tokoh & Suasana Panca Indera",
+    title: "Menghidupkan Tokoh & Suasana Panca Indra",
     description:
-      "Mengembangkan cerita dengan sifat tokoh yang terlihat dari aksinya dan gambaran tempat yang melibatkan panca indera.",
+      "Mengembangkan cerita dengan sifat tokoh yang terlihat dari aksinya dan gambaran tempat yang melibatkan panca Indra.",
     targetIssue: "Tokoh terasa datar dan gambaran tempat masih terlalu singkat.",
-    mediaRole: "Tebak Bukti Sifat Mao & Emas serta latihan kalimat Panca Indera.",
+    mediaRole: "Tebak Bukti Sifat Mao & Emas serta latihan kalimat Panca Indra.",
     targetDestination: "watak",
   },
   {
@@ -78,21 +78,27 @@ export interface PlotBeatItem {
   readonly id: string;
   readonly stageLabel: string;
   readonly stagePosition:
-    | "Orientasi (Awal)"
-    | "Pemantik Masalah"
-    | "Komplikasi (Tengah)"
-    | "Klimaks (Puncak)"
-    | "Resolusi (Akhir)";
+  | "Orientasi (Awal)"
+  | "Pemantik Masalah"
+  | "Komplikasi (Tengah)"
+  | "Klimaks (Puncak)"
+  | "Resolusi (Akhir)";
   readonly correctOrder: number;
   readonly summary: string;
   readonly logicNote: string;
 }
 
+export const PEMBUKA_PUSTAKA_AUDIO_SCRIPT =
+  "Selamat datang di Pustaka Aksaraloka! Sebelum mengarang ceritamu sendiri di Studio Tulis, yuk kumpulkan tiga Segel Rahasia lewat tiga kisah seru: Bola-Bola Waktu, Sihir Unik Mao, dan Keberanian Emas. Cerita fantasi adalah cerita yang berisi khayalan dan hal-hal ajaib, seperti benda yang memiliki kekuatan, makhluk ajaib, atau perjalanan waktu. Meskipun tidak terjadi di dunia nyata, cerita fantasi memiliki jalan cerita yang jelas dan dapat mengandung pesan yang ingin disampaikan penulis. Ingat tiga kuncinya ya: pertama, keajaiban memiliki aturan. Kedua, sifat tokoh terlihat dari aksinya. Dan ketiga, hidupkan ceritamu dengan panca indra serta perumpamaan.";
+
 export const BOLA_WAKTU_AUDIO_SCRIPT =
   "Kisah Bola-Bola Waktu karya Fauzia A. Setiap pukul empat pagi, Ivan harus membantu ibunya membuat kue basah untuk dititipkan di kantin sekolah. Ivan merasa malu karena Fiam sering mengejeknya sebagai tukang kue. Suatu sore, pria berkerudung hitam memberinya bola-bola waktu bercahaya. Ivan memilih bola merah untuk melompat ke tahun 2022 agar tidak perlu lagi berjualan kue. Di masa depan itu, Ivan memang menjadi bintang basket populer, tetapi ia terkejut mendapati makam ayahnya yang wafat karena kelelahan bekerja seorang diri. Ivan menangis menyesal, lalu terbangun kembali di masa kini. Ia memeluk kedua orang tuanya dan bertekad bangga membantu ibunya sambil tetap giat berlatih basket.";
 
 export const MAO_EMAS_AUDIO_SCRIPT =
-  "Dua kisah inspirasi Misi Kedua: Sihir Unik Mao dan Keberanian Emas. Di Sekolah Peri Juara, Mao sering gagal mantra terbang dan diejek oleh Yari yang sombong. Namun Mao pantang menyerah berlatih bersama sahabatnya Piru, hingga berhasil menyihir makanan manis yang meredakan marah Yari. Sementara pada kisah Keberanian Emas, Emas melarikan diri dari kejaran Raksasa dengan melemparkan empat kantong ajaib secara berurutan dari bahaya awal sampai puncak klimaks: pertama biji timun menjadi kebun lebat, kedua jarum menjadi hutan bambu tajam, ketiga garam menjadi lautan luas, dan keempat terasi menjadi lautan lumpur mendidih yang mengalahkan Raksasa.";
+  "Dua kisah inspirasi Misi Kedua: Sihir Unik Mao dan Keberanian Emas. Di Sekolah Peri Juara, Mao sering lupa dan gagal merapal mantra sihir sehingga diejek oleh Yari yang sombong. Namun Mao pantang menyerah berlatih bersama sahabatnya Piru, hingga berhasil menyihir makanan manis yang meredakan marah Yari. Sementara pada kisah Keberanian Emas, Emas melarikan diri dari kejaran Raksasa dengan melemparkan empat kantong ajaib secara berurutan dari bahaya awal sampai puncak klimaks: pertama biji timun menjadi kebun lebat, kedua jarum menjadi hutan bambu tajam, ketiga garam menjadi lautan luas, dan keempat terasi menjadi lautan lumpur mendidih yang mengalahkan Raksasa.";
+
+export const MISI_BAHASA_AUDIO_SCRIPT =
+  "Selamat datang di Misi Ketiga: Gaya Bahasa Cerita Fantasi. Agar ceritamu terasa indah dan nyata, gunakan kata-kata khas dunia fantasi yang menggambarkan cahaya, suara, aroma, dan gerak tokoh. Untuk membandingkan dua hal yang berbeda, kamu bisa memakai majas asosiasi atau perumpamaan dengan kata penghubung seperti, bagaikan, atau laksana. Jangan lupa pula membedakan kalimat langsung yang memakai tanda petik untuk ucapan tokoh, dengan kalimat tak langsung yang menceritakan kembali ucapan tersebut tanpa tanda petik.";
 
 export const BOLA_WAKTU_PLOT_BEATS: readonly PlotBeatItem[] = [
   {
@@ -183,7 +189,7 @@ export const BOLA_WAKTU_AMANAT_OPTIONS: readonly AmanatOption[] = [
 ];
 
 // ============================================================================
-// MISI 2 (BABAK II): SEGEL CERMIN WATAK & PANCA INDERA (Hlm. 59–67)
+// MISI 2 (BABAK II): SEGEL CERMIN WATAK & PANCA Indra (Hlm. 59–67)
 // ============================================================================
 
 export interface CharacterEvidenceChallenge {
@@ -494,7 +500,7 @@ export const DIALOGUE_TRANSMUTATION_CHALLENGES: readonly DialogueTransmutationIt
 ];
 
 // ============================================================================
-// KAMUS KATA FANTASI & PANCA INDERA
+// KAMUS KATA FANTASI & PANCA Indra
 // ============================================================================
 
 export interface FantasyLexiconCategory {
@@ -621,7 +627,7 @@ export const FANTASY_LEXICON_BANK: readonly FantasyLexiconCategory[] = [
     ],
   },
   {
-    id: "lex-indera",
+    id: "lex-Indra",
     category: "Aroma, Suhu & Sentuhan",
     subtitle: "Membuat pembaca ikut mencium bau dan merasakan suhu latar",
     entries: [

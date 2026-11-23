@@ -101,7 +101,7 @@ describe("Astrolab Overworld Progression Map model", () => {
         selfRevisionChecks: {
           "rev-struktur": true,
           "rev-aturan": true,
-          "rev-watak-indera": true,
+          "rev-watak-Indra": true,
           "rev-majas-dialog": true,
           "rev-eyd": true,
         },

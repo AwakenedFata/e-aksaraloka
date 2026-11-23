@@ -46,7 +46,7 @@ export interface StudioDraftData {
   readonly protagonistTraitAction: string;
   readonly antagonistName: string;
   readonly antagonistConflictTrigger: string;
-  // Langkah 3: Latar Tempat & Peta Lima Indera (Peluang Peran Media #4)
+  // Langkah 3: Latar Tempat & Peta Lima Indra (Peluang Peran Media #4)
   readonly settingPlace: string;
   readonly sensorySight: string;
   readonly sensorySound: string;
@@ -104,11 +104,11 @@ export interface EydAndLexiconIssue {
 
 export interface LiteraryIndicatorStatus {
   readonly id:
-    | "struktur"
-    | "konsistensi_indera"
-    | "majas_asosiasi"
-    | "dialog_langsung"
-    | "tak_langsung_konjungsi";
+  | "struktur"
+  | "konsistensi_Indra"
+  | "majas_asosiasi"
+  | "dialog_langsung"
+  | "tak_langsung_konjungsi";
   readonly title: string;
   readonly tpCode: string;
   readonly passed: boolean;
@@ -156,9 +156,9 @@ export const SELF_REVISION_CHECKLIST: readonly SelfRevisionChecklistItem[] = [
     category: "Struktur & Logika",
   },
   {
-    id: "rev-watak-indera",
+    id: "rev-watak-Indra",
     label:
-      "Sifat tokohku sudah terlihat dari perbuatannya dan ada gambaran panca indera (cahaya, suara, atau aroma/suhu).",
+      "Sifat tokohku sudah terlihat dari perbuatannya dan ada gambaran panca Indra (cahaya, suara, atau aroma/suhu).",
     category: "Detail & Tokoh",
   },
   {
@@ -203,7 +203,7 @@ export const INITIAL_STUDIO_DRAFT: StudioDraftData = {
   selfRevisionChecks: {
     "rev-struktur": false,
     "rev-aturan": false,
-    "rev-watak-indera": false,
+    "rev-watak-Indra": false,
     "rev-majas-dialog": false,
     "rev-eyd": false,
   },
@@ -880,11 +880,9 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   const totalWords =
     orientasiWords + komplikasiWords + klimaksWords + resolusiWords + extraWords;
 
-  const rawCombinedParagraphs = `${draft.paragraphOrientasi}\n${
-    draft.paragraphKomplikasi ?? ""
-  }\n${draft.paragraphKlimaks}\n${draft.paragraphResolusi}${
-    extraTexts.trim() ? `\n${extraTexts}` : ""
-  }`;
+  const rawCombinedParagraphs = `${draft.paragraphOrientasi}\n${draft.paragraphKomplikasi ?? ""
+    }\n${draft.paragraphKlimaks}\n${draft.paragraphResolusi}${extraTexts.trim() ? `\n${extraTexts}` : ""
+    }`;
   const unfilledPlaceholderCount = countScaffoldPlaceholders(rawCombinedParagraphs);
   const combinedParagraphs = stripScaffoldPlaceholders(rawCombinedParagraphs);
   const lowerCombined = combinedParagraphs.toLowerCase();
@@ -916,7 +914,7 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   if (resolusiWords > 0) strukturSnippets.push(`Resolusi: ${resolusiWords} kata`);
 
   // --------------------------------------------------------------------------
-  // 2. Indikator Konsistensi Tokoh, Latar, & Detail Lima Indera (Bobot 20)
+  // 2. Indikator Konsistensi Tokoh, Latar, & Detail Lima Indra (Bobot 20)
   // --------------------------------------------------------------------------
   const protag = draft.protagonistName.trim();
   const antag = draft.antagonistName.trim();
@@ -944,19 +942,19 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   if (placeUsed) konsistensiSnippets.push(`Latar: "${place}"`);
   if (detectedSensoryWords.length > 0) {
     konsistensiSnippets.push(
-      `Diksi Indera (${detectedSensoryWords.length}): ${detectedSensoryWords.slice(0, 4).join(", ")}`
+      `Diksi Indra (${detectedSensoryWords.length}): ${detectedSensoryWords.slice(0, 4).join(", ")}`
     );
   }
 
   const konsistensiEarned = konsistensiPassed
     ? 20
     : Math.min(
-        18,
-        (protagUsed ? 6 : 0) +
-          (antagUsed ? 4 : 0) +
-          (placeUsed ? 4 : 0) +
-          Math.min(6, detectedSensoryWords.length * 3)
-      );
+      18,
+      (protagUsed ? 6 : 0) +
+      (antagUsed ? 4 : 0) +
+      (placeUsed ? 4 : 0) +
+      Math.min(6, detectedSensoryWords.length * 3)
+    );
 
   // --------------------------------------------------------------------------
   // 3. Indikator Majas Asosiasi / Perumpamaan (Hlm. 63, Bobot 20)
@@ -1019,9 +1017,9 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   const takLangsungEarned = takLangsungPassed
     ? 20
     : Math.min(
-        15,
-        (hasIndirectMarker ? 10 : 0) + (hasChronologicalMarker ? 6 : 0)
-      );
+      15,
+      (hasIndirectMarker ? 10 : 0) + (hasChronologicalMarker ? 6 : 0)
+    );
 
   const indicators: readonly LiteraryIndicatorStatus[] = [
     {
@@ -1039,15 +1037,15 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
         "Isi semua 4 bagian cerita (Awal, Muncul Masalah, Puncak, Akhir), lalu lengkapi Judul, Aturan Keajaiban, dan Pesan Kebaikan.",
     },
     {
-      id: "konsistensi_indera",
-      title: "2. Nama Tokoh, Tempat, & Kata Panca Indera",
+      id: "konsistensi_Indra",
+      title: "2. Nama Tokoh, Tempat, & Kata Panca Indra",
       tpCode: "TP 3",
       passed: konsistensiPassed,
       scoreWeight: 20,
       earnedScore: konsistensiEarned,
       summary: konsistensiPassed
-        ? "Mantap! Nama tokoh, tempat kejadian, dan kata-kata panca indera sudah hidup di dalam ceritamu."
-        : "Sebutkan nama Tokoh Utama dan Lawan/Tempat dari Lembar 1 di dalam ceritamu, lalu tambahkan minimal 2 kata panca indera.",
+        ? "Mantap! Nama tokoh, tempat kejadian, dan kata-kata panca Indra sudah hidup di dalam ceritamu."
+        : "Sebutkan nama Tokoh Utama dan Lawan/Tempat dari Lembar 1 di dalam ceritamu, lalu tambahkan minimal 2 kata panca Indra.",
       detectedSnippets: konsistensiSnippets,
       improvementHint:
         "Pakai nama tokoh dan tempat yang kamu tulis di Lembar 1, lalu tambahkan kata suasana seperti 'berpendar', 'gemuruh', 'harum', atau 'dingin'.",

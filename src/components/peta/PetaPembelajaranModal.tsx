@@ -191,7 +191,7 @@ export function PetaPembelajaranModal({
     const safeClass = escapeHtml(studentClass.trim() || "VII-....");
     const safeCustomAmanat = escapeHtml(
       state.customAmanatReflection.trim() ||
-        "Pelajaran kebaikan yang dipetik dari perubahan tokoh utama: ......................................................................................"
+      "Pelajaran kebaikan yang dipetik dari perubahan tokoh utama: ......................................................................................"
     );
 
     const html = `<!DOCTYPE html>
@@ -328,7 +328,7 @@ export function PetaPembelajaranModal({
       <div class="score-val">${metrics.babak1Score}/100</div>
     </div>
     <div class="score-box">
-      <div>Segel II · Watak &amp; 5 Indera</div>
+      <div>Segel II · Watak &amp; 5 Indra</div>
       <div class="score-val">${metrics.babak2Score}/100</div>
     </div>
     <div class="score-box">
@@ -350,13 +350,13 @@ export function PetaPembelajaranModal({
     <thead>
       <tr>
         <th style="width: 24%;">Bagian Cerita</th>
-        <th style="width: 38%;">Contoh Kata Panca Indera</th>
+        <th style="width: 38%;">Contoh Kata Panca Indra</th>
         <th style="width: 38%;">Contoh Perumpamaan &amp; Dialog yang Rapi</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td><strong>Suasana &amp; Panca Indera</strong></td>
+        <td><strong>Suasana &amp; Panca Indra</strong></td>
         <td>
           • <em>Penglihatan:</em> berpendar merah delima, kabut keperakan, temaram lentera<br/>
           • <em>Pendengaran:</em> dentuman langkah, desir angin magis, gemerincing kristal<br/>
@@ -393,7 +393,7 @@ export function PetaPembelajaranModal({
         <td>Nama & bukti sifat lewat perbuatan (bukan cuma disebut baik/jahat): ....................................................................................</td>
       </tr>
       <tr>
-        <th>3. Tempat & 3 Panca Indera</th>
+        <th>3. Tempat & 3 Panca Indra</th>
         <td>Apa yang terlihat, terdengar, dan terasa di tempat itu: ..................................................................................................................</td>
       </tr>
       <tr>
@@ -420,7 +420,7 @@ export function PetaPembelajaranModal({
   <div class="checklist">
     <div>[ ] Ada bagian Awal, Puncak Masalah, dan Akhir yang urut.</div>
     <div>[ ] Penyelesaian masalah sesuai dengan aturan keajaiban cerita.</div>
-    <div>[ ] Ada minimal 2 kata panca indera (cahaya, suara, atau aroma/suhu).</div>
+    <div>[ ] Ada minimal 2 kata panca Indra (cahaya, suara, atau aroma/suhu).</div>
     <div>[ ] Ada minimal 1 perumpamaan (seperti/bagaikan/laksana/bak).</div>
     <div>[ ] Ada kalimat langsung bertanda petik ("...") dan kalimat tak langsung.</div>
     <div>[ ] Kata depan tempat (di atas, di dalam, di sekolah) ditulis dipisah.</div>
@@ -488,11 +488,10 @@ export function PetaPembelajaranModal({
               <button
                 type="button"
                 onClick={handleRequestReset}
-                className={`min-h-[38px] rounded-full border px-2.5 text-[10.5px] font-semibold shadow-md cursor-pointer transition-colors ${
-                  isConfirmingReset
+                className={`min-h-[38px] rounded-full border px-2.5 text-[10.5px] font-semibold shadow-md cursor-pointer transition-colors ${isConfirmingReset
                     ? "border-rose-400 bg-rose-950/95 text-rose-100"
                     : "border-white/15 bg-slate-950/90 text-stone-300"
-                }`}
+                  }`}
               >
                 {isConfirmingReset ? "Yakin Reset?" : "Ulangi"}
               </button>
@@ -525,11 +524,10 @@ export function PetaPembelajaranModal({
                 playChime();
                 setActiveTab("peta");
               }}
-              className={`min-h-[36px] md:min-h-0 rounded-full px-2 md:px-3 py-1 text-[11px] font-bold transition-all cursor-pointer truncate ${
-                activeTab === "peta"
+              className={`min-h-[36px] md:min-h-0 rounded-full px-2 md:px-3 py-1 text-[11px] font-bold transition-all cursor-pointer truncate ${activeTab === "peta"
                   ? "bg-[#f3d89b] text-slate-950 shadow-[0_0_12px_rgba(243,216,155,0.45)]"
                   : "text-amber-100/85 hover:text-white"
-              }`}
+                }`}
             >
               <span className="md:hidden">Peta Misi</span>
               <span className="hidden md:inline">1. Peta Misi</span>
@@ -541,11 +539,10 @@ export function PetaPembelajaranModal({
                 playChime();
                 setActiveTab("quest");
               }}
-              className={`min-h-[36px] md:min-h-0 rounded-full px-2 md:px-3 py-1 text-[11px] font-bold transition-all cursor-pointer truncate ${
-                activeTab === "quest"
+              className={`min-h-[36px] md:min-h-0 rounded-full px-2 md:px-3 py-1 text-[11px] font-bold transition-all cursor-pointer truncate ${activeTab === "quest"
                   ? "bg-[#f3d89b] text-slate-950 shadow-[0_0_12px_rgba(243,216,155,0.45)]"
                   : "text-amber-100/85 hover:text-white"
-              }`}
+                }`}
             >
               <span className="md:hidden">Kuis ({metrics.questScore}%)</span>
               <span className="hidden md:inline">2. Kuis Bonus ({metrics.questScore}%)</span>
@@ -557,11 +554,10 @@ export function PetaPembelajaranModal({
                 playChime();
                 setActiveTab("luring");
               }}
-              className={`min-h-[36px] md:min-h-0 rounded-full px-2 md:px-3 py-1 text-[11px] font-bold transition-all cursor-pointer truncate ${
-                activeTab === "luring"
+              className={`min-h-[36px] md:min-h-0 rounded-full px-2 md:px-3 py-1 text-[11px] font-bold transition-all cursor-pointer truncate ${activeTab === "luring"
                   ? "bg-[#f3d89b] text-slate-950 shadow-[0_0_12px_rgba(243,216,155,0.45)]"
                   : "text-amber-100/85 hover:text-white"
-              }`}
+                }`}
             >
               <span className="md:hidden">LKS &amp; Kamus</span>
               <span className="hidden md:inline">3. Cetak LKS &amp; Kamus Kata</span>
@@ -596,11 +592,10 @@ export function PetaPembelajaranModal({
             <button
               type="button"
               onClick={handleRequestReset}
-              className={`px-1.5 text-[11px] underline-offset-2 cursor-pointer transition-colors ${
-                isConfirmingReset
+              className={`px-1.5 text-[11px] underline-offset-2 cursor-pointer transition-colors ${isConfirmingReset
                   ? "rounded-full border border-rose-400/70 bg-rose-950/85 px-2.5 py-0.5 font-bold text-rose-100"
                   : "text-stone-300 hover:text-amber-300 hover:underline"
-              }`}
+                }`}
             >
               {isConfirmingReset ? "Klik Lagi: Hapus Semua?" : "Ulangi"}
             </button>
@@ -692,13 +687,12 @@ export function PetaPembelajaranModal({
                                   opt.isCorrect
                                 )
                               }
-                              className={`text-left rounded-xl border p-3 text-xs sm:text-sm transition-all cursor-pointer ${
-                                isSelected
+                              className={`text-left rounded-xl border p-3 text-xs sm:text-sm transition-all cursor-pointer ${isSelected
                                   ? opt.isCorrect
                                     ? "border-emerald-400/70 bg-emerald-950/45 text-emerald-100"
                                     : "border-rose-400/70 bg-rose-950/45 text-rose-100"
                                   : "border-white/15 bg-white/5 text-stone-200 hover:border-[#cda250]/60 hover:bg-white/10"
-                              }`}
+                                }`}
                             >
                               {opt.text}
                             </button>
@@ -708,11 +702,10 @@ export function PetaPembelajaranModal({
 
                       {chosenOpt && (
                         <div
-                          className={`rounded-lg p-3 text-xs leading-relaxed ${
-                            chosenOpt.isCorrect
+                          className={`rounded-lg p-3 text-xs leading-relaxed ${chosenOpt.isCorrect
                               ? "bg-emerald-950/60 border border-emerald-500/40 text-emerald-200"
                               : "bg-rose-950/60 border border-rose-500/40 text-rose-200"
-                          }`}
+                            }`}
                         >
                           <strong>Penjelasan:</strong> {chosenOpt.feedback}
                         </div>
@@ -807,11 +800,10 @@ export function PetaPembelajaranModal({
                               playChime();
                               setLexiconTypeFilter(typeOpt);
                             }}
-                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
-                              lexiconTypeFilter === typeOpt
+                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold transition-colors cursor-pointer ${lexiconTypeFilter === typeOpt
                                 ? "bg-emerald-400 text-slate-950"
                                 : "border border-white/15 bg-white/5 text-stone-300 hover:border-emerald-400/50"
-                            }`}
+                              }`}
                           >
                             {typeOpt}
                           </button>
@@ -826,11 +818,10 @@ export function PetaPembelajaranModal({
                         playChime();
                         setLexiconCategoryFilter("all");
                       }}
-                      className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${
-                        lexiconCategoryFilter === "all"
+                      className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${lexiconCategoryFilter === "all"
                           ? "bg-[#f4d993] text-slate-950"
                           : "border border-[#cda250]/35 bg-white/5 text-amber-100 hover:bg-white/10"
-                      }`}
+                        }`}
                     >
                       Semua Kategori
                     </button>
@@ -842,11 +833,10 @@ export function PetaPembelajaranModal({
                           playChime();
                           setLexiconCategoryFilter(cat.id);
                         }}
-                        className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${
-                          lexiconCategoryFilter === cat.id
+                        className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${lexiconCategoryFilter === cat.id
                             ? "bg-[#f4d993] text-slate-950"
                             : "border border-[#cda250]/35 bg-white/5 text-amber-100 hover:bg-white/10"
-                        }`}
+                          }`}
                       >
                         {cat.category}
                       </button>

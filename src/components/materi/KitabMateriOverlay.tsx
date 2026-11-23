@@ -33,6 +33,8 @@ import {
   FANTASY_LEXICON_BANK,
   MAJAS_ASOSIASI_CHALLENGES,
   MAO_EMAS_AUDIO_SCRIPT,
+  MISI_BAHASA_AUDIO_SCRIPT,
+  PEMBUKA_PUSTAKA_AUDIO_SCRIPT,
   SENSORY_UPGRADE_CHALLENGES,
 } from "@/lib/learning/narrativeCurriculumData";
 import {
@@ -49,14 +51,15 @@ import {
   useAksaralokaLearning,
 } from "@/lib/learning/learningStore";
 import {
-  getAudioNarratingSnapshot,
+  type NarrationTrackId,
+  getActiveNarrationTrackSnapshot,
   playChime,
   playErrorTone,
   playPageFlip,
   playSealUnlock,
   stopSpeechNarration,
   subscribeAudioState,
-  toggleSpeechNarration,
+  toggleNarrationTrack,
 } from "@/lib/learning/audioEngine";
 
 export interface KitabMateriOverlayProps {
@@ -96,9 +99,9 @@ const CHAPTER_ORDER: readonly ChapterOrderItem[] = [
   },
   {
     id: "watak",
-    shortLabel: "Misi 2: Tokoh & Indera",
-    label: "Misi 2: Sifat Tokoh, 4 Kantong Ajaib & Panca Indera",
-    subtitle: "Bukti Sifat Mao & Yari, 4 Kantong Emas & Kalimat Panca Indera",
+    shortLabel: "Misi 2: Tokoh & Indra",
+    label: "Misi 2: Sifat Tokoh, 4 Kantong Ajaib & Panca Indra",
+    subtitle: "Bukti Sifat Mao & Yari, 4 Kantong Emas & Kalimat Panca Indra",
     tpTag: "Misi 2 · Sifat Tokoh & Suasana Tempat",
     leftPageNo: 3,
     rightPageNo: 4,
@@ -120,7 +123,7 @@ const TIME_ORB_DATA = [
     eraLabel: "1. Pagi Hari (04.00)",
     location: "Rumah Ivan & Kantin Sekolah",
     summary:
-      "Setiap jam empat pagi Ivan membantu ibunya membuat kue basah untuk dijual di kantin sekolah. Tapi Ivan merasa malu karena Fiam sering mengejeknya 'tukang kue'.",
+      "Setiap pukul empat pagi Ivan membantu ibunya membuat kue basah untuk dijual di kantin sekolah. Namun Ivan merasa malu karena Fiam sering mengejeknya 'tukang kue'.",
     evidenceFocus:
       "Awal Cerita & Muncul Masalah: Mengenalkan Ivan dan rasa malunya karena diejek teman.",
   },
@@ -129,7 +132,7 @@ const TIME_ORB_DATA = [
     eraLabel: "2. Lompat ke Tahun 2022",
     location: "Lorong Bola Waktu -> Masa Depan",
     summary:
-      "Pria berjubah hitam memberi Ivan bola-bola waktu bercahaya. Ivan memilih bola merah supaya bisa langsung pindah ke tahun 2022 dan tidak perlu jualan kue lagi.",
+      "Pria berjubah hitam memberi Ivan bola-bola waktu bercahaya. Ivan memilih bola merah agar bisa langsung pindah ke tahun 2022 dan tidak perlu berjualan kue lagi.",
     evidenceFocus:
       "Masalah Membesar & Puncak (Klimaks): Di tahun 2022 Ivan memang jadi bintang basket, tapi ia kaget dan sedih karena Ayahnya sudah wafat akibat kelelahan bekerja sendirian.",
   },
@@ -163,24 +166,24 @@ const MATERI_TOUR_STEPS: readonly {
   readonly title: string;
   readonly body: string;
 }[] = [
-  {
-    title: "Langkah 1/3 · Baca Kisah di Halaman Kiri",
-    body: "Di setiap Misi, halaman kiri berisi kisah seru dan rahasia cerita fantasi. Kamu juga bisa klik tombol [Dengarkan Suara Cerita]!",
-  },
-  {
-    title: "Langkah 2/3 · Selesaikan Tantangan di Halaman Kanan",
-    body: "Ikuti kotak 'Misi Sekarang' di bagian atas halaman tantangan agar kamu selalu tahu tombol apa yang harus diklik untuk membuka Segel!",
-  },
-  {
-    title: "Langkah 3/3 · Kumpulkan 3 Segel lalu Mengarang!",
-    body: "Setiap Misi membuka 1 Segel Rahasia. Setelah siap, klik 'Studio Tulis ->' di atas layar untuk mengarang cerita fantasimu sendiri!",
-  },
-];
+    {
+      title: "Langkah 1/3 · Baca Kisah di Halaman Kiri",
+      body: "Di setiap Misi, halaman kiri berisi kisah seru dan rahasia cerita fantasi. Kamu juga bisa klik tombol [Dengarkan Suara Cerita]!",
+    },
+    {
+      title: "Langkah 2/3 · Selesaikan Tantangan di Halaman Kanan",
+      body: "Ikuti kotak 'Misi Sekarang' di bagian atas halaman tantangan agar kamu selalu tahu tombol apa yang harus diklik untuk membuka Segel!",
+    },
+    {
+      title: "Langkah 3/3 · Kumpulkan 3 Segel lalu Mengarang!",
+      body: "Setiap Misi membuka 1 Segel Rahasia. Setelah siap, klik 'Studio Tulis ->' di atas layar untuk mengarang cerita fantasimu sendiri!",
+    },
+  ];
 
 const FIVE_SENSES_GUIDE = [
   {
     id: "sense-visual",
-    sense: "1. Indera Penglihatan (Mata)",
+    sense: "1. Indra Penglihatan (Mata)",
     sceneContext: "Kisah Bola-Bola Waktu",
     weakExample: "Ivan melihat bola waktu yang bagus di tangan pria itu.",
     vividExample:
@@ -188,7 +191,7 @@ const FIVE_SENSES_GUIDE = [
   },
   {
     id: "sense-auditori",
-    sense: "2. Indera Pendengaran (Telinga)",
+    sense: "2. Indra Pendengaran (Telinga)",
     sceneContext: "Kisah Keberanian Emas",
     weakExample: "Suara langkah Raksasa terdengar sangat keras.",
     vividExample:
@@ -196,7 +199,7 @@ const FIVE_SENSES_GUIDE = [
   },
   {
     id: "sense-penciuman",
-    sense: "3. Indera Penciuman & Peraba (Hidung & Kulit)",
+    sense: "3. Indra Penciuman & Peraba (Hidung & Kulit)",
     sceneContext: "Kisah Sihir Unik Mao",
     weakExample: "Mao menyihir kue cokelat dan stroberi yang enak.",
     vividExample:
@@ -264,7 +267,7 @@ export function KitabMateriOverlay({
   const [climaxWarningMessage, setClimaxWarningMessage] = useState<
     string | null
   >(null);
-  const [watakLeftTab, setWatakLeftTab] = useState<"mao" | "emas" | "indera">(
+  const [watakLeftTab, setWatakLeftTab] = useState<"mao" | "emas" | "Indra">(
     "mao"
   );
   const [selectedLexiconCatId, setSelectedLexiconCatId] = useState<string>(
@@ -273,9 +276,8 @@ export function KitabMateriOverlay({
   const [lexiconTypeFilter, setLexiconTypeFilter] = useState<
     "Semua" | "Denotatif" | "Konotatif" | "Kiasan / Majas"
   >("Semua");
-  const [isNarrating, setIsNarrating] = useState<boolean>(() =>
-    getAudioNarratingSnapshot()
-  );
+  const [activeNarrationTrack, setActiveNarrationTrack] =
+    useState<NarrationTrackId | null>(() => getActiveNarrationTrackSnapshot());
   const [feedbackToast, setFeedbackToast] = useState<{
     tone: "emerald" | "amber" | "rose";
     text: string;
@@ -332,15 +334,15 @@ export function KitabMateriOverlay({
     () =>
       !isBookFocused && !isCalibrating
         ? computeMobile3dCameraTransform(
-            viewportSize.width,
-            viewportSize.height,
-            active3dSide === "left" ? "kitab-left" : "kitab-right"
-          )
+          viewportSize.width,
+          viewportSize.height,
+          active3dSide === "left" ? "kitab-left" : "kitab-right"
+        )
         : computeMobile3dCameraTransform(
-            viewportSize.width,
-            viewportSize.height,
-            "none"
-          ),
+          viewportSize.width,
+          viewportSize.height,
+          "none"
+        ),
     [active3dSide, isBookFocused, isCalibrating, viewportSize.height, viewportSize.width]
   );
 
@@ -417,7 +419,7 @@ export function KitabMateriOverlay({
 
   useEffect(() => {
     const unsub = subscribeAudioState(() => {
-      setIsNarrating(getAudioNarratingSnapshot());
+      setActiveNarrationTrack(getActiveNarrationTrackSnapshot());
     });
     return () => {
       unsub();
@@ -604,17 +606,37 @@ export function KitabMateriOverlay({
     });
   }, []);
 
-  const handleToggleBolaWaktuAudio = useCallback(() => {
-    const started = toggleSpeechNarration(BOLA_WAKTU_AUDIO_SCRIPT);
+  const handleTogglePembukaAudio = useCallback(() => {
+    const started = toggleNarrationTrack(
+      "pembuka-pustaka",
+      PEMBUKA_PUSTAKA_AUDIO_SCRIPT
+    );
     if (started) {
-      showToast("amber", "Memutar sulih suara ringkasan cerita Bola-Bola Waktu...");
+      showToast("amber", "Memutar narasi Pembuka Pustaka Aksaraloka...");
+    }
+  }, [showToast]);
+
+  const handleToggleBolaWaktuAudio = useCallback(() => {
+    const started = toggleNarrationTrack("bola-waktu", BOLA_WAKTU_AUDIO_SCRIPT);
+    if (started) {
+      showToast("amber", "Memutar sulih suara kisah Bola-Bola Waktu...");
     }
   }, [showToast]);
 
   const handleToggleMaoEmasAudio = useCallback(() => {
-    const started = toggleSpeechNarration(MAO_EMAS_AUDIO_SCRIPT);
+    const started = toggleNarrationTrack("mao-emas", MAO_EMAS_AUDIO_SCRIPT);
     if (started) {
       showToast("amber", "Memutar sulih suara kisah Sihir Unik Mao & Keberanian Emas...");
+    }
+  }, [showToast]);
+
+  const handleToggleMisiBahasaAudio = useCallback(() => {
+    const started = toggleNarrationTrack(
+      "misi-bahasa",
+      MISI_BAHASA_AUDIO_SCRIPT
+    );
+    if (started) {
+      showToast("amber", "Memutar narasi panduan Misi 3: Gaya Bahasa...");
     }
   }, [showToast]);
 
@@ -728,7 +750,7 @@ export function KitabMateriOverlay({
   }, []);
 
   // =========================================================================
-  // BABAK 2 HANDLERS: WATAK, 4 KANTONG EMAS & 5 INDERA
+  // BABAK 2 HANDLERS: WATAK, 4 KANTONG EMAS & 5 Indra
   // =========================================================================
   const handleSelectCharacterTrait = useCallback(
     (challengeId: string, optionId: string) => {
@@ -1086,10 +1108,10 @@ export function KitabMateriOverlay({
   const get2dPageStyle = (side: "left" | "right"): React.CSSProperties =>
     isMobileBook
       ? {
-          display: mobilePageSide === side ? "flex" : "none",
-          width: "100%",
-          height: "100%",
-        }
+        display: mobilePageSide === side ? "flex" : "none",
+        width: "100%",
+        height: "100%",
+      }
       : side === "left"
         ? book2dLeftPageStyle
         : book2dRightPageStyle;
@@ -1114,29 +1136,26 @@ export function KitabMateriOverlay({
       {/* =================================================================== */}
       {feedbackToast && (
         <div
-          className={`pointer-events-none fixed inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-[60] flex justify-center ${
-            isBookFocused ? "bottom-[72px] sm:bottom-auto sm:top-16" : "top-16 sm:top-20"
-          }`}
+          className={`pointer-events-none fixed inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-[60] flex justify-center ${isBookFocused ? "bottom-[72px] sm:bottom-auto sm:top-16" : "top-16 sm:top-20"
+            }`}
         >
           <div
             role="status"
             aria-live="polite"
-            className={`flex w-full max-w-[360px] sm:w-auto sm:max-w-lg items-center justify-center gap-2 rounded-2xl sm:rounded-full border px-4 py-2 text-center text-[11px] sm:text-xs font-semibold leading-snug shadow-[0_12px_28px_rgba(0,0,0,0.85)] md:backdrop-blur-md transition-all ${
-              feedbackToast.tone === "emerald"
-                ? "border-emerald-300/60 bg-emerald-950/95 text-emerald-100"
-                : feedbackToast.tone === "rose"
-                  ? "border-rose-300/60 bg-rose-950/95 text-rose-100"
-                  : "border-[#f3d89b]/60 bg-slate-950/95 text-[#ffe8b6]"
-            }`}
+            className={`flex w-full max-w-[360px] sm:w-auto sm:max-w-lg items-center justify-center gap-2 rounded-2xl sm:rounded-full border px-4 py-2 text-center text-[11px] sm:text-xs font-semibold leading-snug shadow-[0_12px_28px_rgba(0,0,0,0.85)] md:backdrop-blur-md transition-all ${feedbackToast.tone === "emerald"
+              ? "border-emerald-300/60 bg-emerald-950/95 text-emerald-100"
+              : feedbackToast.tone === "rose"
+                ? "border-rose-300/60 bg-rose-950/95 text-rose-100"
+                : "border-[#f3d89b]/60 bg-slate-950/95 text-[#ffe8b6]"
+              }`}
           >
             <span
-              className={`h-2 w-2 shrink-0 rounded-full ${
-                feedbackToast.tone === "emerald"
-                  ? "bg-emerald-300"
-                  : feedbackToast.tone === "rose"
-                    ? "bg-rose-300"
-                    : "bg-[#f3d89b]"
-              }`}
+              className={`h-2 w-2 shrink-0 rounded-full ${feedbackToast.tone === "emerald"
+                ? "bg-emerald-300"
+                : feedbackToast.tone === "rose"
+                  ? "bg-rose-300"
+                  : "bg-[#f3d89b]"
+                }`}
               aria-hidden="true"
             />
             <span>{feedbackToast.text}</span>
@@ -1234,11 +1253,10 @@ export function KitabMateriOverlay({
                 setActive3dSide(dx < 0 ? "right" : "left");
               }
             }}
-            className={`pointer-events-none fixed overflow-hidden ${
-              mobileCamera.active
-                ? "mix-blend-multiply transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform"
-                : ""
-            }`}
+            className={`pointer-events-none fixed overflow-hidden ${mobileCamera.active
+              ? "mix-blend-multiply transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform"
+              : ""
+              }`}
             style={{
               left: `${stageMetrics.offsetX}px`,
               top: `${stageMetrics.offsetY}px`,
@@ -1270,9 +1288,8 @@ export function KitabMateriOverlay({
                 }
               }}
               aria-label="Klik halaman kiri buku untuk membuka tampilan baca penuh"
-              className={`parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex cursor-pointer flex-col justify-between overflow-hidden select-none focus:outline-none ${
-                isPageFlipping ? "opacity-0" : ""
-              }`}
+              className={`parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex cursor-pointer flex-col justify-between overflow-hidden select-none focus:outline-none ${isPageFlipping ? "opacity-0" : ""
+                }`}
               style={{
                 width: `${basePageWidth}px`,
                 height: `${basePageHeight}px`,
@@ -1290,133 +1307,134 @@ export function KitabMateriOverlay({
                 key={`m3d-left-${isShowingIntroSpread ? "intro" : activeChapter}-${isPageFlipping ? "flip" : "idle"}`}
                 className="book-ink-sweep-left flex flex-1 min-h-0 flex-col justify-between"
               >
-              <div style={{ display: "flex", flexDirection: "column", gap: scalePx(11) }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: scalePx(11) }}>
+                  <div
+                    className="book-ink-step-1 flex items-center justify-between border-b border-[#5c3d1e]/40 font-bold tracking-[0.14em] text-[#4b2e13]/90 uppercase"
+                    style={{ fontSize: scalePx(12.5), paddingBottom: scalePx(5) }}
+                  >
+                    <span>
+                      {isShowingIntroSpread
+                        ? "PEMBUKA PUSTAKA"
+                        : activeChapterMeta.shortLabel}
+                    </span>
+                    <span>
+                      Hal.{" "}
+                      {isShowingIntroSpread ? 1 : activeChapterMeta.leftPageNo}
+                    </span>
+                  </div>
+
+                  <div className="book-ink-step-2">
+                    {isShowingIntroSpread ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: scalePx(10), paddingTop: scalePx(6) }}>
+                        <p
+                          className="font-serif font-bold text-[#241306]/92"
+                          style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
+                        >
+                          Pustaka Aksaraloka: Rahasia Cerita Fantasi
+                        </p>
+                        <p
+                          className="font-serif text-[#2f1a09]/92"
+                          style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
+                        >
+                          Yuk bertualang mengenal rahasia cerita fantasi! Meskipun
+                          tidak terjadi di dunia nyata, cerita fantasi memiliki
+                          jalan cerita yang jelas dan dapat mengandung pesan
+                          penulis.
+                        </p>
+                        <p
+                          className="font-serif font-bold text-[#3f230b]/92 italic"
+                          style={{ fontSize: scalePx(14.8), paddingTop: scalePx(8), lineHeight: 1.48 }}
+                        >
+                          3 Kisah Seru: &ldquo;Bola-Bola Waktu&rdquo;, &ldquo;Sihir
+                          Unik Mao&rdquo; &amp; &ldquo;Keberanian Emas&rdquo;
+                        </p>
+                      </div>
+                    ) : activeChapter === "alur" ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: scalePx(10), paddingTop: scalePx(6) }}>
+                        <p
+                          className="font-serif font-bold text-[#241306]/92"
+                          style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
+                        >
+                          Kisah &ldquo;Bola-Bola Waktu&rdquo;
+                        </p>
+                        <p
+                          className="font-serif text-[#2f1a09]/92"
+                          style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
+                        >
+                          {selectedOrb.summary}
+                        </p>
+                        <p
+                          className="font-serif font-semibold text-[#4b2e13]/92"
+                          style={{ fontSize: scalePx(14.5), paddingTop: scalePx(6), lineHeight: 1.45 }}
+                        >
+                          Waktu Cerita: {selectedOrb.eraLabel} ({selectedOrb.location})
+                        </p>
+                        <p
+                          className="font-serif text-[#3f230b]/92 italic"
+                          style={{ fontSize: scalePx(14.5), lineHeight: 1.45 }}
+                        >
+                          Misi Segel 1:{" "}
+                          {state.sealAlurUnlocked
+                            ? "Selesai! (Gunung Alur & Pesan Cerita Beres)"
+                            : `Urutan Kejadian ${plotCorrectCount}/5`}
+                        </p>
+                      </div>
+                    ) : activeChapter === "watak" ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: scalePx(10), paddingTop: scalePx(6) }}>
+                        <p
+                          className="font-serif font-bold text-[#241306]/92"
+                          style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
+                        >
+                          Sifat Mao &amp; Yari, 4 Kantong Emas &amp; Panca Indra
+                        </p>
+                        <p
+                          className="font-serif text-[#2f1a09]/92"
+                          style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
+                        >
+                          Mao pantang menyerah di Sekolah Peri Juara, sementara Emas
+                          lolos dari kejaran Raksasa berkat 4 kantong ajaibnya (Biji
+                          Timun, Jarum, Garam, Terasi).
+                        </p>
+                        <p
+                          className="font-serif font-semibold text-[#4b2e13]/92"
+                          style={{ fontSize: scalePx(14.5), paddingTop: scalePx(6), lineHeight: 1.45 }}
+                        >
+                          Urutan Kantong Emas: {state.pouchOrderIds.length}/4 Kantong
+                        </p>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: scalePx(10), paddingTop: scalePx(6) }}>
+                        <p
+                          className="font-serif font-bold text-[#241306]/92"
+                          style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
+                        >
+                          Gaya Bahasa: Perumpamaan &amp; Dialog Tokoh
+                        </p>
+                        <p
+                          className="font-serif text-[#2f1a09]/92"
+                          style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
+                        >
+                          Gunakan kata perumpamaan (seperti, bagaikan, laksana) agar
+                          ceritamu indah, dan pelajari cara mengubah dialog tokoh
+                          menjadi kalimat cerita!
+                        </p>
+                        <p
+                          className="font-serif font-semibold text-[#4b2e13]/92"
+                          style={{ fontSize: scalePx(14.5), paddingTop: scalePx(6), lineHeight: 1.45 }}
+                        >
+                          Kamus Kata: {selectedLexiconCategory.category}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div
-                  className="book-ink-step-1 flex items-center justify-between border-b border-[#5c3d1e]/40 font-bold tracking-[0.14em] text-[#4b2e13]/90 uppercase"
-                  style={{ fontSize: scalePx(12.5), paddingBottom: scalePx(5) }}
+                  className="book-ink-step-4 border-t border-[#5c3d1e]/30 font-semibold text-[#5a3918]/85"
+                  style={{ fontSize: scalePx(12.2), paddingTop: scalePx(5) }}
                 >
-                  <span>
-                    {isShowingIntroSpread
-                      ? "PEMBUKA PUSTAKA"
-                      : activeChapterMeta.shortLabel}
-                  </span>
-                  <span>
-                    Hal.{" "}
-                    {isShowingIntroSpread ? 1 : activeChapterMeta.leftPageNo}
-                  </span>
+                  Pustaka Aksaraloka · Bahasa Indonesia SMP Kelas VII
                 </div>
-
-                <div className="book-ink-step-2">
-                {isShowingIntroSpread ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: scalePx(10), paddingTop: scalePx(6) }}>
-                    <p
-                      className="font-serif font-bold text-[#241306]/92"
-                      style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
-                    >
-                      Pustaka Aksaraloka: Rahasia Cerita Fantasi
-                    </p>
-                    <p
-                      className="font-serif text-[#2f1a09]/92"
-                      style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
-                    >
-                      Yuk bertualang mengenal rahasia cerita fantasi! Meski penuh
-                      keajaiban dan lintas waktu, ceritanya tetap punya urutan
-                      kejadian yang masuk akal dan pesan kebaikan.
-                    </p>
-                    <p
-                      className="font-serif font-bold text-[#3f230b]/92 italic"
-                      style={{ fontSize: scalePx(14.8), paddingTop: scalePx(8), lineHeight: 1.48 }}
-                    >
-                      3 Kisah Seru: &ldquo;Bola-Bola Waktu&rdquo;, &ldquo;Sihir
-                      Unik Mao&rdquo; &amp; &ldquo;Keberanian Emas&rdquo;
-                    </p>
-                  </div>
-                ) : activeChapter === "alur" ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: scalePx(10), paddingTop: scalePx(6) }}>
-                    <p
-                      className="font-serif font-bold text-[#241306]/92"
-                      style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
-                    >
-                      Kisah &ldquo;Bola-Bola Waktu&rdquo;
-                    </p>
-                    <p
-                      className="font-serif text-[#2f1a09]/92"
-                      style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
-                    >
-                      {selectedOrb.summary}
-                    </p>
-                    <p
-                      className="font-serif font-semibold text-[#4b2e13]/92"
-                      style={{ fontSize: scalePx(14.5), paddingTop: scalePx(6), lineHeight: 1.45 }}
-                    >
-                      Waktu Cerita: {selectedOrb.eraLabel} ({selectedOrb.location})
-                    </p>
-                    <p
-                      className="font-serif text-[#3f230b]/92 italic"
-                      style={{ fontSize: scalePx(14.5), lineHeight: 1.45 }}
-                    >
-                      Misi Segel 1:{" "}
-                      {state.sealAlurUnlocked
-                        ? "Selesai! (Gunung Alur & Pesan Cerita Beres)"
-                        : `Urutan Kejadian ${plotCorrectCount}/5`}
-                    </p>
-                  </div>
-                ) : activeChapter === "watak" ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: scalePx(10), paddingTop: scalePx(6) }}>
-                    <p
-                      className="font-serif font-bold text-[#241306]/92"
-                      style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
-                    >
-                      Sifat Mao &amp; Yari, 4 Kantong Emas &amp; Panca Indera
-                    </p>
-                    <p
-                      className="font-serif text-[#2f1a09]/92"
-                      style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
-                    >
-                      Mao pantang menyerah di Sekolah Peri Juara, sementara Emas
-                      lolos dari kejaran Raksasa berkat 4 kantong ajaibnya (Biji
-                      Timun, Jarum, Garam, Terasi).
-                    </p>
-                    <p
-                      className="font-serif font-semibold text-[#4b2e13]/92"
-                      style={{ fontSize: scalePx(14.5), paddingTop: scalePx(6), lineHeight: 1.45 }}
-                    >
-                      Urutan Kantong Emas: {state.pouchOrderIds.length}/4 Kantong
-                    </p>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: scalePx(10), paddingTop: scalePx(6) }}>
-                    <p
-                      className="font-serif font-bold text-[#241306]/92"
-                      style={{ fontSize: scalePx(23.5), lineHeight: 1.24 }}
-                    >
-                      Gaya Bahasa: Perumpamaan &amp; Dialog Tokoh
-                    </p>
-                    <p
-                      className="font-serif text-[#2f1a09]/92"
-                      style={{ fontSize: scalePx(16.8), lineHeight: 1.56 }}
-                    >
-                      Gunakan kata perumpamaan (seperti, bagaikan, laksana) agar
-                      ceritamu indah, dan pelajari cara mengubah dialog tokoh
-                      menjadi kalimat cerita!
-                    </p>
-                    <p
-                      className="font-serif font-semibold text-[#4b2e13]/92"
-                      style={{ fontSize: scalePx(14.5), paddingTop: scalePx(6), lineHeight: 1.45 }}
-                    >
-                      Kamus Kata: {selectedLexiconCategory.category}
-                    </p>
-                  </div>
-                )}
-                </div>
-              </div>
-
-              <div
-                className="book-ink-step-4 border-t border-[#5c3d1e]/30 font-semibold text-[#5a3918]/85"
-                style={{ fontSize: scalePx(12.2), paddingTop: scalePx(5) }}
-              >
-                Pustaka Aksaraloka · Bahasa Indonesia SMP Kelas VII
-              </div>
               </div>
             </div>
 
@@ -1442,9 +1460,8 @@ export function KitabMateriOverlay({
                 }
               }}
               aria-label="Klik halaman kanan buku untuk membuka tampilan baca penuh"
-              className={`parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex cursor-pointer flex-col justify-between overflow-hidden select-none focus:outline-none ${
-                isPageFlipping ? "opacity-0" : ""
-              }`}
+              className={`parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex cursor-pointer flex-col justify-between overflow-hidden select-none focus:outline-none ${isPageFlipping ? "opacity-0" : ""
+                }`}
               style={{
                 width: `${basePageWidth}px`,
                 height: `${basePageHeight}px`,
@@ -1462,69 +1479,69 @@ export function KitabMateriOverlay({
                 key={`m3d-right-${isShowingIntroSpread ? "intro" : activeChapter}-${isPageFlipping ? "flip" : "idle"}`}
                 className="book-ink-sweep-right flex flex-1 min-h-0 flex-col justify-between"
               >
-              <div style={{ display: "flex", flexDirection: "column", gap: scalePx(11) }}>
-                <div
-                  className="book-ink-step-1 flex items-center justify-between border-b border-[#5c3d1e]/40 font-bold tracking-[0.14em] text-[#4b2e13]/90 uppercase"
-                  style={{ fontSize: scalePx(12.5), paddingBottom: scalePx(5) }}
-                >
-                  <span>MISI &amp; 3 SEGEL CERITA</span>
-                  <span>
-                    Hal.{" "}
-                    {isShowingIntroSpread ? 2 : activeChapterMeta.rightPageNo}
-                  </span>
-                </div>
-
-                <div
-                  className="book-ink-step-2 font-serif text-[#241306]/92"
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: scalePx(10),
-                    paddingTop: scalePx(6),
-                    fontSize: scalePx(16.2),
-                    lineHeight: 1.54,
-                  }}
-                >
-                  <p
-                    className="font-bold text-[#241306]/95"
-                    style={{ fontSize: scalePx(18.5), lineHeight: 1.3 }}
+                <div style={{ display: "flex", flexDirection: "column", gap: scalePx(11) }}>
+                  <div
+                    className="book-ink-step-1 flex items-center justify-between border-b border-[#5c3d1e]/40 font-bold tracking-[0.14em] text-[#4b2e13]/90 uppercase"
+                    style={{ fontSize: scalePx(12.5), paddingBottom: scalePx(5) }}
                   >
-                    Segel yang Sudah Kamu Kumpulkan: {totalSealsUnlocked}/3 (
-                    {masteryPercentage}%)
-                  </p>
-                  <p className="text-[#2f1a09]/92">
-                    • Segel 1 (Alur &amp; Pesan):{" "}
-                    <span className="font-bold">
-                      {state.sealAlurUnlocked
-                        ? "SELESAI ✓"
-                        : `${plotCorrectCount}/5 Alur · ${state.climaxSimulationTested ? "Uji Klimaks ✓" : "Uji Klimaks"} · ${isAmanatDone ? "Pesan ✓" : "Pesan"}`}
+                    <span>MISI &amp; 3 SEGEL CERITA</span>
+                    <span>
+                      Hal.{" "}
+                      {isShowingIntroSpread ? 2 : activeChapterMeta.rightPageNo}
                     </span>
-                  </p>
-                  <p className="text-[#2f1a09]/92">
-                    • Segel 2 (Tokoh &amp; Indera):{" "}
-                    <span className="font-bold">
-                      {state.sealWatakUnlocked
-                        ? "SELESAI ✓"
-                        : `Tokoh ${charDone ? "✓" : "Belum"} · Kantong ${state.pouchOrderIds.length}/4 · Indera ${sensoryDone ? "✓" : "Belum"}`}
-                    </span>
-                  </p>
-                  <p className="text-[#2f1a09]/92">
-                    • Segel 3 (Perumpamaan &amp; Dialog):{" "}
-                    <span className="font-bold">
-                      {state.sealBahasaUnlocked
-                        ? "SELESAI ✓"
-                        : `Perumpamaan ${majasDone ? "Beres" : "Belum"} · Dialog ${dialogueDone ? "Beres" : "Belum"}`}
-                    </span>
-                  </p>
-                </div>
-              </div>
+                  </div>
 
-              <div
-                className="book-ink-step-4 border-t border-[#5c3d1e]/30 text-right font-semibold text-[#5a3918]/85"
-                style={{ fontSize: scalePx(12.2), paddingTop: scalePx(5) }}
-              >
-                Klik halaman buku untuk mulai bermain!
-              </div>
+                  <div
+                    className="book-ink-step-2 font-serif text-[#241306]/92"
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: scalePx(10),
+                      paddingTop: scalePx(6),
+                      fontSize: scalePx(16.2),
+                      lineHeight: 1.54,
+                    }}
+                  >
+                    <p
+                      className="font-bold text-[#241306]/95"
+                      style={{ fontSize: scalePx(18.5), lineHeight: 1.3 }}
+                    >
+                      Segel yang Sudah Kamu Kumpulkan: {totalSealsUnlocked}/3 (
+                      {masteryPercentage}%)
+                    </p>
+                    <p className="text-[#2f1a09]/92">
+                      • Segel 1 (Alur &amp; Pesan):{" "}
+                      <span className="font-bold">
+                        {state.sealAlurUnlocked
+                          ? "SELESAI ✓"
+                          : `${plotCorrectCount}/5 Alur · ${state.climaxSimulationTested ? "Uji Klimaks ✓" : "Uji Klimaks"} · ${isAmanatDone ? "Pesan ✓" : "Pesan"}`}
+                      </span>
+                    </p>
+                    <p className="text-[#2f1a09]/92">
+                      • Segel 2 (Tokoh &amp; Indra):{" "}
+                      <span className="font-bold">
+                        {state.sealWatakUnlocked
+                          ? "SELESAI ✓"
+                          : `Tokoh ${charDone ? "✓" : "Belum"} · Kantong ${state.pouchOrderIds.length}/4 · Indra ${sensoryDone ? "✓" : "Belum"}`}
+                      </span>
+                    </p>
+                    <p className="text-[#2f1a09]/92">
+                      • Segel 3 (Perumpamaan &amp; Dialog):{" "}
+                      <span className="font-bold">
+                        {state.sealBahasaUnlocked
+                          ? "SELESAI ✓"
+                          : `Perumpamaan ${majasDone ? "Beres" : "Belum"} · Dialog ${dialogueDone ? "Beres" : "Belum"}`}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  className="book-ink-step-4 border-t border-[#5c3d1e]/30 text-right font-semibold text-[#5a3918]/85"
+                  style={{ fontSize: scalePx(12.2), paddingTop: scalePx(5) }}
+                >
+                  Klik halaman buku untuk mulai bermain!
+                </div>
               </div>
             </div>
           </div>
@@ -1542,11 +1559,10 @@ export function KitabMateriOverlay({
                       playPageFlip();
                       setActive3dSide("left");
                     }}
-                    className={`min-h-[34px] rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
-                      active3dSide === "left"
-                        ? "bg-[#f3d89b] text-slate-950 shadow"
-                        : "text-amber-100/85 hover:text-white"
-                    }`}
+                    className={`min-h-[34px] rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${active3dSide === "left"
+                      ? "bg-[#f3d89b] text-slate-950 shadow"
+                      : "text-amber-100/85 hover:text-white"
+                      }`}
                   >
                     &lt;- Hal. Kiri
                   </button>
@@ -1556,11 +1572,10 @@ export function KitabMateriOverlay({
                       playPageFlip();
                       setActive3dSide("right");
                     }}
-                    className={`min-h-[34px] rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
-                      active3dSide === "right"
-                        ? "bg-[#f3d89b] text-slate-950 shadow"
-                        : "text-amber-100/85 hover:text-white"
-                    }`}
+                    className={`min-h-[34px] rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${active3dSide === "right"
+                      ? "bg-[#f3d89b] text-slate-950 shadow"
+                      : "text-amber-100/85 hover:text-white"
+                      }`}
                   >
                     Hal. Kanan -&gt;
                   </button>
@@ -1610,13 +1625,12 @@ export function KitabMateriOverlay({
                         type="button"
                         disabled={isPageFlipping}
                         onClick={() => switchToChapter(chap.id)}
-                        className={`cursor-pointer whitespace-nowrap rounded-full border px-2.5 py-1.5 md:py-1 text-[10.5px] font-bold tracking-wide transition-all disabled:opacity-40 sm:text-[11px] ${
-                          isCurrent
-                            ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950 shadow-[0_0_12px_rgba(243,216,155,0.4)]"
-                            : isUnlocked
-                              ? "border-emerald-400/50 bg-emerald-950/70 text-emerald-200 hover:border-emerald-300"
-                              : "border-[#d6b26f]/40 bg-slate-900/90 text-amber-100/85 hover:border-[#f3d89b]/70 hover:text-white"
-                        }`}
+                        className={`cursor-pointer whitespace-nowrap rounded-full border px-2.5 py-1.5 md:py-1 text-[10.5px] font-bold tracking-wide transition-all disabled:opacity-40 sm:text-[11px] ${isCurrent
+                          ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950 shadow-[0_0_12px_rgba(243,216,155,0.4)]"
+                          : isUnlocked
+                            ? "border-emerald-400/50 bg-emerald-950/70 text-emerald-200 hover:border-emerald-300"
+                            : "border-[#d6b26f]/40 bg-slate-900/90 text-amber-100/85 hover:border-[#f3d89b]/70 hover:text-white"
+                          }`}
                       >
                         {chap.shortLabel}
                       </button>
@@ -1812,11 +1826,10 @@ export function KitabMateriOverlay({
               <button
                 type="button"
                 onClick={handleOpenIntroSpread}
-                className={`cursor-pointer shrink-0 min-h-[34px] md:min-h-0 rounded-full border px-2.5 md:px-3 py-1 text-[11px] font-bold tracking-wide shadow-md backdrop-blur-md transition-all whitespace-nowrap ${
-                  isShowingIntroSpread
-                    ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
-                    : "border-[#d6b26f]/45 bg-slate-950/80 text-amber-100/90 hover:border-[#f3d89b]/70 hover:text-white"
-                }`}
+                className={`cursor-pointer shrink-0 min-h-[34px] md:min-h-0 rounded-full border px-2.5 md:px-3 py-1 text-[11px] font-bold tracking-wide shadow-md backdrop-blur-md transition-all whitespace-nowrap ${isShowingIntroSpread
+                  ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
+                  : "border-[#d6b26f]/45 bg-slate-950/80 text-amber-100/90 hover:border-[#f3d89b]/70 hover:text-white"
+                  }`}
               >
                 <span className="md:hidden">Pembuka</span>
                 <span className="hidden md:inline">Pembuka Pustaka</span>
@@ -1835,13 +1848,12 @@ export function KitabMateriOverlay({
                     key={chap.id}
                     type="button"
                     onClick={() => switchToChapter(chap.id)}
-                    className={`cursor-pointer shrink-0 min-h-[34px] md:min-h-0 rounded-full border px-2.5 md:px-3 py-1 text-[11px] font-bold tracking-wide shadow-md backdrop-blur-md transition-all whitespace-nowrap ${
-                      isActive
-                        ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
-                        : isSealDone
-                          ? "border-emerald-400/55 bg-emerald-950/75 text-emerald-200 hover:border-emerald-300"
-                          : "border-[#d6b26f]/45 bg-slate-950/80 text-amber-100/90 hover:border-[#f3d89b]/70 hover:text-white"
-                    }`}
+                    className={`cursor-pointer shrink-0 min-h-[34px] md:min-h-0 rounded-full border px-2.5 md:px-3 py-1 text-[11px] font-bold tracking-wide shadow-md backdrop-blur-md transition-all whitespace-nowrap ${isActive
+                      ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
+                      : isSealDone
+                        ? "border-emerald-400/55 bg-emerald-950/75 text-emerald-200 hover:border-emerald-300"
+                        : "border-[#d6b26f]/45 bg-slate-950/80 text-amber-100/90 hover:border-[#f3d89b]/70 hover:text-white"
+                      }`}
                   >
                     <span className="md:hidden">Misi {idx + 1}</span>
                     <span className="hidden md:inline">{chap.shortLabel}</span>{" "}
@@ -1861,9 +1873,8 @@ export function KitabMateriOverlay({
             style={{
               perspective: isMobileBook ? undefined : "1800px",
             }}
-            className={`relative z-10 my-auto flex w-full flex-1 min-h-0 items-center justify-center ${
-              isMobileBook ? "overflow-hidden" : "overflow-visible"
-            }`}
+            className={`relative z-10 my-auto flex w-full flex-1 min-h-0 items-center justify-center ${isMobileBook ? "overflow-hidden" : "overflow-visible"
+              }`}
           >
             <div
               ref={book2dContainerRef}
@@ -1876,11 +1887,11 @@ export function KitabMateriOverlay({
                 isMobileBook
                   ? undefined
                   : {
-                      width: "min(94vw, 1180px, calc((100dvh - 4.4rem) * 946 / 603))",
-                      aspectRatio: "946 / 603",
-                      transform: "rotateX(0deg) scale(1) translateY(0px)",
-                      transformOrigin: "50% 70%",
-                    }
+                    width: "min(94vw, 1180px, calc((100dvh - 4.4rem) * 946 / 603))",
+                    aspectRatio: "946 / 603",
+                    transform: "rotateX(0deg) scale(1) translateY(0px)",
+                    transformOrigin: "50% 70%",
+                  }
               }
             >
               {isMobileBook ? (
@@ -1928,1615 +1939,1615 @@ export function KitabMateriOverlay({
 
               {/* Layer 3: Calibrated Homography Page Spread (NO transform/z-index wrapper so .parchment-ink multiplies directly into single-page.webp) */}
               <div className="pointer-events-none absolute inset-0">
-              {/* ============================================================= */}
-              {/* SPREAD 0: PENGANTAR KITAB AKSARALOKA (GULUNGAN PEMBUKA)       */}
-              {/* ============================================================= */}
-              {isShowingIntroSpread && (
-                <>
-                  {/* LEFT PAGE: PENGANTAR KONSEP CERITA FANTASI */}
-                  <div style={get2dPageStyle("left")} className={page2dContainerClass}>
-                    <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-2 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
-                          PEMBUKA PUSTAKA · MULAI DARI SINI
-                        </span>
-                        <span className="font-serif text-[10px] font-semibold text-[#6b4826] italic">
-                          Panduan Awal
-                        </span>
+                {/* ============================================================= */}
+                {/* SPREAD 0: PENGANTAR KITAB AKSARALOKA (GULUNGAN PEMBUKA)       */}
+                {/* ============================================================= */}
+                {isShowingIntroSpread && (
+                  <>
+                    {/* LEFT PAGE: PENGANTAR KONSEP CERITA FANTASI */}
+                    <div style={get2dPageStyle("left")} className={page2dContainerClass}>
+                      <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
+                        <div className="mb-2 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-1 border-b border-[#5c3d1e]/35 pb-1">
+                          <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
+                            PEMBUKA PUSTAKA · MULAI DARI SINI
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleTogglePembukaAudio}
+                            className="cursor-pointer font-serif text-[9.5px] font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950 sm:text-[10px]"
+                          >
+                            {activeNarrationTrack === "pembuka-pustaka"
+                              ? "[Matikan Pengantar]"
+                              : "[Dengarkan Pengantar]"}
+                          </button>
+                        </div>
+
+                        <div className="space-y-2 font-serif text-[#2b1a0c]">
+                          <h2 className="parchment-contour-warp text-sm leading-snug font-bold text-[#2b1a0c] sm:text-base">
+                            Apa Rahasia Cerita Fantasi yang Seru?
+                          </h2>
+                          <p className="text-[11px] leading-relaxed text-[#3a2512] sm:text-xs">
+                            Selamat datang di <strong>Pustaka Aksaraloka</strong>!
+                            Sebelum mengarang ceritamu sendiri di{" "}
+                            <strong>Studio Tulis</strong>, yuk kumpulkan{" "}
+                            <strong>3 Segel Rahasia</strong> lewat tiga kisah seru:{" "}
+                            <strong>&ldquo;Bola-Bola Waktu&rdquo;</strong>,{" "}
+                            <strong>&ldquo;Sihir Unik Mao&rdquo;</strong>, dan{" "}
+                            <strong>&ldquo;Keberanian Emas&rdquo;</strong>.
+                          </p>
+
+                          <div className="border-t border-b border-[#5c3d1e]/30 py-1.5">
+                            <p className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase sm:text-[11px]">
+                              Apa Itu Cerita Fantasi?
+                            </p>
+                            <p className="mt-1 text-[10.5px] leading-relaxed text-[#2b1a0c] sm:text-[11px]">
+                              Cerita fantasi adalah cerita yang berisi khayalan
+                              dan hal-hal ajaib, seperti benda yang memiliki
+                              kekuatan, makhluk ajaib, atau perjalanan waktu.
+                              Meskipun tidak terjadi di dunia nyata, cerita
+                              fantasi memiliki{" "}
+                              <strong>jalan cerita yang jelas</strong> dan dapat
+                              mengandung{" "}
+                              <strong>
+                                pesan yang ingin disampaikan penulis
+                              </strong>
+                              .
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5 pt-0.5">
+                            <p className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase sm:text-[11px]">
+                              3 Kunci Supaya Ceritamu Keren:
+                            </p>
+                            <p className="text-[10.5px] leading-snug text-[#3a2512] sm:text-[11px]">
+                              <strong>1. Keajaiban Memiliki Aturan:</strong> Benda
+                              atau kekuatan ajaib dalam cerita memiliki aturan,
+                              syarat, atau batasan. Misalnya, bola waktu Ivan
+                              hanya dapat digunakan dengan cara tertentu dan
+                              memiliki akibat jika digunakan.
+                            </p>
+                            <p className="text-[10.5px] leading-snug text-[#3a2512] sm:text-[11px]">
+                              <strong>2. Sifat Tokoh Terlihat dari Aksi:</strong>{" "}
+                              Tunjukkan sifat baik atau sombong tokoh lewat
+                              perbuatan dan ucapannya. Misalnya, tokoh yang rajin
+                              berlatih menunjukkan sifat yang pantang menyerah.
+                            </p>
+                            <p className="text-[10.5px] leading-snug text-[#3a2512] sm:text-[11px]">
+                              <strong>3. Pakai Panca Indra &amp; Perumpamaan:</strong>{" "}
+                              Buatlah cerita lebih hidup dengan menggambarkan apa
+                              yang dilihat, didengar, dicium, dirasakan, atau
+                              disentuh tokoh. Untuk membandingkan sesuatu, kamu
+                              bisa menggunakan perumpamaan.
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="space-y-2.5 font-serif text-[#2b1a0c]">
-                        <h2 className="parchment-contour-warp text-sm leading-snug font-bold text-[#2b1a0c] sm:text-base">
-                          Apa Rahasia Cerita Fantasi yang Seru?
-                        </h2>
-                        <p className="text-[11px] leading-relaxed text-[#3a2512] sm:text-xs">
-                          Selamat datang di <strong>Pustaka Aksaraloka</strong>!
-                          Sebelum mengarang ceritamu sendiri di{" "}
-                          <strong>Studio Tulis</strong>, yuk kumpulkan{" "}
-                          <strong>3 Segel Rahasia</strong> lewat tiga kisah seru:{" "}
-                          <strong>&ldquo;Bola-Bola Waktu&rdquo;</strong>,{" "}
-                          <strong>&ldquo;Sihir Unik Mao&rdquo;</strong>, dan{" "}
-                          <strong>&ldquo;Keberanian Emas&rdquo;</strong>.
-                        </p>
-
-                        <div className="border-t border-b border-[#5c3d1e]/30 py-2">
-                          <p className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase sm:text-[11px]">
-                            Apa Itu Cerita Fantasi?
-                          </p>
-                          <p className="mt-1 text-[11px] leading-relaxed text-[#2b1a0c]">
-                            Cerita fantasi adalah cerita khayalan yang penuh
-                            keajaiban, benda sakti, atau pindah waktu, tapi{" "}
-                            <strong>
-                              kejadiannya tetap berurutan masuk akal
-                            </strong>{" "}
-                            dan punya <strong>pesan kebaikan (amanat)</strong>.
-                          </p>
-                        </div>
-
-                        <div className="space-y-1.5 pt-0.5">
-                          <p className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase sm:text-[11px]">
-                            3 Kunci Supaya Ceritamu Keren:
-                          </p>
-                          <p className="text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            <strong>1. Keajaiban Punya Aturan:</strong> Benda
-                            atau kekuatan ajaib tidak boleh menang gampang, tapi
-                            punya syarat dan akibat (seperti bola waktu Ivan!).
-                          </p>
-                          <p className="text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            <strong>2. Sifat Tokoh Terlihat dari Aksi:</strong>{" "}
-                            Tunjukkan sifat baik atau sombong tokoh lewat
-                            perbuatan dan ucapannya.
-                          </p>
-                          <p className="text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            <strong>3. Pakai Panca Indera &amp; Perumpamaan:</strong>{" "}
-                            Ajak pembaca ikut melihat cahaya, mendengar suara,
-                            dan merasakan suasana ceritamu!
-                          </p>
-                        </div>
+                      <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
+                        <span>Pembuka Pustaka Aksaraloka</span>
+                        <span className="font-semibold">Halaman Pengantar I</span>
                       </div>
                     </div>
 
-                    <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
-                      <span>Pembuka Pustaka Aksaraloka</span>
-                      <span className="font-semibold">Halaman Pengantar I</span>
-                    </div>
-                  </div>
+                    {/* RIGHT PAGE: PETA 3 BABAK & TOMBOL BUKA SEGEL GULUNGAN */}
+                    <div style={get2dPageStyle("right")} className={page2dContainerClass}>
+                      <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
+                        <div className="mb-2 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
+                          <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
+                            MISI 3 SEGEL RAHASIA CERITA
+                          </span>
+                          <span className="font-serif text-[10px] font-semibold text-[#6b4826]">
+                            Segel Terkumpul: {totalSealsUnlocked}/3
+                          </span>
+                        </div>
 
-                  {/* RIGHT PAGE: PETA 3 BABAK & TOMBOL BUKA SEGEL GULUNGAN */}
-                  <div style={get2dPageStyle("right")} className={page2dContainerClass}>
-                    <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-2 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
-                          MISI 3 SEGEL RAHASIA CERITA
-                        </span>
-                        <span className="font-serif text-[10px] font-semibold text-[#6b4826]">
-                          Segel Terkumpul: {totalSealsUnlocked}/3
-                        </span>
+                        <div className="space-y-2.5 font-serif text-[#2b1a0c]">
+                          <div className="border-b border-[#5c3d1e]/30 pb-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#2b1a0c] sm:text-xs">
+                                Misi 1 — Jalan Cerita &amp; Pesan Kebaikan
+                              </span>
+                              <span className="text-[10px] font-bold text-[#14532d]">
+                                {state.sealAlurUnlocked
+                                  ? "[Segel 1 Selesai ✓]"
+                                  : "[Segel 1]"}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
+                              Ikuti perjalanan waktu Ivan di kisah{" "}
+                              <em>Bola-Bola Waktu</em>, susun 5 kejadian Gunung
+                              Alur, dan tebak pesan kebaikannya!
+                            </p>
+                          </div>
+
+                          <div className="border-b border-[#5c3d1e]/30 pb-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#2b1a0c] sm:text-xs">
+                                Misi 2 — Sifat Tokoh, 4 Kantong Emas &amp; Panca Indra
+                              </span>
+                              <span className="text-[10px] font-bold text-[#14532d]">
+                                {state.sealWatakUnlocked
+                                  ? "[Segel 2 Selesai ✓]"
+                                  : "[Segel 2]"}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
+                              Tebak bukti sifat Mao &amp; Yari (<em>Sihir Unik Mao</em>),
+                              urutkan 4 kantong ajaib Emas (<em>Keberanian Emas</em>),
+                              dan pilih kalimat panca Indra yang hidup!
+                            </p>
+                          </div>
+
+                          <div className="border-b border-[#5c3d1e]/30 pb-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#2b1a0c] sm:text-xs">
+                                Misi 3 — Kamus Kata, Perumpamaan &amp; Dialog
+                              </span>
+                              <span className="text-[10px] font-bold text-[#14532d]">
+                                {state.sealBahasaUnlocked
+                                  ? "[Segel 3 Selesai ✓]"
+                                  : "[Segel 3]"}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
+                              Intip kamus kata fantasi, pasangkan perumpamaan
+                              (seperti/bagaikan), dan ubah dialog tokoh jadi
+                              kalimat cerita yang rapi!
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={handleOpenGrimoireScroll}
+                            className="cursor-pointer rounded-full border-2 border-[#14532d]/80 bg-[#14532d]/12 px-4 py-1.5 font-serif text-[11px] font-bold text-[#14532d] transition hover:bg-[#14532d]/22"
+                          >
+                            Ayo Mulai Misi 1 Sekarang! -&gt;
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="space-y-2.5 font-serif text-[#2b1a0c]">
-                        <div className="border-b border-[#5c3d1e]/30 pb-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-[#2b1a0c] sm:text-xs">
-                              Misi 1 — Jalan Cerita &amp; Pesan Kebaikan
-                            </span>
-                            <span className="text-[10px] font-bold text-[#14532d]">
-                              {state.sealAlurUnlocked
-                                ? "[Segel 1 Selesai ✓]"
-                                : "[Segel 1]"}
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            Ikuti perjalanan waktu Ivan di kisah{" "}
-                            <em>Bola-Bola Waktu</em>, susun 5 kejadian Gunung
-                            Alur, dan tebak pesan kebaikannya!
-                          </p>
-                        </div>
-
-                        <div className="border-b border-[#5c3d1e]/30 pb-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-[#2b1a0c] sm:text-xs">
-                              Misi 2 — Sifat Tokoh, 4 Kantong Emas &amp; Panca Indera
-                            </span>
-                            <span className="text-[10px] font-bold text-[#14532d]">
-                              {state.sealWatakUnlocked
-                                ? "[Segel 2 Selesai ✓]"
-                                : "[Segel 2]"}
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            Tebak bukti sifat Mao &amp; Yari (<em>Sihir Unik Mao</em>),
-                            urutkan 4 kantong ajaib Emas (<em>Keberanian Emas</em>),
-                            dan pilih kalimat panca indera yang hidup!
-                          </p>
-                        </div>
-
-                        <div className="border-b border-[#5c3d1e]/30 pb-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-[#2b1a0c] sm:text-xs">
-                              Misi 3 — Kamus Kata, Perumpamaan &amp; Dialog
-                            </span>
-                            <span className="text-[10px] font-bold text-[#14532d]">
-                              {state.sealBahasaUnlocked
-                                ? "[Segel 3 Selesai ✓]"
-                                : "[Segel 3]"}
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            Intip kamus kata fantasi, pasangkan perumpamaan
-                            (seperti/bagaikan), dan ubah dialog tokoh jadi
-                            kalimat cerita yang rapi!
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2 pt-1">
+                      <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
+                        <span className="font-semibold">
+                          Halaman Pengantar II
+                        </span>
                         <button
                           type="button"
                           onClick={handleOpenGrimoireScroll}
-                          className="cursor-pointer rounded-full border-2 border-[#14532d]/80 bg-[#14532d]/12 px-4 py-1.5 font-serif text-[11px] font-bold text-[#14532d] transition hover:bg-[#14532d]/22"
+                          className="cursor-pointer font-bold text-[#2b1a0c] underline decoration-[#5c3d1e]/50 underline-offset-2 transition hover:text-black"
                         >
-                          Ayo Mulai Misi 1 Sekarang! -&gt;
+                          Mulai Misi 1 -&gt;
                         </button>
                       </div>
                     </div>
+                  </>
+                )}
 
-                    <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
-                      <span className="font-semibold">
-                        Halaman Pengantar II
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleOpenGrimoireScroll}
-                        className="cursor-pointer font-bold text-[#2b1a0c] underline decoration-[#5c3d1e]/50 underline-offset-2 transition hover:text-black"
-                      >
-                        Mulai Misi 1 -&gt;
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* ============================================================= */}
-              {/* SPREAD 1: BABAK I (ALUR, LINTAS WAKTU & AMANAT)               */}
-              {/* ============================================================= */}
-              {!isShowingIntroSpread && activeChapter === "alur" && (
-                <>
-                  {/* LEFT PAGE (HALAMAN 1): 3 BOLA WAKTU & INTI CERITA */}
-                  <div style={get2dPageStyle("left")} className={page2dContainerClass}>
-                    <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
-                          HALAMAN 1 · {CHAPTER_ORDER[0]!.tpTag}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleToggleBolaWaktuAudio}
-                          className="cursor-pointer font-serif text-[10px] font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950"
-                        >
-                          {isNarrating
-                            ? "[Matikan Suara Cerita]"
-                            : "[Dengarkan Suara Cerita]"}
-                        </button>
-                      </div>
-
-                      <div className="space-y-2 font-serif text-[#2b1a0c]">
-                        <div>
-                          <h2 className="parchment-contour-warp text-xs leading-snug font-bold text-[#2b1a0c] sm:text-sm">
-                            Kisah Contoh: &ldquo;Bola-Bola Waktu&rdquo;
-                          </h2>
-                          <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
-                            Petunjuk: Klik <strong>3 tombol waktu</strong> di
-                            bawah secara berurutan untuk melihat bagaimana kisah
-                            Ivan berjalan dari pagi hari sampai melompat ke
-                            tahun 2022!
-                          </p>
+                {/* ============================================================= */}
+                {/* SPREAD 1: BABAK I (ALUR, LINTAS WAKTU & AMANAT)               */}
+                {/* ============================================================= */}
+                {!isShowingIntroSpread && activeChapter === "alur" && (
+                  <>
+                    {/* LEFT PAGE (HALAMAN 1): 3 BOLA WAKTU & INTI CERITA */}
+                    <div style={get2dPageStyle("left")} className={page2dContainerClass}>
+                      <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
+                        <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
+                          <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
+                            HALAMAN 1 · {CHAPTER_ORDER[0]!.tpTag}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleToggleBolaWaktuAudio}
+                            className="cursor-pointer font-serif text-[10px] font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950"
+                          >
+                            {activeNarrationTrack === "bola-waktu"
+                              ? "[Matikan Suara Cerita]"
+                              : "[Dengarkan Suara Cerita]"}
+                          </button>
                         </div>
 
-                        {/* 3 Time Orb Selector Links on Parchment */}
-                        <div className="grid grid-cols-3 gap-1.5 border-t border-b border-[#5c3d1e]/35 py-1.5">
-                          {TIME_ORB_DATA.map((orb) => {
-                            const isSelected = selectedOrb.id === orb.id;
-                            const isVisited = visitedOrbIds.includes(orb.id);
-                            return (
-                              <button
-                                key={orb.id}
-                                type="button"
-                                onClick={() => {
-                                  playChime();
-                                  setSelectedOrbId(orb.id);
-                                  setVisitedOrbIds((prev) =>
-                                    prev.includes(orb.id) ? prev : [...prev, orb.id]
-                                  );
-                                }}
-                                className={`cursor-pointer border-b-2 px-1.5 py-1 text-left font-serif transition ${
-                                  isSelected
-                                    ? "border-[#2b1a0c] bg-[#5c3d1e]/15 font-bold text-[#1f1207]"
-                                    : "border-transparent text-[#5c3d1e] hover:border-[#5c3d1e]/40 hover:text-[#2b1a0c]"
-                                }`}
-                              >
-                                <span className="flex items-center justify-between gap-1 text-[9.5px] leading-tight font-bold sm:text-[10px]">
-                                  <span>{orb.eraLabel}</span>
-                                  {isVisited && (
-                                    <span className="text-[#14532d]" aria-label="Sudah dibaca">
-                                      ✓
-                                    </span>
-                                  )}
-                                </span>
-                                <span className="mt-0.5 block truncate text-[8.5px] text-[#6b4826] sm:text-[9px]">
-                                  {orb.location}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {/* Active Time Orb Detail */}
-                        <div className="border-b border-[#5c3d1e]/30 pb-2">
-                          <div className="flex items-center justify-between text-[10px] font-bold text-[#4a2f15] uppercase">
-                            <span>{selectedOrb.eraLabel}</span>
-                            <span className="italic">
-                              {selectedOrb.location}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-[10.5px] leading-relaxed text-[#2b1a0c] sm:text-[11px]">
-                            {selectedOrb.summary}
-                          </p>
-                          <p className="mt-1 text-[10px] leading-snug text-[#4a2f15] italic">
-                            <strong>Bagian Alur:</strong>{" "}
-                            {selectedOrb.evidenceFocus}
-                          </p>
-                        </div>
-
-                        {/* Ringkasan Struktur Alur Cerita Fantasi */}
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            Urutan Jalan Cerita (Alur) yang Seru:
-                          </p>
-                          <p className="text-[10px] leading-relaxed text-[#3a2512] sm:text-[10.5px]">
-                            Cerita yang bagus berjalan naik seperti mendaki
-                            gunung:{" "}
-                            <strong>1. Awal Cerita (Orientasi)</strong> -&gt;{" "}
-                            <strong>2. Muncul Masalah</strong> -&gt;{" "}
-                            <strong>3. Masalah Membesar (Komplikasi)</strong>{" "}
-                            -&gt; <strong>4. Puncak Masalah (Klimaks)</strong>{" "}
-                            -&gt; <strong>5. Akhir Cerita (Resolusi)</strong>.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
-                      <button
-                        type="button"
-                        onClick={handleOpenIntroSpread}
-                        className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
-                      >
-                        &lt;- Pembuka Pustaka
-                      </button>
-                      <span className="font-semibold">Halaman 1</span>
-                    </div>
-                  </div>
-
-                  {/* RIGHT PAGE (HALAMAN 2): GUNUNG ALUR INTERAKTIF & AMANAT */}
-                  <div style={get2dPageStyle("right")} className={page2dContainerClass}>
-                    <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
-                          HALAMAN 2 · TANTANGAN SEGEL 1
-                        </span>
-                        <span className="shrink-0 whitespace-nowrap font-serif text-[9px] font-bold text-[#14532d] sm:text-[9.5px]">
-                          {state.sealAlurUnlocked
-                            ? "Segel 1 Selesai ✓"
-                            : `Alur ${plotCorrectCount}/5 · Uji ${state.climaxSimulationTested ? "✓" : "○"} · Pesan ${isAmanatDone ? "✓" : "○"}`}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2 font-serif text-[#2b1a0c]">
-                        {/* Live 1-Line Quest Prompt (Guided Next Action for 7th Graders) */}
-                        {state.sealAlurUnlocked ? (
-                          <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-[#14532d]/55 bg-[#14532d]/12 px-2 py-1.5 text-[10px] font-bold text-[#14532d]">
-                            <span>Hebat! Segel 1 (Alur &amp; Pesan) Terbuka!</span>
-                            <button
-                              type="button"
-                              onClick={() => switchToChapter("watak")}
-                              className="cursor-pointer rounded-full bg-[#14532d] px-2.5 py-0.5 text-[9.5px] font-bold text-[#fdf6e7] hover:bg-emerald-950"
-                            >
-                              Lanjut Misi 2 -&gt;
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="rounded border border-[#5c3d1e]/40 bg-[#5c3d1e]/10 px-2 py-1 text-[9.5px] leading-snug text-[#2b1a0c]">
-                            <strong className="text-[#4a2f15]">Misi Sekarang:</strong>{" "}
-                            {!isPlotComplete
-                              ? `Klik kejadian ke-${plotCorrectCount + 1} pada Misi A di bawah (${plotCorrectCount}/5).`
-                              : !state.climaxSimulationTested
-                                ? 'Klik tombol merah "Hapus Puncak!" di Gunung Alur untuk melihat efek cerita tanpa klimaks!'
-                                : "Pilih 1 Pesan Kebaikan (Amanat) yang paling tepat di Misi B bawah!"}
-                          </div>
-                        )}
-
-                        {/* Interactive Hand-Drawn Sepia Plot Mountain SVG (Collision-Free Coordinates) */}
-                        <div className="border-b border-[#5c3d1e]/30 pb-2">
-                          <div className="flex flex-wrap items-center justify-between gap-1.5">
-                            <span className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                              1. Gunung Alur ({plotCorrectCount}/5)
-                            </span>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleSimulateClimaxResolution(
-                                    "tanpa-klimaks"
-                                  )
-                                }
-                                className={`cursor-pointer rounded px-2 py-0.5 text-[9px] leading-tight font-bold transition ${
-                                  climaxSimMode === "tanpa-klimaks"
-                                    ? "border border-[#7f1d1d] bg-[#7f1d1d] text-[#fdf6e7]"
-                                    : "border border-[#7f1d1d]/60 bg-[#7f1d1d]/10 text-[#7f1d1d] hover:bg-[#7f1d1d]/20"
-                                }`}
-                              >
-                                {state.climaxSimulationTested ? "✓ " : ""}
-                                Hapus Puncak!
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleSimulateClimaxResolution("utuh")
-                                }
-                                className={`cursor-pointer rounded px-2 py-0.5 text-[9px] leading-tight font-bold transition ${
-                                  climaxSimMode === "utuh"
-                                    ? "border border-[#14532d] bg-[#14532d] text-[#fdf6e7]"
-                                    : "border border-[#14532d]/60 bg-[#14532d]/10 text-[#14532d] hover:bg-[#14532d]/20"
-                                }`}
-                              >
-                                Alur Utuh
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleResetPlotMountain}
-                                className="cursor-pointer px-1 text-[9px] font-semibold text-[#5c3d1e] underline hover:text-black"
-                              >
-                                Ulangi
-                              </button>
-                            </div>
-                          </div>
-
-                          <p className="mt-1 text-[9.5px] leading-snug text-[#4a2f15]">
-                            Grafik ini menunjukkan <strong>naik-turunnya ketegangan cerita</strong> dari 1 (Awal) mendaki ke puncak 4 (Klimaks) lalu turun ke 5 (Akhir). Klik <strong>&ldquo;Hapus Puncak!&rdquo;</strong> untuk melihat efek alur yang bolong!
-                          </p>
-
-                          {(() => {
-                            const isBrokenSim = climaxSimMode === "tanpa-klimaks";
-                            const isIntactSim = climaxSimMode === "utuh";
-                            const fullPoints = PLOT_MOUNTAIN_COORDS.map(
-                              (c) => `${c.x},${c.y}`
-                            ).join(" ");
-                            const brokenPoints = [
-                              PLOT_MOUNTAIN_COORDS[0]!,
-                              PLOT_MOUNTAIN_COORDS[1]!,
-                              PLOT_MOUNTAIN_COORDS[2]!,
-                              PLOT_MOUNTAIN_COORDS[4]!,
-                            ]
-                              .map((c) => `${c.x},${c.y}`)
-                              .join(" ");
-                            const solvedProgressPoints =
-                              plotCorrectCount >= 2
-                                ? PLOT_MOUNTAIN_COORDS.slice(0, plotCorrectCount)
-                                    .map((c) => `${c.x},${c.y}`)
-                                    .join(" ")
-                                : null;
-
-                            return (
-                              <svg
-                                viewBox="0 0 360 116"
-                                className="parchment-contour-warp mt-1.5 h-[88px] sm:h-[96px] w-full overflow-visible"
-                                aria-label="Diagram Gunung Alur Cerita Fantasi"
-                              >
-                                {/* Baseline dashed mountain contour (ghosted when peak removed) */}
-                                <polyline
-                                  fill="none"
-                                  stroke={
-                                    isBrokenSim
-                                      ? "#5c3d1e45"
-                                      : isIntactSim
-                                        ? "#14532d"
-                                        : "#5c3d1e"
-                                  }
-                                  strokeWidth={isIntactSim ? "2.6" : "2"}
-                                  strokeDasharray={isIntactSim ? undefined : "4 3"}
-                                  points={fullPoints}
-                                />
-
-                                {/* Solved progression solid emerald path when placing beats */}
-                                {!isBrokenSim && !isIntactSim && solvedProgressPoints && (
-                                  <polyline
-                                    fill="none"
-                                    stroke="#14532d"
-                                    strokeWidth="2.8"
-                                    points={solvedProgressPoints}
-                                  />
-                                )}
-
-                                {/* Collapsed red flatline skipping Peak #4 during tanpa-klimaks simulation */}
-                                {isBrokenSim && (
-                                  <>
-                                    <polyline
-                                      fill="none"
-                                      stroke="#991b1b"
-                                      strokeWidth="2.8"
-                                      strokeDasharray="6 3"
-                                      points={brokenPoints}
-                                    />
-                                    <g>
-                                      <rect
-                                        x="148"
-                                        y="89"
-                                        width="148"
-                                        height="19"
-                                        rx="9.5"
-                                        fill="#991b1b"
-                                        fillOpacity="0.14"
-                                        stroke="#991b1b"
-                                        strokeWidth="1"
-                                      />
-                                      <text
-                                        x="222"
-                                        y="101.5"
-                                        textAnchor="middle"
-                                        fontSize="8.2"
-                                        fontWeight="bold"
-                                        fill="#7f1d1d"
-                                      >
-                                        ALUR BOLONG (DATAR!)
-                                      </text>
-                                    </g>
-                                  </>
-                                )}
-
-                                {/* Intact peak highlight ring & collision-free badge in valley */}
-                                {isIntactSim && (
-                                  <>
-                                    <circle
-                                      cx={PLOT_MOUNTAIN_COORDS[3]!.x}
-                                      cy={PLOT_MOUNTAIN_COORDS[3]!.y}
-                                      r="12"
-                                      fill="#14532d"
-                                      fillOpacity="0.15"
-                                      stroke="#14532d"
-                                      strokeWidth="1.5"
-                                    />
-                                    <g>
-                                      <rect
-                                        x="148"
-                                        y="89"
-                                        width="148"
-                                        height="19"
-                                        rx="9.5"
-                                        fill="#14532d"
-                                        fillOpacity="0.14"
-                                        stroke="#14532d"
-                                        strokeWidth="1"
-                                      />
-                                      <text
-                                        x="222"
-                                        y="101.5"
-                                        textAnchor="middle"
-                                        fontSize="8.2"
-                                        fontWeight="bold"
-                                        fill="#14532d"
-                                      >
-                                        ALUR UTUH · PUNCAK KUAT ✓
-                                      </text>
-                                    </g>
-                                  </>
-                                )}
-
-                                {PLOT_MOUNTAIN_COORDS.map((coord, idx) => {
-                                  const beat = BOLA_WAKTU_PLOT_BEATS[idx];
-                                  const isSolved =
-                                    beat !== undefined &&
-                                    state.plotPlacedIds[idx] === beat.id;
-                                  const isNextTarget =
-                                    state.plotPlacedIds.length === idx;
-                                  const isRemovedPeak = isBrokenSim && coord.order === 4;
-
-                                  return (
-                                    <g key={coord.order}>
-                                      <circle
-                                        cx={coord.x}
-                                        cy={coord.y}
-                                        r={
-                                          isRemovedPeak
-                                            ? 8.5
-                                            : isNextTarget
-                                              ? 9
-                                              : 7.5
-                                        }
-                                        fill={
-                                          isRemovedPeak
-                                            ? "#fee2e2"
-                                            : isIntactSim && coord.order === 4
-                                              ? "#14532d"
-                                              : isSolved
-                                                ? "#14532d"
-                                                : isNextTarget
-                                                  ? "#4a2f15"
-                                                  : "#d9c39a"
-                                        }
-                                        stroke={
-                                          isRemovedPeak ? "#991b1b" : "#2b1a0c"
-                                        }
-                                        strokeWidth={isRemovedPeak ? "1.8" : "1.5"}
-                                        strokeDasharray={
-                                          isRemovedPeak ? "2 2" : undefined
-                                        }
-                                      />
-                                      <text
-                                        x={coord.x}
-                                        y={coord.y + 3}
-                                        textAnchor="middle"
-                                        fontSize="8.5"
-                                        fontWeight="bold"
-                                        fill={
-                                          isRemovedPeak
-                                            ? "#991b1b"
-                                            : isSolved ||
-                                                isNextTarget ||
-                                                (isIntactSim && coord.order === 4)
-                                              ? "#fdf6e7"
-                                              : "#2b1a0c"
-                                        }
-                                      >
-                                        {isRemovedPeak ? "X" : coord.order}
-                                      </text>
-                                      <text
-                                        x={coord.x}
-                                        y={
-                                          coord.order === 4
-                                            ? coord.y - 18
-                                            : coord.y + 21
-                                        }
-                                        textAnchor="middle"
-                                        fontSize="8.2"
-                                        fontWeight="bold"
-                                        fill={
-                                          isRemovedPeak
-                                            ? "#991b1b"
-                                            : isSolved
-                                              ? "#14532d"
-                                              : "#3a2512"
-                                        }
-                                      >
-                                        {isRemovedPeak
-                                          ? "Puncak Hilang!"
-                                          : coord.shortName}
-                                      </text>
-                                    </g>
-                                  );
-                                })}
-                              </svg>
-                            );
-                          })()}
-
-                          {climaxWarningMessage && (
-                            <p
-                              className={`mt-1.5 rounded-r border-l-2 px-2 py-1 text-[9.5px] leading-snug font-semibold ${
-                                climaxSimMode === "utuh"
-                                  ? "border-[#14532d] bg-[#14532d]/10 text-[#14532d]"
-                                  : "border-[#7f1d1d] bg-[#7f1d1d]/10 text-[#5a1818]"
-                              }`}
-                            >
-                              {climaxWarningMessage}
+                        <div className="space-y-2 font-serif text-[#2b1a0c]">
+                          <div>
+                            <h2 className="parchment-contour-warp text-xs leading-snug font-bold text-[#2b1a0c] sm:text-sm">
+                              Kisah Contoh: &ldquo;Bola-Bola Waktu&rdquo;
+                            </h2>
+                            <p className="mt-0.5 text-[10.5px] leading-relaxed text-[#3a2512] sm:text-[11px]">
+                              Petunjuk: Klik <strong>3 tombol waktu</strong> di
+                              bawah secara berurutan untuk melihat bagaimana kisah
+                              Ivan berjalan dari pagi hari sampai melompat ke
+                              tahun 2022!
                             </p>
-                          )}
-                        </div>
+                          </div>
 
-                        {/* Interactive Plot Beat Ordering */}
-                        <div className="border-b border-[#5c3d1e]/30 pb-2">
-                          <p className="text-[10px] font-bold text-[#2b1a0c]">
-                            {isPlotComplete
-                              ? "Hebat! Semua 5 kejadian Gunung Alur sudah urut!"
-                              : `Misi A: Klik kalimat kejadian untuk mengisi titik ke-${plotCorrectCount + 1} (${BOLA_WAKTU_PLOT_BEATS[plotCorrectCount]?.stageLabel ?? "Selesai"}):`}
-                          </p>
-
-                          <div className="mt-1 space-y-1">
-                            {BOLA_WAKTU_DISPLAY_ORDER_IDS.map((beatId) => {
-                              const beat = BOLA_WAKTU_PLOT_BEATS.find(
-                                (item) => item.id === beatId
-                              );
-                              if (!beat) return null;
-                              const placedIndex = state.plotPlacedIds.indexOf(
-                                beat.id
-                              );
-                              const isPlaced = placedIndex !== -1;
-
+                          {/* 3 Time Orb Selector Links on Parchment */}
+                          <div className="grid grid-cols-3 gap-1.5 border-t border-b border-[#5c3d1e]/35 py-1.5">
+                            {TIME_ORB_DATA.map((orb) => {
+                              const isSelected = selectedOrb.id === orb.id;
+                              const isVisited = visitedOrbIds.includes(orb.id);
                               return (
                                 <button
-                                  key={beat.id}
+                                  key={orb.id}
                                   type="button"
-                                  onClick={() =>
-                                    handlePlaceNextPlotBeat(beat.id)
-                                  }
-                                  className={`block w-full cursor-pointer border-b border-[#5c3d1e]/25 px-1.5 py-1 text-left font-serif text-[10px] leading-snug transition ${
-                                    isPlaced
-                                      ? "bg-[#14532d]/15 font-bold text-[#14532d]"
-                                      : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
-                                  }`}
+                                  onClick={() => {
+                                    playChime();
+                                    setSelectedOrbId(orb.id);
+                                    setVisitedOrbIds((prev) =>
+                                      prev.includes(orb.id) ? prev : [...prev, orb.id]
+                                    );
+                                  }}
+                                  className={`cursor-pointer border-b-2 px-1.5 py-1 text-left font-serif transition ${isSelected
+                                    ? "border-[#2b1a0c] bg-[#5c3d1e]/15 font-bold text-[#1f1207]"
+                                    : "border-transparent text-[#5c3d1e] hover:border-[#5c3d1e]/40 hover:text-[#2b1a0c]"
+                                    }`}
                                 >
-                                  {isPlaced
-                                    ? `[✓ Titik ${placedIndex + 1}] `
-                                    : "○ "}
-                                  {beat.summary}
+                                  <span className="flex items-center justify-between gap-1 text-[9.5px] leading-tight font-bold sm:text-[10px]">
+                                    <span>{orb.eraLabel}</span>
+                                    {isVisited && (
+                                      <span className="text-[#14532d]" aria-label="Sudah dibaca">
+                                        ✓
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="mt-0.5 block truncate text-[8.5px] text-[#6b4826] sm:text-[9px]">
+                                    {orb.location}
+                                  </span>
                                 </button>
                               );
                             })}
                           </div>
+
+                          {/* Active Time Orb Detail */}
+                          <div className="border-b border-[#5c3d1e]/30 pb-2">
+                            <div className="flex items-center justify-between text-[10px] font-bold text-[#4a2f15] uppercase">
+                              <span>{selectedOrb.eraLabel}</span>
+                              <span className="italic">
+                                {selectedOrb.location}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[10.5px] leading-relaxed text-[#2b1a0c] sm:text-[11px]">
+                              {selectedOrb.summary}
+                            </p>
+                            <p className="mt-1 text-[10px] leading-snug text-[#4a2f15] italic">
+                              <strong>Bagian Alur:</strong>{" "}
+                              {selectedOrb.evidenceFocus}
+                            </p>
+                          </div>
+
+                          {/* Ringkasan Struktur Alur Cerita Fantasi */}
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
+                              Urutan Jalan Cerita (Alur) yang Seru:
+                            </p>
+                            <p className="text-[10px] leading-relaxed text-[#3a2512] sm:text-[10.5px]">
+                              Cerita yang bagus berjalan naik seperti mendaki
+                              gunung:{" "}
+                              <strong>1. Awal Cerita (Orientasi)</strong> -&gt;{" "}
+                              <strong>2. Muncul Masalah</strong> -&gt;{" "}
+                              <strong>3. Masalah Membesar (Komplikasi)</strong>{" "}
+                              -&gt; <strong>4. Puncak Masalah (Klimaks)</strong>{" "}
+                              -&gt; <strong>5. Akhir Cerita (Resolusi)</strong>.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
+                        <button
+                          type="button"
+                          onClick={handleOpenIntroSpread}
+                          className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
+                        >
+                          &lt;- Pembuka Pustaka
+                        </button>
+                        <span className="font-semibold">Halaman 1</span>
+                      </div>
+                    </div>
+
+                    {/* RIGHT PAGE (HALAMAN 2): GUNUNG ALUR INTERAKTIF & AMANAT */}
+                    <div style={get2dPageStyle("right")} className={page2dContainerClass}>
+                      <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
+                        <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-[#5c3d1e]/35 pb-1">
+                          <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
+                            HALAMAN 2 · TANTANGAN SEGEL 1
+                          </span>
+                          <span className="shrink-0 whitespace-nowrap font-serif text-[9px] font-bold text-[#14532d] sm:text-[9.5px]">
+                            {state.sealAlurUnlocked
+                              ? "Segel 1 Selesai ✓"
+                              : `Alur ${plotCorrectCount}/5 · Uji ${state.climaxSimulationTested ? "✓" : "○"} · Pesan ${isAmanatDone ? "✓" : "○"}`}
+                          </span>
                         </div>
 
-                        {/* Uji Amanat & Refleksi */}
-                        <div className="space-y-1.5">
-                          <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            2. Misi B: Pilih Pesan Kebaikan (Amanat) Kisah Ivan:
-                          </span>
-                          {BOLA_WAKTU_AMANAT_OPTIONS.map((opt) => {
-                            const isChosen =
-                              state.selectedAmanatId === opt.id;
-                            return (
-                              <div key={opt.id} className="border-b border-[#5c3d1e]/25 pb-0.5">
+                        <div className="space-y-2 font-serif text-[#2b1a0c]">
+                          {/* Live 1-Line Quest Prompt (Guided Next Action for 7th Graders) */}
+                          {state.sealAlurUnlocked ? (
+                            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-[#14532d]/55 bg-[#14532d]/12 px-2 py-1.5 text-[10px] font-bold text-[#14532d]">
+                              <span>Hebat! Segel 1 (Alur &amp; Pesan) Terbuka!</span>
+                              <button
+                                type="button"
+                                onClick={() => switchToChapter("watak")}
+                                className="cursor-pointer rounded-full bg-[#14532d] px-2.5 py-0.5 text-[9.5px] font-bold text-[#fdf6e7] hover:bg-emerald-950"
+                              >
+                                Lanjut Misi 2 -&gt;
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="rounded border border-[#5c3d1e]/40 bg-[#5c3d1e]/10 px-2 py-1 text-[9.5px] leading-snug text-[#2b1a0c]">
+                              <strong className="text-[#4a2f15]">Misi Sekarang:</strong>{" "}
+                              {!isPlotComplete
+                                ? `Klik kejadian ke-${plotCorrectCount + 1} pada Misi A di bawah (${plotCorrectCount}/5).`
+                                : !state.climaxSimulationTested
+                                  ? 'Klik tombol merah "Hapus Puncak!" di Gunung Alur untuk melihat efek cerita tanpa klimaks!'
+                                  : "Pilih 1 Pesan Kebaikan (Amanat) yang paling tepat di Misi B bawah!"}
+                            </div>
+                          )}
+
+                          {/* Interactive Hand-Drawn Sepia Plot Mountain SVG (Collision-Free Coordinates) */}
+                          <div className="border-b border-[#5c3d1e]/30 pb-2">
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <span className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
+                                1. Gunung Alur ({plotCorrectCount}/5)
+                              </span>
+                              <div className="flex flex-wrap items-center gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => handleSelectAmanat(opt.id)}
-                                  className={`block w-full cursor-pointer px-1.5 py-1 text-left font-serif text-[10px] leading-snug transition ${
-                                    isChosen
+                                  onClick={() =>
+                                    handleSimulateClimaxResolution(
+                                      "tanpa-klimaks"
+                                    )
+                                  }
+                                  className={`cursor-pointer rounded px-2 py-0.5 text-[9px] leading-tight font-bold transition ${climaxSimMode === "tanpa-klimaks"
+                                    ? "border border-[#7f1d1d] bg-[#7f1d1d] text-[#fdf6e7]"
+                                    : "border border-[#7f1d1d]/60 bg-[#7f1d1d]/10 text-[#7f1d1d] hover:bg-[#7f1d1d]/20"
+                                    }`}
+                                >
+                                  {state.climaxSimulationTested ? "✓ " : ""}
+                                  Hapus Puncak!
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleSimulateClimaxResolution("utuh")
+                                  }
+                                  className={`cursor-pointer rounded px-2 py-0.5 text-[9px] leading-tight font-bold transition ${climaxSimMode === "utuh"
+                                    ? "border border-[#14532d] bg-[#14532d] text-[#fdf6e7]"
+                                    : "border border-[#14532d]/60 bg-[#14532d]/10 text-[#14532d] hover:bg-[#14532d]/20"
+                                    }`}
+                                >
+                                  Alur Utuh
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleResetPlotMountain}
+                                  className="cursor-pointer px-1 text-[9px] font-semibold text-[#5c3d1e] underline hover:text-black"
+                                >
+                                  Ulangi
+                                </button>
+                              </div>
+                            </div>
+
+                            <p className="mt-1 text-[9.5px] leading-snug text-[#4a2f15]">
+                              Grafik ini menunjukkan <strong>naik-turunnya ketegangan cerita</strong> dari 1 (Awal) mendaki ke puncak 4 (Klimaks) lalu turun ke 5 (Akhir). Klik <strong>&ldquo;Hapus Puncak!&rdquo;</strong> untuk melihat efek alur yang bolong!
+                            </p>
+
+                            {(() => {
+                              const isBrokenSim = climaxSimMode === "tanpa-klimaks";
+                              const isIntactSim = climaxSimMode === "utuh";
+                              const fullPoints = PLOT_MOUNTAIN_COORDS.map(
+                                (c) => `${c.x},${c.y}`
+                              ).join(" ");
+                              const brokenPoints = [
+                                PLOT_MOUNTAIN_COORDS[0]!,
+                                PLOT_MOUNTAIN_COORDS[1]!,
+                                PLOT_MOUNTAIN_COORDS[2]!,
+                                PLOT_MOUNTAIN_COORDS[4]!,
+                              ]
+                                .map((c) => `${c.x},${c.y}`)
+                                .join(" ");
+                              const solvedProgressPoints =
+                                plotCorrectCount >= 2
+                                  ? PLOT_MOUNTAIN_COORDS.slice(0, plotCorrectCount)
+                                    .map((c) => `${c.x},${c.y}`)
+                                    .join(" ")
+                                  : null;
+
+                              return (
+                                <svg
+                                  viewBox="0 0 360 116"
+                                  className="parchment-contour-warp mt-1.5 h-[88px] sm:h-[96px] w-full overflow-visible"
+                                  aria-label="Diagram Gunung Alur Cerita Fantasi"
+                                >
+                                  {/* Baseline dashed mountain contour (ghosted when peak removed) */}
+                                  <polyline
+                                    fill="none"
+                                    stroke={
+                                      isBrokenSim
+                                        ? "#5c3d1e45"
+                                        : isIntactSim
+                                          ? "#14532d"
+                                          : "#5c3d1e"
+                                    }
+                                    strokeWidth={isIntactSim ? "2.6" : "2"}
+                                    strokeDasharray={isIntactSim ? undefined : "4 3"}
+                                    points={fullPoints}
+                                  />
+
+                                  {/* Solved progression solid emerald path when placing beats */}
+                                  {!isBrokenSim && !isIntactSim && solvedProgressPoints && (
+                                    <polyline
+                                      fill="none"
+                                      stroke="#14532d"
+                                      strokeWidth="2.8"
+                                      points={solvedProgressPoints}
+                                    />
+                                  )}
+
+                                  {/* Collapsed red flatline skipping Peak #4 during tanpa-klimaks simulation */}
+                                  {isBrokenSim && (
+                                    <>
+                                      <polyline
+                                        fill="none"
+                                        stroke="#991b1b"
+                                        strokeWidth="2.8"
+                                        strokeDasharray="6 3"
+                                        points={brokenPoints}
+                                      />
+                                      <g>
+                                        <rect
+                                          x="148"
+                                          y="89"
+                                          width="148"
+                                          height="19"
+                                          rx="9.5"
+                                          fill="#991b1b"
+                                          fillOpacity="0.14"
+                                          stroke="#991b1b"
+                                          strokeWidth="1"
+                                        />
+                                        <text
+                                          x="222"
+                                          y="101.5"
+                                          textAnchor="middle"
+                                          fontSize="8.2"
+                                          fontWeight="bold"
+                                          fill="#7f1d1d"
+                                        >
+                                          ALUR BOLONG (DATAR!)
+                                        </text>
+                                      </g>
+                                    </>
+                                  )}
+
+                                  {/* Intact peak highlight ring & collision-free badge in valley */}
+                                  {isIntactSim && (
+                                    <>
+                                      <circle
+                                        cx={PLOT_MOUNTAIN_COORDS[3]!.x}
+                                        cy={PLOT_MOUNTAIN_COORDS[3]!.y}
+                                        r="12"
+                                        fill="#14532d"
+                                        fillOpacity="0.15"
+                                        stroke="#14532d"
+                                        strokeWidth="1.5"
+                                      />
+                                      <g>
+                                        <rect
+                                          x="148"
+                                          y="89"
+                                          width="148"
+                                          height="19"
+                                          rx="9.5"
+                                          fill="#14532d"
+                                          fillOpacity="0.14"
+                                          stroke="#14532d"
+                                          strokeWidth="1"
+                                        />
+                                        <text
+                                          x="222"
+                                          y="101.5"
+                                          textAnchor="middle"
+                                          fontSize="8.2"
+                                          fontWeight="bold"
+                                          fill="#14532d"
+                                        >
+                                          ALUR UTUH · PUNCAK KUAT ✓
+                                        </text>
+                                      </g>
+                                    </>
+                                  )}
+
+                                  {PLOT_MOUNTAIN_COORDS.map((coord, idx) => {
+                                    const beat = BOLA_WAKTU_PLOT_BEATS[idx];
+                                    const isSolved =
+                                      beat !== undefined &&
+                                      state.plotPlacedIds[idx] === beat.id;
+                                    const isNextTarget =
+                                      state.plotPlacedIds.length === idx;
+                                    const isRemovedPeak = isBrokenSim && coord.order === 4;
+
+                                    return (
+                                      <g key={coord.order}>
+                                        <circle
+                                          cx={coord.x}
+                                          cy={coord.y}
+                                          r={
+                                            isRemovedPeak
+                                              ? 8.5
+                                              : isNextTarget
+                                                ? 9
+                                                : 7.5
+                                          }
+                                          fill={
+                                            isRemovedPeak
+                                              ? "#fee2e2"
+                                              : isIntactSim && coord.order === 4
+                                                ? "#14532d"
+                                                : isSolved
+                                                  ? "#14532d"
+                                                  : isNextTarget
+                                                    ? "#4a2f15"
+                                                    : "#d9c39a"
+                                          }
+                                          stroke={
+                                            isRemovedPeak ? "#991b1b" : "#2b1a0c"
+                                          }
+                                          strokeWidth={isRemovedPeak ? "1.8" : "1.5"}
+                                          strokeDasharray={
+                                            isRemovedPeak ? "2 2" : undefined
+                                          }
+                                        />
+                                        <text
+                                          x={coord.x}
+                                          y={coord.y + 3}
+                                          textAnchor="middle"
+                                          fontSize="8.5"
+                                          fontWeight="bold"
+                                          fill={
+                                            isRemovedPeak
+                                              ? "#991b1b"
+                                              : isSolved ||
+                                                isNextTarget ||
+                                                (isIntactSim && coord.order === 4)
+                                                ? "#fdf6e7"
+                                                : "#2b1a0c"
+                                          }
+                                        >
+                                          {isRemovedPeak ? "X" : coord.order}
+                                        </text>
+                                        <text
+                                          x={coord.x}
+                                          y={
+                                            coord.order === 4
+                                              ? coord.y - 18
+                                              : coord.y + 21
+                                          }
+                                          textAnchor="middle"
+                                          fontSize="8.2"
+                                          fontWeight="bold"
+                                          fill={
+                                            isRemovedPeak
+                                              ? "#991b1b"
+                                              : isSolved
+                                                ? "#14532d"
+                                                : "#3a2512"
+                                          }
+                                        >
+                                          {isRemovedPeak
+                                            ? "Puncak Hilang!"
+                                            : coord.shortName}
+                                        </text>
+                                      </g>
+                                    );
+                                  })}
+                                </svg>
+                              );
+                            })()}
+
+                            {climaxWarningMessage && (
+                              <p
+                                className={`mt-1.5 rounded-r border-l-2 px-2 py-1 text-[9.5px] leading-snug font-semibold ${climaxSimMode === "utuh"
+                                  ? "border-[#14532d] bg-[#14532d]/10 text-[#14532d]"
+                                  : "border-[#7f1d1d] bg-[#7f1d1d]/10 text-[#5a1818]"
+                                  }`}
+                              >
+                                {climaxWarningMessage}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Interactive Plot Beat Ordering */}
+                          <div className="border-b border-[#5c3d1e]/30 pb-2">
+                            <p className="text-[10px] font-bold text-[#2b1a0c]">
+                              {isPlotComplete
+                                ? "Hebat! Semua 5 kejadian Gunung Alur sudah urut!"
+                                : `Misi A: Klik kalimat kejadian untuk mengisi titik ke-${plotCorrectCount + 1} (${BOLA_WAKTU_PLOT_BEATS[plotCorrectCount]?.stageLabel ?? "Selesai"}):`}
+                            </p>
+
+                            <div className="mt-1 space-y-1">
+                              {BOLA_WAKTU_DISPLAY_ORDER_IDS.map((beatId) => {
+                                const beat = BOLA_WAKTU_PLOT_BEATS.find(
+                                  (item) => item.id === beatId
+                                );
+                                if (!beat) return null;
+                                const placedIndex = state.plotPlacedIds.indexOf(
+                                  beat.id
+                                );
+                                const isPlaced = placedIndex !== -1;
+
+                                return (
+                                  <button
+                                    key={beat.id}
+                                    type="button"
+                                    onClick={() =>
+                                      handlePlaceNextPlotBeat(beat.id)
+                                    }
+                                    className={`block w-full cursor-pointer border-b border-[#5c3d1e]/25 px-1.5 py-1 text-left font-serif text-[10px] leading-snug transition ${isPlaced
+                                      ? "bg-[#14532d]/15 font-bold text-[#14532d]"
+                                      : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
+                                      }`}
+                                  >
+                                    {isPlaced
+                                      ? `[✓ Titik ${placedIndex + 1}] `
+                                      : "○ "}
+                                    {beat.summary}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Uji Amanat & Refleksi */}
+                          <div className="space-y-1.5">
+                            <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
+                              2. Misi B: Pilih Pesan Kebaikan (Amanat) Kisah Ivan:
+                            </span>
+                            {BOLA_WAKTU_AMANAT_OPTIONS.map((opt) => {
+                              const isChosen =
+                                state.selectedAmanatId === opt.id;
+                              return (
+                                <div key={opt.id} className="border-b border-[#5c3d1e]/25 pb-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSelectAmanat(opt.id)}
+                                    className={`block w-full cursor-pointer px-1.5 py-1 text-left font-serif text-[10px] leading-snug transition ${isChosen
                                       ? opt.isCorrect
                                         ? "bg-[#14532d]/15 font-bold text-[#14532d]"
                                         : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
                                       : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
-                                  }`}
-                                >
-                                  {isChosen
-                                    ? opt.isCorrect
-                                      ? "[Tepat ✓] "
-                                      : "[Coba Lagi] "
-                                    : "○ "}
-                                  {opt.text}
-                                </button>
-                                {isChosen && (
-                                  <p
-                                    className={`px-1.5 pb-1 text-[9px] leading-snug italic ${
-                                      opt.isCorrect
+                                      }`}
+                                  >
+                                    {isChosen
+                                      ? opt.isCorrect
+                                        ? "[Tepat ✓] "
+                                        : "[Coba Lagi] "
+                                      : "○ "}
+                                    {opt.text}
+                                  </button>
+                                  {isChosen && (
+                                    <p
+                                      className={`px-1.5 pb-1 text-[9px] leading-snug italic ${opt.isCorrect
                                         ? "text-[#14532d]"
                                         : "text-[#7f1d1d]"
-                                    }`}
-                                  >
-                                    {opt.feedback}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
-
-                          <div className="pt-1.5">
-                            <label
-                              htmlFor="amanat-reflection-input"
-                              className="block text-[9.5px] font-bold tracking-wider text-[#4a2f15] uppercase"
-                            >
-                              Tulis Pesan Kebaikan Versimu Sendiri (Opsional):
-                            </label>
-                            <input
-                              id="amanat-reflection-input"
-                              type="text"
-                              value={state.customAmanatReflection}
-                              onChange={(e) =>
-                                handleCustomAmanatChange(e.target.value)
-                              }
-                              placeholder="Contoh: Aku ingin selalu bersyukur dan membantu orang tua..."
-                              className="parchment-pen-input mt-0.5 w-full px-1 py-1 font-serif text-[10.5px] italic placeholder:text-[#6b4826]/60"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
-                      <span className="font-semibold">Halaman 2</span>
-                      <button
-                        type="button"
-                        onClick={() => switchToChapter("watak")}
-                        className="cursor-pointer font-bold text-[#2b1a0c] underline decoration-[#5c3d1e]/50 underline-offset-2 transition hover:text-black"
-                      >
-                        Lanjut Misi 2: Tokoh &amp; Indera -&gt;
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* ============================================================= */}
-              {/* SPREAD 2: BABAK II (PENOKOHAN, 4 KANTONG EMAS & 5 INDERA)     */}
-              {/* ============================================================= */}
-              {!isShowingIntroSpread && activeChapter === "watak" && (
-                <>
-                  {/* LEFT PAGE (HALAMAN 3): TOKOH, 4 KANTONG EMAS & 5 INDERA */}
-                  <div style={get2dPageStyle("left")} className={page2dContainerClass}>
-                    <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-1 border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
-                          HALAMAN 3 · {CHAPTER_ORDER[1]!.tpTag}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleToggleMaoEmasAudio}
-                          className="cursor-pointer font-serif text-[9.5px] font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950"
-                        >
-                          {isNarrating
-                            ? "[Matikan Suara]"
-                            : "[Dengarkan Kisah Mao & Emas]"}
-                        </button>
-                      </div>
-
-                      {/* Sub-tab Links on Parchment */}
-                      <div className="mb-2 grid grid-cols-3 gap-1 border-b border-[#5c3d1e]/35 pb-1">
-                        <button
-                          type="button"
-                          onClick={() => setWatakLeftTab("mao")}
-                          className={`cursor-pointer border-b-2 py-1 font-serif text-[10px] font-bold transition ${
-                            watakLeftTab === "mao"
-                              ? "border-[#2b1a0c] text-[#1f1207]"
-                              : "border-transparent text-[#6b4826] hover:text-[#2b1a0c]"
-                          }`}
-                        >
-                          1. Sifat Tokoh
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setWatakLeftTab("emas")}
-                          className={`cursor-pointer border-b-2 py-1 font-serif text-[10px] font-bold transition ${
-                            watakLeftTab === "emas"
-                              ? "border-[#2b1a0c] text-[#1f1207]"
-                              : "border-transparent text-[#6b4826] hover:text-[#2b1a0c]"
-                          }`}
-                        >
-                          2. 4 Kantong Emas ({state.pouchOrderIds.length}/4)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setWatakLeftTab("indera")}
-                          className={`cursor-pointer border-b-2 py-1 font-serif text-[10px] font-bold transition ${
-                            watakLeftTab === "indera"
-                              ? "border-[#2b1a0c] text-[#1f1207]"
-                              : "border-transparent text-[#6b4826] hover:text-[#2b1a0c]"
-                          }`}
-                        >
-                          3. Panca Indera
-                        </button>
-                      </div>
-
-                      {watakLeftTab === "mao" && (
-                        <div className="space-y-2 font-serif text-[#2b1a0c]">
-                          <p className="text-[10.5px] leading-relaxed text-[#3a2512]">
-                            Di cerita yang seru, sifat tokoh{" "}
-                            <strong>
-                              ditunjukkan lewat perbuatan dan ucapannya
-                            </strong>
-                            , bukan cuma disebut &ldquo;ia anak baik&rdquo;.
-                            Yuk kenali 3 tokoh komik{" "}
-                            <strong>&ldquo;Sihir Unik Mao&rdquo;</strong>:
-                          </p>
-                          <div className="border-b border-[#5c3d1e]/30 pb-1.5">
-                            <p className="text-[10px] font-bold text-[#4a2f15]">
-                              1. Mao (Tokoh Utama / Protagonis)
-                            </p>
-                            <p className="mt-0.5 text-[10px] leading-snug text-[#2b1a0c]">
-                              Sering gagal mantra terbang, tapi rajin berlatih
-                              sampai bisa menyihir makanan manis yang
-                              mendamaikan teman-temannya.
-                            </p>
-                          </div>
-                          <div className="border-b border-[#5c3d1e]/30 pb-1.5">
-                            <p className="text-[10px] font-bold text-[#4a2f15]">
-                              2. Piru (Sahabat Baik)
-                            </p>
-                            <p className="mt-0.5 text-[10px] leading-snug text-[#2b1a0c]">
-                              Setia menemani Mao berlatih dan selalu menyemangati
-                              Mao saat diejek di kelas.
-                            </p>
-                          </div>
-                          <div className="border-b border-[#5c3d1e]/30 pb-1.5">
-                            <p className="text-[10px] font-bold text-[#4a2f15]">
-                              3. Yari (Tokoh Lawan / Antagonis)
-                            </p>
-                            <p className="mt-0.5 text-[10px] leading-snug text-[#2b1a0c]">
-                              Pintar sihir dasar tapi sombong dan suka mengejek
-                              Mao di depan peri lain.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {watakLeftTab === "emas" && (
-                        <div className="space-y-2 font-serif text-[#2b1a0c]">
-                          <div className="flex items-center justify-between">
-                            <p className="text-[10.5px] font-bold text-[#2b1a0c]">
-                              Misi Kantong Ajaib ({state.pouchOrderIds.length}/4):
-                            </p>
-                            <button
-                              type="button"
-                              onClick={handleResetPouchOrder}
-                              className="cursor-pointer text-[9.5px] font-bold text-[#5c3d1e] underline hover:text-black"
-                            >
-                              Ulangi
-                            </button>
-                          </div>
-                          <p className="text-[10px] leading-relaxed text-[#3a2512]">
-                            Petunjuk: Klik keempat kantong ajaib Emas
-                            secara berurutan dari bahaya awal sampai Raksasa
-                            kalah di puncak klimaks!
-                          </p>
-                          {/* Meteran Eskalasi Ketegangan Konflik (Visual Naik 0% -> 35% -> 60% -> 85% -> 100%) */}
-                          {(() => {
-                            const tensionLevels = [0, 35, 60, 85, 100];
-                            const pct = tensionLevels[state.pouchOrderIds.length] ?? 0;
-                            return (
-                              <div className="space-y-1 rounded border border-[#5c3d1e]/25 bg-[#5c3d1e]/6 px-2 py-1.5">
-                                <div className="flex flex-wrap items-center justify-between gap-1 text-[9.5px] font-bold">
-                                  <span className="text-[#4a2f15]">
-                                    Meteran Ketegangan Kejaran Raksasa:
-                                  </span>
-                                  <span
-                                    className={
-                                      pct === 100
-                                        ? "text-[#14532d]"
-                                        : pct >= 60
-                                          ? "text-[#7f1d1d]"
-                                          : "text-[#4a2f15]"
-                                    }
-                                  >
-                                    {pct}% {pct === 100 ? "(Klimaks Tercapai ✓)" : ""}
-                                  </span>
+                                        }`}
+                                    >
+                                      {opt.feedback}
+                                    </p>
+                                  )}
                                 </div>
-                                <div className="h-2 w-full overflow-hidden rounded-full border border-[#5c3d1e]/40 bg-[#5c3d1e]/15">
-                                  <div
-                                    style={{ width: `${pct}%` }}
-                                    className={`h-full transition-all duration-300 ${
-                                      pct === 100
+                              );
+                            })}
+
+                            <div className="pt-1.5">
+                              <label
+                                htmlFor="amanat-reflection-input"
+                                className="block text-[9.5px] font-bold tracking-wider text-[#4a2f15] uppercase"
+                              >
+                                Tulis Pesan Kebaikan Versimu Sendiri (Opsional):
+                              </label>
+                              <input
+                                id="amanat-reflection-input"
+                                type="text"
+                                value={state.customAmanatReflection}
+                                onChange={(e) =>
+                                  handleCustomAmanatChange(e.target.value)
+                                }
+                                placeholder="Contoh: Aku ingin selalu bersyukur dan membantu orang tua..."
+                                className="parchment-pen-input mt-0.5 w-full px-1 py-1 font-serif text-[10.5px] italic placeholder:text-[#6b4826]/60"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
+                        <span className="font-semibold">Halaman 2</span>
+                        <button
+                          type="button"
+                          onClick={() => switchToChapter("watak")}
+                          className="cursor-pointer font-bold text-[#2b1a0c] underline decoration-[#5c3d1e]/50 underline-offset-2 transition hover:text-black"
+                        >
+                          Lanjut Misi 2: Tokoh &amp; Indra -&gt;
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ============================================================= */}
+                {/* SPREAD 2: BABAK II (PENOKOHAN, 4 KANTONG EMAS & 5 Indra)     */}
+                {/* ============================================================= */}
+                {!isShowingIntroSpread && activeChapter === "watak" && (
+                  <>
+                    {/* LEFT PAGE (HALAMAN 3): TOKOH, 4 KANTONG EMAS & 5 Indra */}
+                    <div style={get2dPageStyle("left")} className={page2dContainerClass}>
+                      <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
+                        <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-1 border-b border-[#5c3d1e]/35 pb-1">
+                          <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
+                            HALAMAN 3 · {CHAPTER_ORDER[1]!.tpTag}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleToggleMaoEmasAudio}
+                            className="cursor-pointer font-serif text-[9.5px] font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950"
+                          >
+                            {activeNarrationTrack === "mao-emas"
+                              ? "[Matikan Suara]"
+                              : "[Dengarkan Kisah Mao & Emas]"}
+                          </button>
+                        </div>
+
+                        {/* Sub-tab Links on Parchment */}
+                        <div className="mb-2 grid grid-cols-3 gap-1 border-b border-[#5c3d1e]/35 pb-1">
+                          <button
+                            type="button"
+                            onClick={() => setWatakLeftTab("mao")}
+                            className={`cursor-pointer border-b-2 py-1 font-serif text-[10px] font-bold transition ${watakLeftTab === "mao"
+                              ? "border-[#2b1a0c] text-[#1f1207]"
+                              : "border-transparent text-[#6b4826] hover:text-[#2b1a0c]"
+                              }`}
+                          >
+                            1. Sifat Tokoh
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWatakLeftTab("emas")}
+                            className={`cursor-pointer border-b-2 py-1 font-serif text-[10px] font-bold transition ${watakLeftTab === "emas"
+                              ? "border-[#2b1a0c] text-[#1f1207]"
+                              : "border-transparent text-[#6b4826] hover:text-[#2b1a0c]"
+                              }`}
+                          >
+                            2. 4 Kantong Emas ({state.pouchOrderIds.length}/4)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWatakLeftTab("Indra")}
+                            className={`cursor-pointer border-b-2 py-1 font-serif text-[10px] font-bold transition ${watakLeftTab === "Indra"
+                              ? "border-[#2b1a0c] text-[#1f1207]"
+                              : "border-transparent text-[#6b4826] hover:text-[#2b1a0c]"
+                              }`}
+                          >
+                            3. Panca Indra
+                          </button>
+                        </div>
+
+                        {watakLeftTab === "mao" && (
+                          <div className="space-y-2 font-serif text-[#2b1a0c]">
+                            <p className="text-[10.5px] leading-relaxed text-[#3a2512]">
+                              Di cerita yang seru, sifat tokoh{" "}
+                              <strong>
+                                ditunjukkan lewat perbuatan dan ucapannya
+                              </strong>
+                              , bukan cuma disebut &ldquo;ia anak baik&rdquo;.
+                              Yuk kenali 3 tokoh komik{" "}
+                              <strong>&ldquo;Sihir Unik Mao&rdquo;</strong>:
+                            </p>
+                            <div className="border-b border-[#5c3d1e]/30 pb-1.5">
+                              <p className="text-[10px] font-bold text-[#4a2f15]">
+                                1. Mao (Tokoh Utama / Protagonis)
+                              </p>
+                              <p className="mt-0.5 text-[10px] leading-snug text-[#2b1a0c]">
+                                Sering lupa dan gagal merapal mantra sihir,
+                                tetapi rajin berlatih sampai bisa menyihir
+                                makanan manis yang mendamaikan teman-temannya.
+                              </p>
+                            </div>
+                            <div className="border-b border-[#5c3d1e]/30 pb-1.5">
+                              <p className="text-[10px] font-bold text-[#4a2f15]">
+                                2. Piru (Sahabat Baik)
+                              </p>
+                              <p className="mt-0.5 text-[10px] leading-snug text-[#2b1a0c]">
+                                Setia menemani Mao berlatih dan selalu menyemangati
+                                Mao saat diejek di kelas.
+                              </p>
+                            </div>
+                            <div className="border-b border-[#5c3d1e]/30 pb-1.5">
+                              <p className="text-[10px] font-bold text-[#4a2f15]">
+                                3. Yari (Tokoh Lawan / Antagonis)
+                              </p>
+                              <p className="mt-0.5 text-[10px] leading-snug text-[#2b1a0c]">
+                                Pintar sihir dasar tapi sombong dan suka mengejek
+                                Mao di depan peri lain.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {watakLeftTab === "emas" && (
+                          <div className="space-y-2 font-serif text-[#2b1a0c]">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10.5px] font-bold text-[#2b1a0c]">
+                                Misi Kantong Ajaib ({state.pouchOrderIds.length}/4):
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleResetPouchOrder}
+                                className="cursor-pointer text-[9.5px] font-bold text-[#5c3d1e] underline hover:text-black"
+                              >
+                                Ulangi
+                              </button>
+                            </div>
+                            <p className="text-[10px] leading-relaxed text-[#3a2512]">
+                              Petunjuk: Klik keempat kantong ajaib Emas
+                              secara berurutan dari bahaya awal sampai Raksasa
+                              kalah di puncak klimaks!
+                            </p>
+                            {/* Meteran Eskalasi Ketegangan Konflik (Visual Naik 0% -> 35% -> 60% -> 85% -> 100%) */}
+                            {(() => {
+                              const tensionLevels = [0, 35, 60, 85, 100];
+                              const pct = tensionLevels[state.pouchOrderIds.length] ?? 0;
+                              return (
+                                <div className="space-y-1 rounded border border-[#5c3d1e]/25 bg-[#5c3d1e]/6 px-2 py-1.5">
+                                  <div className="flex flex-wrap items-center justify-between gap-1 text-[9.5px] font-bold">
+                                    <span className="text-[#4a2f15]">
+                                      Meteran Ketegangan Kejaran Raksasa:
+                                    </span>
+                                    <span
+                                      className={
+                                        pct === 100
+                                          ? "text-[#14532d]"
+                                          : pct >= 60
+                                            ? "text-[#7f1d1d]"
+                                            : "text-[#4a2f15]"
+                                      }
+                                    >
+                                      {pct}% {pct === 100 ? "(Klimaks Tercapai ✓)" : ""}
+                                    </span>
+                                  </div>
+                                  <div className="h-2 w-full overflow-hidden rounded-full border border-[#5c3d1e]/40 bg-[#5c3d1e]/15">
+                                    <div
+                                      style={{ width: `${pct}%` }}
+                                      className={`h-full transition-all duration-300 ${pct === 100
                                         ? "bg-[#14532d]"
                                         : pct >= 60
                                           ? "bg-[#991b1b]"
                                           : "bg-[#854d0e]"
-                                    }`}
-                                  />
+                                        }`}
+                                    />
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })()}
-                          <div className="space-y-1.5 pt-0.5">
-                            {EMAS_POUCH_DISPLAY_ORDER_IDS.map((pouchId) => {
-                              const step = EMAS_POUCH_STEPS.find(
-                                (item) => item.pouchId === pouchId
                               );
-                              if (!step) return null;
-                              const isUnlocked = state.pouchOrderIds.includes(
-                                step.pouchId
-                              );
-                              return (
-                                <button
-                                  key={step.pouchId}
-                                  type="button"
-                                  onClick={() =>
-                                    handleAppendPouchStep(step.pouchId)
-                                  }
-                                  className={`block w-full cursor-pointer border-b border-[#5c3d1e]/30 px-1.5 py-1.5 text-left font-serif transition ${
-                                    isUnlocked
+                            })()}
+                            <div className="space-y-1.5 pt-0.5">
+                              {EMAS_POUCH_DISPLAY_ORDER_IDS.map((pouchId) => {
+                                const step = EMAS_POUCH_STEPS.find(
+                                  (item) => item.pouchId === pouchId
+                                );
+                                if (!step) return null;
+                                const isUnlocked = state.pouchOrderIds.includes(
+                                  step.pouchId
+                                );
+                                return (
+                                  <button
+                                    key={step.pouchId}
+                                    type="button"
+                                    onClick={() =>
+                                      handleAppendPouchStep(step.pouchId)
+                                    }
+                                    className={`block w-full cursor-pointer border-b border-[#5c3d1e]/30 px-1.5 py-1.5 text-left font-serif transition ${isUnlocked
                                       ? "bg-[#14532d]/15 text-[#14532d]"
                                       : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between text-[10.5px] font-bold">
-                                    <span>
-                                      {isUnlocked ? "[✓ Urut] " : "○ "}
-                                      {step.itemName}
-                                    </span>
-                                    <span className="text-[9.5px] italic">
-                                      {isUnlocked
-                                        ? `Urutan ${step.order}`
-                                        : "Pilih urutan"}
-                                    </span>
-                                  </div>
-                                  <p className="mt-0.5 text-[10px] leading-snug text-[#3a2512]">
-                                    {step.transformation}
-                                  </p>
-                                  {isUnlocked && (
-                                    <p className="mt-0.5 text-[9.5px] leading-snug font-semibold text-[#5a1818]">
-                                      {step.tensionLevel}
+                                      }`}
+                                  >
+                                    <div className="flex items-center justify-between text-[10.5px] font-bold">
+                                      <span>
+                                        {isUnlocked ? "[✓ Urut] " : "○ "}
+                                        {step.itemName}
+                                      </span>
+                                      <span className="text-[9.5px] italic">
+                                        {isUnlocked
+                                          ? `Urutan ${step.order}`
+                                          : "Pilih urutan"}
+                                      </span>
+                                    </div>
+                                    <p className="mt-0.5 text-[10px] leading-snug text-[#3a2512]">
+                                      {step.transformation}
                                     </p>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {watakLeftTab === "indera" && (
-                        <div className="space-y-1.5 font-serif text-[#2b1a0c]">
-                          <p className="text-[10.5px] leading-relaxed text-[#3a2512]">
-                            Bandingkan <strong>Kalimat Biasa</strong> dengan{" "}
-                            <strong>Kalimat Panca Indera</strong> yang bikin
-                            pembaca ikut merasakan suasananya:
-                          </p>
-                          {FIVE_SENSES_GUIDE.map((gem) => (
-                            <div
-                              key={gem.id}
-                              className="border-b border-[#5c3d1e]/30 pb-1.5"
-                            >
-                              <div className="flex items-center justify-between text-[10px] font-bold text-[#4a2f15]">
-                                <span>{gem.sense}</span>
-                                <span className="italic">
-                                  {gem.sceneContext}
-                                </span>
-                              </div>
-                              <p className="mt-0.5 text-[9.5px] text-[#6b4826]">
-                                Kalimat Biasa: &ldquo;{gem.weakExample}&rdquo;
-                              </p>
-                              <p className="mt-0.5 text-[10px] font-semibold text-[#14532d]">
-                                Kalimat Hidup: &ldquo;{gem.vividExample}
-                                &rdquo;
-                              </p>
+                                    {isUnlocked && (
+                                      <p className="mt-0.5 text-[9.5px] leading-snug font-semibold text-[#5a1818]">
+                                        {step.tensionLevel}
+                                      </p>
+                                    )}
+                                  </button>
+                                );
+                              })}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
-                      <button
-                        type="button"
-                        onClick={() => switchToChapter("alur")}
-                        className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
-                      >
-                        &lt;- Misi 1: Alur Cerita
-                      </button>
-                      <span className="font-semibold">Halaman 3</span>
-                    </div>
-                  </div>
-
-                  {/* RIGHT PAGE (HALAMAN 4): TANTANGAN BUKTI WATAK & CITRAAN INDERA */}
-                  <div style={get2dPageStyle("right")} className={page2dContainerClass}>
-                    <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
-                          HALAMAN 4 · TANTANGAN SEGEL 2
-                        </span>
-                        <span className="shrink-0 whitespace-nowrap font-serif text-[9px] font-bold text-[#14532d] sm:text-[9.5px]">
-                          {state.sealWatakUnlocked
-                            ? "Segel 2 Selesai ✓"
-                            : `Tokoh ${charDone ? "✓" : "○"} · Kantong ${state.pouchOrderIds.length}/4 · Indera ${sensoryDone ? "✓" : "○"}`}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2.5 font-serif text-[#2b1a0c]">
-                        {/* Live 1-Line Quest Prompt for Segel 2 */}
-                        {state.sealWatakUnlocked ? (
-                          <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-[#14532d]/55 bg-[#14532d]/12 px-2 py-1.5 text-[10px] font-bold text-[#14532d]">
-                            <span>Mantap! Segel 2 (Tokoh &amp; Indera) Terbuka!</span>
-                            <button
-                              type="button"
-                              onClick={() => switchToChapter("bahasa")}
-                              className="cursor-pointer rounded-full bg-[#14532d] px-2.5 py-0.5 text-[9.5px] font-bold text-[#fdf6e7] hover:bg-emerald-950"
-                            >
-                              Lanjut Misi 3 -&gt;
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="rounded border border-[#5c3d1e]/40 bg-[#5c3d1e]/10 px-2 py-1 text-[9.5px] leading-snug text-[#2b1a0c]">
-                            <strong className="text-[#4a2f15]">Misi Sekarang:</strong>{" "}
-                            {!charDone
-                              ? "Pilih bukti perbuatan yang cocok untuk sifat Mao & Yari di Bagian A."
-                              : !sensoryDone
-                                ? "Pilih 3 kalimat Panca Indera yang paling hidup di Bagian B."
-                                : `Tinggal 1 lagi! Urutkan 4 Kantong Emas (${state.pouchOrderIds.length}/4) di Halaman 3 (kiri)!`}
                           </div>
                         )}
 
-                        {/* Bagian A: Bukti Watak Tokoh */}
-                        <div className="space-y-1.5 border-b border-[#5c3d1e]/35 pb-2">
-                          <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            A. Misi Sifat Tokoh (Pilih Bukti Perbuatan/Ucapan):
-                          </span>
-                          {CHARACTER_EVIDENCE_CHALLENGES.map((chal) => {
-                            const selectedOptId =
-                              state.characterEvidenceAnswers[chal.id];
-                            return (
+                        {watakLeftTab === "Indra" && (
+                          <div className="space-y-1.5 font-serif text-[#2b1a0c]">
+                            <p className="text-[10.5px] leading-relaxed text-[#3a2512]">
+                              Bandingkan <strong>Kalimat Biasa</strong> dengan{" "}
+                              <strong>Kalimat Panca Indra</strong> yang bikin
+                              pembaca ikut merasakan suasananya:
+                            </p>
+                            {FIVE_SENSES_GUIDE.map((gem) => (
                               <div
-                                key={chal.id}
-                                className="border-b border-[#5c3d1e]/20 pb-1.5 last:border-b-0"
+                                key={gem.id}
+                                className="border-b border-[#5c3d1e]/30 pb-1.5"
                               >
-                                <div className="flex items-center justify-between text-[10px] font-bold text-[#2b1a0c]">
-                                  <span>
-                                    {chal.characterName} ({chal.roleBadge})
+                                <div className="flex items-center justify-between text-[10px] font-bold text-[#4a2f15]">
+                                  <span>{gem.sense}</span>
+                                  <span className="italic">
+                                    {gem.sceneContext}
                                   </span>
                                 </div>
-                                <p className="mt-0.5 text-[9.5px] leading-snug text-[#4a2f15] italic">
-                                  Sifat: {chal.traitClaim}
+                                <p className="mt-0.5 text-[9.5px] text-[#6b4826]">
+                                  Kalimat Biasa: &ldquo;{gem.weakExample}&rdquo;
                                 </p>
-                                <div className="mt-1 space-y-0.5">
-                                  {chal.options.map((opt) => {
-                                    const isChosen = selectedOptId === opt.id;
-                                    return (
-                                      <div key={opt.id}>
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleSelectCharacterTrait(
-                                              chal.id,
-                                              opt.id
-                                            )
-                                          }
-                                          className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${
-                                            isChosen
+                                <p className="mt-0.5 text-[10px] font-semibold text-[#14532d]">
+                                  Kalimat Hidup: &ldquo;{gem.vividExample}
+                                  &rdquo;
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
+                        <button
+                          type="button"
+                          onClick={() => switchToChapter("alur")}
+                          className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
+                        >
+                          &lt;- Misi 1: Alur Cerita
+                        </button>
+                        <span className="font-semibold">Halaman 3</span>
+                      </div>
+                    </div>
+
+                    {/* RIGHT PAGE (HALAMAN 4): TANTANGAN BUKTI WATAK & CITRAAN Indra */}
+                    <div style={get2dPageStyle("right")} className={page2dContainerClass}>
+                      <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
+                        <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-[#5c3d1e]/35 pb-1">
+                          <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
+                            HALAMAN 4 · TANTANGAN SEGEL 2
+                          </span>
+                          <span className="shrink-0 whitespace-nowrap font-serif text-[9px] font-bold text-[#14532d] sm:text-[9.5px]">
+                            {state.sealWatakUnlocked
+                              ? "Segel 2 Selesai ✓"
+                              : `Tokoh ${charDone ? "✓" : "○"} · Kantong ${state.pouchOrderIds.length}/4 · Indra ${sensoryDone ? "✓" : "○"}`}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2.5 font-serif text-[#2b1a0c]">
+                          {/* Live 1-Line Quest Prompt for Segel 2 */}
+                          {state.sealWatakUnlocked ? (
+                            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-[#14532d]/55 bg-[#14532d]/12 px-2 py-1.5 text-[10px] font-bold text-[#14532d]">
+                              <span>Mantap! Segel 2 (Tokoh &amp; Indra) Terbuka!</span>
+                              <button
+                                type="button"
+                                onClick={() => switchToChapter("bahasa")}
+                                className="cursor-pointer rounded-full bg-[#14532d] px-2.5 py-0.5 text-[9.5px] font-bold text-[#fdf6e7] hover:bg-emerald-950"
+                              >
+                                Lanjut Misi 3 -&gt;
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="rounded border border-[#5c3d1e]/40 bg-[#5c3d1e]/10 px-2 py-1 text-[9.5px] leading-snug text-[#2b1a0c]">
+                              <strong className="text-[#4a2f15]">Misi Sekarang:</strong>{" "}
+                              {!charDone
+                                ? "Pilih bukti perbuatan yang cocok untuk sifat Mao & Yari di Bagian A."
+                                : !sensoryDone
+                                  ? "Pilih 3 kalimat Panca Indra yang paling hidup di Bagian B."
+                                  : `Tinggal 1 lagi! Urutkan 4 Kantong Emas (${state.pouchOrderIds.length}/4) di Halaman 3 (kiri)!`}
+                            </div>
+                          )}
+
+                          {/* Bagian A: Bukti Watak Tokoh */}
+                          <div className="space-y-1.5 border-b border-[#5c3d1e]/35 pb-2">
+                            <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
+                              A. Misi Sifat Tokoh (Pilih Bukti Perbuatan/Ucapan):
+                            </span>
+                            {CHARACTER_EVIDENCE_CHALLENGES.map((chal) => {
+                              const selectedOptId =
+                                state.characterEvidenceAnswers[chal.id];
+                              return (
+                                <div
+                                  key={chal.id}
+                                  className="border-b border-[#5c3d1e]/20 pb-1.5 last:border-b-0"
+                                >
+                                  <div className="flex items-center justify-between text-[10px] font-bold text-[#2b1a0c]">
+                                    <span>
+                                      {chal.characterName} ({chal.roleBadge})
+                                    </span>
+                                  </div>
+                                  <p className="mt-0.5 text-[9.5px] leading-snug text-[#4a2f15] italic">
+                                    Sifat: {chal.traitClaim}
+                                  </p>
+                                  <div className="mt-1 space-y-0.5">
+                                    {chal.options.map((opt) => {
+                                      const isChosen = selectedOptId === opt.id;
+                                      return (
+                                        <div key={opt.id}>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleSelectCharacterTrait(
+                                                chal.id,
+                                                opt.id
+                                              )
+                                            }
+                                            className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${isChosen
                                               ? opt.isValidEvidence
                                                 ? "bg-[#14532d]/15 font-bold text-[#14532d]"
                                                 : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
                                               : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
-                                          }`}
-                                        >
-                                          {isChosen
-                                            ? opt.isValidEvidence
-                                              ? "[Tepat ✓] "
-                                              : "[Coba Lagi] "
-                                            : "○ "}
-                                          {opt.quote}
-                                        </button>
-                                        {isChosen && (
-                                          <p
-                                            className={`px-1.5 py-0.5 text-[9px] leading-snug italic ${
-                                              opt.isValidEvidence
+                                              }`}
+                                          >
+                                            {isChosen
+                                              ? opt.isValidEvidence
+                                                ? "[Tepat ✓] "
+                                                : "[Coba Lagi] "
+                                              : "○ "}
+                                            {opt.quote}
+                                          </button>
+                                          {isChosen && (
+                                            <p
+                                              className={`px-1.5 py-0.5 text-[9px] leading-snug italic ${opt.isValidEvidence
                                                 ? "text-[#14532d]"
                                                 : "text-[#7f1d1d]"
-                                            }`}
-                                          >
-                                            {opt.explanation}
-                                          </p>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                                }`}
+                                            >
+                                              {opt.explanation}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Bagian B: Transformasi Kalimat Datar ke 5 Indera */}
-                        <div className="space-y-1.5">
-                          <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            B. Misi Panca Indera (Pilih Kalimat yang Paling Hidup):
-                          </span>
-                          {SENSORY_UPGRADE_CHALLENGES.map((sens) => {
-                            const selectedOptId =
-                              state.sensoryUpgradeAnswers[sens.id];
-                            return (
-                              <div
-                                key={sens.id}
-                                className="border-b border-[#5c3d1e]/20 pb-1.5 last:border-b-0"
-                              >
-                                <p className="text-[10px] font-bold text-[#2b1a0c]">
-                                  {sens.senseBadge} —{" "}
-                                  <span className="font-normal italic">
-                                    {sens.flatSentence}
-                                  </span>
-                                </p>
-                                <div className="mt-1 space-y-0.5">
-                                  {sens.options.map((opt) => {
-                                    const isChosen = selectedOptId === opt.id;
-                                    return (
-                                      <div key={opt.id}>
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleSelectSensoryUpgrade(
-                                              sens.id,
-                                              opt.id
-                                            )
-                                          }
-                                          className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${
-                                            isChosen
-                                              ? opt.isRichSensory
-                                                ? "bg-[#14532d]/15 font-bold text-[#14532d]"
-                                                : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
-                                              : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
-                                          }`}
-                                        >
-                                          {isChosen
-                                            ? opt.isRichSensory
-                                              ? "[Hidup ✓] "
-                                              : "[Masih Biasa] "
-                                            : "○ "}
-                                          {opt.text}
-                                        </button>
-                                        {isChosen && (
-                                          <p
-                                            className={`px-1.5 py-0.5 text-[9px] leading-snug italic ${
-                                              opt.isRichSensory
-                                                ? "text-[#14532d]"
-                                                : "text-[#7f1d1d]"
-                                            }`}
-                                          >
-                                            {opt.feedback}
-                                          </p>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {!pouchDone && (
-                          <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-[#5c3d1e]/30 pt-1.5">
-                            <p className="text-[9.5px] font-semibold text-[#5a1818]">
-                              Syarat ke-3 Segel 2: Urutkan 4 Kantong Emas ({state.pouchOrderIds.length}/4)!
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                playChime();
-                                setWatakLeftTab("emas");
-                                if (isMobileBook) setMobilePageSide("left");
-                              }}
-                              className="cursor-pointer rounded border border-[#5c3d1e]/70 bg-[#5c3d1e]/12 px-2 py-0.5 text-[9.5px] font-bold text-[#2b1a0c] hover:bg-[#5c3d1e]/22"
-                            >
-                              Buka Misi 4 Kantong Emas -&gt;
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
-                      <span className="font-semibold">Halaman 4</span>
-                      <button
-                        type="button"
-                        onClick={() => switchToChapter("bahasa")}
-                        className="cursor-pointer font-bold text-[#2b1a0c] underline decoration-[#5c3d1e]/50 underline-offset-2 transition hover:text-black"
-                      >
-                        Lanjut Misi 3: Gaya Bahasa -&gt;
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* ============================================================= */}
-              {/* SPREAD 3: BABAK III (LEKSIKON MAGIS, MAJAS & DIALOG)          */}
-              {/* ============================================================= */}
-              {!isShowingIntroSpread && activeChapter === "bahasa" && (
-                <>
-                  {/* LEFT PAGE (HALAMAN 5): KAIDAH MAJAS ASOSIASI, DIALOG & LEKSIKON */}
-                  <div style={get2dPageStyle("left")} className={page2dContainerClass}>
-                    <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-1.5 flex min-h-[26px] shrink-0 items-center justify-between border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
-                          HALAMAN 5 · {CHAPTER_ORDER[2]!.tpTag}
-                        </span>
-                        <span className="font-serif text-[10px] font-semibold text-[#6b4826] italic">
-                          Perumpamaan &amp; Dialog
-                        </span>
-                      </div>
-
-                      <div className="space-y-2 font-serif text-[#2b1a0c]">
-                        {/* 1. Majas Asosiasi */}
-                        <div className="pb-1.5">
-                          <h3 className="parchment-contour-warp text-[11px] font-bold text-[#2b1a0c]">
-                            1. Kalimat Perumpamaan (Majas Asosiasi)
-                          </h3>
-                          <p className="mt-0.5 text-[10px] leading-relaxed text-[#3a2512]">
-                            Membandingkan dua hal supaya cerita lebih hidup
-                            dengan memakai kata:{" "}
-                            <strong>
-                              seperti, bagaikan, bak, laksana, ibarat
-                            </strong>
-                            .
-                          </p>
-                          <p className="mt-0.5 text-[10px] text-[#14532d] italic">
-                            Contoh: &ldquo;Kami berdua sulit menyatu{" "}
-                            <strong>bagaikan</strong> minyak dan air.&rdquo;
-                          </p>
-                          <hr className="parchment-ink-rule mt-1.5" />
-                        </div>
-
-                        {/* 2. Kalimat Langsung vs Tak Langsung */}
-                        <div className="pb-1.5">
-                          <h3 className="parchment-contour-warp text-[11px] font-bold text-[#2b1a0c]">
-                            2. Kalimat Langsung &amp; Tak Langsung
-                          </h3>
-                          <p className="mt-0.5 text-[10px] leading-relaxed text-[#3a2512]">
-                            • <strong>Kalimat Langsung:</strong> Ucapan tokoh
-                            ditulis di dalam{" "}
-                            <strong>tanda petik dua (&ldquo;...&rdquo;)</strong>{" "}
-                            dan memakai kata <em>aku / kau</em>.
-                          </p>
-                          <p className="mt-0.5 text-[10px] leading-relaxed text-[#14532d]">
-                            • <strong>Kalimat Tak Langsung:</strong>{" "}
-                            Menceritakan ulang ucapan tokoh{" "}
-                            <strong>tanpa tanda petik dua</strong>, memakai kata{" "}
-                            <em>bahwa / agar</em>, dan kata gantinya berubah
-                            jadi <em>ia / -nya</em>.
-                          </p>
-                          <hr className="parchment-ink-rule mt-1.5" />
-                        </div>
-
-                        {/* 3. Bank Kata & Frasa Fantasi (6 Kategori · 48 Entri + Filter Makna) */}
-                        <div className="space-y-1.5">
-                          <div className="flex flex-wrap items-center justify-between gap-1">
-                            <span className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                              3. Kamus Kata Fantasi (48 Diksi):
-                            </span>
-                            <div className="flex flex-wrap items-center gap-1">
-                              {(["Semua", "Denotatif", "Konotatif", "Kiasan / Majas"] as const).map(
-                                (tf) => (
-                                  <button
-                                    key={tf}
-                                    type="button"
-                                    onClick={() => {
-                                      playChime();
-                                      setLexiconTypeFilter(tf);
-                                    }}
-                                    className={`cursor-pointer rounded px-1.5 py-0.5 text-[8.5px] font-bold transition ${
-                                      lexiconTypeFilter === tf
-                                        ? "bg-[#14532d] text-[#fdf6e7]"
-                                        : "border border-[#5c3d1e]/35 text-[#4a2f15] hover:bg-[#5c3d1e]/10"
-                                    }`}
-                                  >
-                                    {tf === "Kiasan / Majas" ? "Kiasan" : tf}
-                                  </button>
-                                )
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-wrap gap-1">
-                            {FANTASY_LEXICON_BANK.map((cat) => {
-                              const isPicked =
-                                selectedLexiconCategory.id === cat.id;
-                              return (
-                                <button
-                                  key={cat.id}
-                                  type="button"
-                                  onClick={() => {
-                                    playChime();
-                                    setSelectedLexiconCatId(cat.id);
-                                  }}
-                                  className={`cursor-pointer rounded border px-1.5 py-0.5 font-serif text-[9px] transition ${
-                                    isPicked
-                                      ? "border-[#2b1a0c] bg-[#5c3d1e]/18 font-bold text-[#1f1207]"
-                                      : "border-[#5c3d1e]/25 text-[#5c3d1e] hover:border-[#5c3d1e]/55"
-                                  }`}
-                                >
-                                  {cat.category}
-                                </button>
                               );
                             })}
                           </div>
 
-                          <div className="mt-1 space-y-1 border-t border-[#5c3d1e]/25 pt-1 text-[9.5px] leading-snug">
-                            {selectedLexiconCategory.entries
-                              .filter(
+                          {/* Bagian B: Transformasi Kalimat Datar ke 5 Indra */}
+                          <div className="space-y-1.5">
+                            <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
+                              B. Misi Panca Indra (Pilih Kalimat yang Paling Hidup):
+                            </span>
+                            {SENSORY_UPGRADE_CHALLENGES.map((sens) => {
+                              const selectedOptId =
+                                state.sensoryUpgradeAnswers[sens.id];
+                              return (
+                                <div
+                                  key={sens.id}
+                                  className="border-b border-[#5c3d1e]/20 pb-1.5 last:border-b-0"
+                                >
+                                  <p className="text-[10px] font-bold text-[#2b1a0c]">
+                                    {sens.senseBadge} —{" "}
+                                    <span className="font-normal italic">
+                                      {sens.flatSentence}
+                                    </span>
+                                  </p>
+                                  <div className="mt-1 space-y-0.5">
+                                    {sens.options.map((opt) => {
+                                      const isChosen = selectedOptId === opt.id;
+                                      return (
+                                        <div key={opt.id}>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleSelectSensoryUpgrade(
+                                                sens.id,
+                                                opt.id
+                                              )
+                                            }
+                                            className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${isChosen
+                                              ? opt.isRichSensory
+                                                ? "bg-[#14532d]/15 font-bold text-[#14532d]"
+                                                : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
+                                              : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
+                                              }`}
+                                          >
+                                            {isChosen
+                                              ? opt.isRichSensory
+                                                ? "[Hidup ✓] "
+                                                : "[Masih Biasa] "
+                                              : "○ "}
+                                            {opt.text}
+                                          </button>
+                                          {isChosen && (
+                                            <p
+                                              className={`px-1.5 py-0.5 text-[9px] leading-snug italic ${opt.isRichSensory
+                                                ? "text-[#14532d]"
+                                                : "text-[#7f1d1d]"
+                                                }`}
+                                            >
+                                              {opt.feedback}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {!pouchDone && (
+                            <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-[#5c3d1e]/30 pt-1.5">
+                              <p className="text-[9.5px] font-semibold text-[#5a1818]">
+                                Syarat ke-3 Segel 2: Urutkan 4 Kantong Emas ({state.pouchOrderIds.length}/4)!
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  playChime();
+                                  setWatakLeftTab("emas");
+                                  if (isMobileBook) setMobilePageSide("left");
+                                }}
+                                className="cursor-pointer rounded border border-[#5c3d1e]/70 bg-[#5c3d1e]/12 px-2 py-0.5 text-[9.5px] font-bold text-[#2b1a0c] hover:bg-[#5c3d1e]/22"
+                              >
+                                Buka Misi 4 Kantong Emas -&gt;
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
+                        <span className="font-semibold">Halaman 4</span>
+                        <button
+                          type="button"
+                          onClick={() => switchToChapter("bahasa")}
+                          className="cursor-pointer font-bold text-[#2b1a0c] underline decoration-[#5c3d1e]/50 underline-offset-2 transition hover:text-black"
+                        >
+                          Lanjut Misi 3: Gaya Bahasa -&gt;
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ============================================================= */}
+                {/* SPREAD 3: BABAK III (LEKSIKON MAGIS, MAJAS & DIALOG)          */}
+                {/* ============================================================= */}
+                {!isShowingIntroSpread && activeChapter === "bahasa" && (
+                  <>
+                    {/* LEFT PAGE (HALAMAN 5): KAIDAH MAJAS ASOSIASI, DIALOG & LEKSIKON */}
+                    <div style={get2dPageStyle("left")} className={page2dContainerClass}>
+                      <div className="parchment-scroll book-ink-sweep-left flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
+                        <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-1 border-b border-[#5c3d1e]/35 pb-1">
+                          <span className="font-serif text-[10px] font-bold tracking-[0.12em] text-[#4a2f15] uppercase sm:text-[11px]">
+                            HALAMAN 5 · {CHAPTER_ORDER[2]!.tpTag}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleToggleMisiBahasaAudio}
+                            className="cursor-pointer font-serif text-[9.5px] font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950 sm:text-[10px]"
+                          >
+                            {activeNarrationTrack === "misi-bahasa"
+                              ? "[Matikan Panduan]"
+                              : "[Dengarkan Panduan Bahasa]"}
+                          </button>
+                        </div>
+
+                        <div className="space-y-2 font-serif text-[#2b1a0c]">
+                          {/* 1. Majas Asosiasi */}
+                          <div className="pb-1.5">
+                            <h3 className="parchment-contour-warp text-[11px] font-bold text-[#2b1a0c]">
+                              1. Kalimat Perumpamaan (Majas Asosiasi)
+                            </h3>
+                            <p className="mt-0.5 text-[10px] leading-relaxed text-[#3a2512]">
+                              Membandingkan dua hal supaya cerita lebih hidup
+                              dengan memakai kata:{" "}
+                              <strong>
+                                seperti, bagaikan, bak, laksana, ibarat
+                              </strong>
+                              .
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-[#14532d] italic">
+                              Contoh: &ldquo;Kami berdua sulit menyatu{" "}
+                              <strong>bagaikan</strong> minyak dan air.&rdquo;
+                            </p>
+                            <hr className="parchment-ink-rule mt-1.5" />
+                          </div>
+
+                          {/* 2. Kalimat Langsung vs Tak Langsung */}
+                          <div className="pb-1.5">
+                            <h3 className="parchment-contour-warp text-[11px] font-bold text-[#2b1a0c]">
+                              2. Kalimat Langsung &amp; Tak Langsung
+                            </h3>
+                            <p className="mt-0.5 text-[10px] leading-relaxed text-[#3a2512]">
+                              • <strong>Kalimat Langsung:</strong> Ucapan tokoh
+                              ditulis di dalam{" "}
+                              <strong>tanda petik dua (&ldquo;...&rdquo;)</strong>{" "}
+                              dan memakai kata <em>aku / kau</em>.
+                            </p>
+                            <p className="mt-0.5 text-[10px] leading-relaxed text-[#14532d]">
+                              • <strong>Kalimat Tak Langsung:</strong>{" "}
+                              Menceritakan ulang ucapan tokoh{" "}
+                              <strong>tanpa tanda petik dua</strong>, memakai kata{" "}
+                              <em>bahwa / agar</em>, dan kata gantinya berubah
+                              jadi <em>ia / -nya</em>.
+                            </p>
+                            <hr className="parchment-ink-rule mt-1.5" />
+                          </div>
+
+                          {/* 3. Bank Kata & Frasa Fantasi (6 Kategori · 48 Entri + Filter Makna) */}
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center justify-between gap-1">
+                              <span className="text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
+                                3. Kamus Kata Fantasi (48 Diksi):
+                              </span>
+                              <div className="flex flex-wrap items-center gap-1">
+                                {(["Semua", "Denotatif", "Konotatif", "Kiasan / Majas"] as const).map(
+                                  (tf) => (
+                                    <button
+                                      key={tf}
+                                      type="button"
+                                      onClick={() => {
+                                        playChime();
+                                        setLexiconTypeFilter(tf);
+                                      }}
+                                      className={`cursor-pointer rounded px-1.5 py-0.5 text-[8.5px] font-bold transition ${lexiconTypeFilter === tf
+                                        ? "bg-[#14532d] text-[#fdf6e7]"
+                                        : "border border-[#5c3d1e]/35 text-[#4a2f15] hover:bg-[#5c3d1e]/10"
+                                        }`}
+                                    >
+                                      {tf === "Kiasan / Majas" ? "Kiasan" : tf}
+                                    </button>
+                                  )
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-1">
+                              {FANTASY_LEXICON_BANK.map((cat) => {
+                                const isPicked =
+                                  selectedLexiconCategory.id === cat.id;
+                                return (
+                                  <button
+                                    key={cat.id}
+                                    type="button"
+                                    onClick={() => {
+                                      playChime();
+                                      setSelectedLexiconCatId(cat.id);
+                                    }}
+                                    className={`cursor-pointer rounded border px-1.5 py-0.5 font-serif text-[9px] transition ${isPicked
+                                      ? "border-[#2b1a0c] bg-[#5c3d1e]/18 font-bold text-[#1f1207]"
+                                      : "border-[#5c3d1e]/25 text-[#5c3d1e] hover:border-[#5c3d1e]/55"
+                                      }`}
+                                  >
+                                    {cat.category}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            <div className="mt-1 space-y-1 border-t border-[#5c3d1e]/25 pt-1 text-[9.5px] leading-snug">
+                              {selectedLexiconCategory.entries
+                                .filter(
+                                  (entry) =>
+                                    lexiconTypeFilter === "Semua" ||
+                                    entry.type === lexiconTypeFilter
+                                )
+                                .map((entry) => (
+                                  <div
+                                    key={entry.word}
+                                    className="border-b border-[#5c3d1e]/15 pb-1 last:border-b-0"
+                                  >
+                                    <span className="font-bold text-[#2b1a0c]">
+                                      {entry.word}
+                                    </span>{" "}
+                                    <span className="text-[#6b4826] italic">
+                                      ({entry.type})
+                                    </span>{" "}
+                                    — {entry.meaning}{" "}
+                                    <span className="text-[#14532d] italic">
+                                      Contoh: &ldquo;{entry.example}&rdquo;
+                                    </span>
+                                  </div>
+                                ))}
+                              {selectedLexiconCategory.entries.filter(
                                 (entry) =>
                                   lexiconTypeFilter === "Semua" ||
                                   entry.type === lexiconTypeFilter
-                              )
-                              .map((entry) => (
-                                <div
-                                  key={entry.word}
-                                  className="border-b border-[#5c3d1e]/15 pb-1 last:border-b-0"
-                                >
-                                  <span className="font-bold text-[#2b1a0c]">
-                                    {entry.word}
-                                  </span>{" "}
-                                  <span className="text-[#6b4826] italic">
-                                    ({entry.type})
-                                  </span>{" "}
-                                  — {entry.meaning}{" "}
-                                  <span className="text-[#14532d] italic">
-                                    Contoh: &ldquo;{entry.example}&rdquo;
-                                  </span>
-                                </div>
-                              ))}
-                            {selectedLexiconCategory.entries.filter(
-                              (entry) =>
-                                lexiconTypeFilter === "Semua" ||
-                                entry.type === lexiconTypeFilter
-                            ).length === 0 && (
-                              <p className="py-1 text-[9px] italic text-[#6b4826]">
-                                Tidak ada entri bertipe {lexiconTypeFilter} di kategori ini. Pilih &ldquo;Semua&rdquo; atau kategori lain.
-                              </p>
-                            )}
+                              ).length === 0 && (
+                                  <p className="py-1 text-[9px] italic text-[#6b4826]">
+                                    Tidak ada entri bertipe {lexiconTypeFilter} di kategori ini. Pilih &ldquo;Semua&rdquo; atau kategori lain.
+                                  </p>
+                                )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
-                      <button
-                        type="button"
-                        onClick={() => switchToChapter("watak")}
-                        className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
-                      >
-                        &lt;- Misi 2: Tokoh &amp; Indera
-                      </button>
-                      <span className="font-semibold">Halaman 5</span>
-                    </div>
-                  </div>
-
-                  {/* RIGHT PAGE (HALAMAN 6): TANTANGAN MAJAS & KONVERSI DIALOG */}
-                  <div style={get2dPageStyle("right")} className={page2dContainerClass}>
-                    <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
-                      <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-[#5c3d1e]/35 pb-1">
-                        <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
-                          HALAMAN 6 · TANTANGAN SEGEL 3
-                        </span>
-                        <span className="shrink-0 whitespace-nowrap font-serif text-[9px] font-bold text-[#14532d] sm:text-[9.5px]">
-                          {state.sealBahasaUnlocked
-                            ? "Segel 3 Selesai ✓"
-                            : `Majas ${majasDone ? "✓" : "○"} · Dialog ${dialogueDone ? "✓" : "○"}`}
-                        </span>
+                      <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
+                        <button
+                          type="button"
+                          onClick={() => switchToChapter("watak")}
+                          className="cursor-pointer font-bold text-[#3a2512] transition hover:text-black"
+                        >
+                          &lt;- Misi 2: Tokoh &amp; Indra
+                        </button>
+                        <span className="font-semibold">Halaman 5</span>
                       </div>
+                    </div>
 
-                      <div className="space-y-2.5 font-serif text-[#2b1a0c]">
-                        {/* Live 1-Line Quest Prompt for Segel 3 */}
-                        {state.sealBahasaUnlocked ? (
-                          <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-[#14532d]/55 bg-[#14532d]/12 px-2 py-1.5 text-[10px] font-bold text-[#14532d]">
-                            <span>
-                              {totalSealsUnlocked >= 3
-                                ? "Semua 3 Segel Rahasia Terkumpul!"
-                                : "Keren! Segel 3 (Gaya Bahasa) Terbuka!"}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={onNavigateToStudioTulis}
-                              className="cursor-pointer rounded-full bg-[#14532d] px-2.5 py-0.5 text-[9.5px] font-bold text-[#fdf6e7] hover:bg-emerald-950"
-                            >
-                              Ayo Mengarang di Studio Tulis -&gt;
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="rounded border border-[#5c3d1e]/40 bg-[#5c3d1e]/10 px-2 py-1 text-[9.5px] leading-snug text-[#2b1a0c]">
-                            <strong className="text-[#4a2f15]">Misi Sekarang:</strong>{" "}
-                            {!majasDone
-                              ? "Pasangkan Kata Pembanding & Perumpamaan di Bagian A sampai ketiga kalimatnya hijau!"
-                              : "Pilih kalimat tak langsung yang benar pada 2 soal Dialog di Bagian B bawah!"}
-                          </div>
-                        )}
-
-                        {/* Tantangan A: Kawah Peracik Majas Asosiasi */}
-                        <div className="space-y-1.5 border-b border-[#5c3d1e]/35 pb-2">
-                          <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            A. Misi Perumpamaan (Pilih Pasangan Kata yang Cocok):
+                    {/* RIGHT PAGE (HALAMAN 6): TANTANGAN MAJAS & KONVERSI DIALOG */}
+                    <div style={get2dPageStyle("right")} className={page2dContainerClass}>
+                      <div className="parchment-scroll book-ink-sweep-right flex flex-1 min-h-0 flex-col overflow-y-auto pr-1">
+                        <div className="mb-1.5 flex min-h-[26px] shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-b border-[#5c3d1e]/35 pb-1">
+                          <span className="font-serif text-[10px] font-bold tracking-[0.1em] text-[#4a2f15] uppercase sm:text-[10.5px]">
+                            HALAMAN 6 · TANTANGAN SEGEL 3
                           </span>
-                          {MAJAS_ASOSIASI_CHALLENGES.map((majas) => {
-                            const pair = state.majasAnswers[majas.id] ?? {
-                              connector: "",
-                              comparison: "",
-                            };
-                            const isPairFilled =
-                              pair.connector !== "" && pair.comparison !== "";
-                            const isSolved =
-                              pair.connector === majas.correctConnector &&
-                              pair.comparison === majas.correctComparison;
-                            const livePreviewSentence = majas.blankPrompt
-                              .replace(
-                                "[Kata Pembanding]",
-                                pair.connector || "[Kata Pembanding]"
-                              )
-                              .replace(
-                                "[Perumpamaan]",
-                                pair.comparison || "[Perumpamaan]"
-                              );
+                          <span className="shrink-0 whitespace-nowrap font-serif text-[9px] font-bold text-[#14532d] sm:text-[9.5px]">
+                            {state.sealBahasaUnlocked
+                              ? "Segel 3 Selesai ✓"
+                              : `Majas ${majasDone ? "✓" : "○"} · Dialog ${dialogueDone ? "✓" : "○"}`}
+                          </span>
+                        </div>
 
-                            return (
-                              <div
-                                key={majas.id}
-                                className="border-b border-[#5c3d1e]/20 pb-1.5 last:border-b-0"
+                        <div className="space-y-2.5 font-serif text-[#2b1a0c]">
+                          {/* Live 1-Line Quest Prompt for Segel 3 */}
+                          {state.sealBahasaUnlocked ? (
+                            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-[#14532d]/55 bg-[#14532d]/12 px-2 py-1.5 text-[10px] font-bold text-[#14532d]">
+                              <span>
+                                {totalSealsUnlocked >= 3
+                                  ? "Semua 3 Segel Rahasia Terkumpul!"
+                                  : "Keren! Segel 3 (Gaya Bahasa) Terbuka!"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={onNavigateToStudioTulis}
+                                className="cursor-pointer rounded-full bg-[#14532d] px-2.5 py-0.5 text-[9.5px] font-bold text-[#fdf6e7] hover:bg-emerald-950"
                               >
-                                <p className="text-[9.5px] font-semibold text-[#3a2512]">
-                                  {majas.contextSentence}
-                                </p>
-                                <p
-                                  className={`mt-1 rounded-r border-l-2 px-2 py-0.5 text-[9.5px] leading-snug italic ${
-                                    isSolved
+                                Ayo Mengarang di Studio Tulis -&gt;
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="rounded border border-[#5c3d1e]/40 bg-[#5c3d1e]/10 px-2 py-1 text-[9.5px] leading-snug text-[#2b1a0c]">
+                              <strong className="text-[#4a2f15]">Misi Sekarang:</strong>{" "}
+                              {!majasDone
+                                ? "Pasangkan Kata Pembanding & Perumpamaan di Bagian A sampai ketiga kalimatnya hijau!"
+                                : "Pilih kalimat tak langsung yang benar pada 2 soal Dialog di Bagian B bawah!"}
+                            </div>
+                          )}
+
+                          {/* Tantangan A: Kawah Peracik Majas Asosiasi */}
+                          <div className="space-y-1.5 border-b border-[#5c3d1e]/35 pb-2">
+                            <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
+                              A. Misi Perumpamaan (Pilih Pasangan Kata yang Cocok):
+                            </span>
+                            {MAJAS_ASOSIASI_CHALLENGES.map((majas) => {
+                              const pair = state.majasAnswers[majas.id] ?? {
+                                connector: "",
+                                comparison: "",
+                              };
+                              const isPairFilled =
+                                pair.connector !== "" && pair.comparison !== "";
+                              const isSolved =
+                                pair.connector === majas.correctConnector &&
+                                pair.comparison === majas.correctComparison;
+                              const livePreviewSentence = majas.blankPrompt
+                                .replace(
+                                  "[Kata Pembanding]",
+                                  pair.connector || "[Kata Pembanding]"
+                                )
+                                .replace(
+                                  "[Perumpamaan]",
+                                  pair.comparison || "[Perumpamaan]"
+                                );
+
+                              return (
+                                <div
+                                  key={majas.id}
+                                  className="border-b border-[#5c3d1e]/20 pb-1.5 last:border-b-0"
+                                >
+                                  <p className="text-[9.5px] font-semibold text-[#3a2512]">
+                                    {majas.contextSentence}
+                                  </p>
+                                  <p
+                                    className={`mt-1 rounded-r border-l-2 px-2 py-0.5 text-[9.5px] leading-snug italic ${isSolved
                                       ? "border-[#14532d] bg-[#14532d]/10 font-bold text-[#14532d]"
                                       : isPairFilled
                                         ? "border-[#7f1d1d] bg-[#7f1d1d]/10 font-semibold text-[#7f1d1d]"
                                         : "border-[#5c3d1e]/50 bg-[#5c3d1e]/6 text-[#4a2f15]"
-                                  }`}
-                                >
-                                  &ldquo;{livePreviewSentence}&rdquo;
-                                </p>
-                                <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <div>
-                                    <label className="block text-[8.5px] font-bold text-[#5c3d1e] uppercase">
-                                      Kata Pembanding:
-                                    </label>
-                                    <ParchmentSelect
-                                      ariaLabel={`Kata pembanding untuk ${majas.id}`}
-                                      value={pair.connector}
-                                      placeholder="-- Pilih Penanda --"
-                                      size="sm"
-                                      options={majas.connectorChoices.map((c) => ({
-                                        value: c,
-                                        label: c,
-                                      }))}
-                                      onChange={(nextVal) =>
-                                        handleUpdateMajasPair(
-                                          majas.id,
-                                          "connector",
-                                          nextVal
-                                        )
-                                      }
-                                      triggerClassName="mt-0.5 font-serif font-bold italic"
-                                    />
+                                      }`}
+                                  >
+                                    &ldquo;{livePreviewSentence}&rdquo;
+                                  </p>
+                                  <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[8.5px] font-bold text-[#5c3d1e] uppercase">
+                                        Kata Pembanding:
+                                      </label>
+                                      <ParchmentSelect
+                                        ariaLabel={`Kata pembanding untuk ${majas.id}`}
+                                        value={pair.connector}
+                                        placeholder="-- Pilih Penanda --"
+                                        size="sm"
+                                        options={majas.connectorChoices.map((c) => ({
+                                          value: c,
+                                          label: c,
+                                        }))}
+                                        onChange={(nextVal) =>
+                                          handleUpdateMajasPair(
+                                            majas.id,
+                                            "connector",
+                                            nextVal
+                                          )
+                                        }
+                                        triggerClassName="mt-0.5 font-serif font-bold italic"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8.5px] font-bold text-[#5c3d1e] uppercase">
+                                        Citraan Perumpamaan:
+                                      </label>
+                                      <ParchmentSelect
+                                        ariaLabel={`Perumpamaan untuk ${majas.id}`}
+                                        value={pair.comparison}
+                                        placeholder="-- Pilih Perumpamaan --"
+                                        size="sm"
+                                        options={majas.comparisonChoices.map((comp) => ({
+                                          value: comp,
+                                          label: comp,
+                                        }))}
+                                        onChange={(nextVal) =>
+                                          handleUpdateMajasPair(
+                                            majas.id,
+                                            "comparison",
+                                            nextVal
+                                          )
+                                        }
+                                        triggerClassName="mt-0.5 font-serif font-bold italic"
+                                      />
+                                    </div>
                                   </div>
-                                  <div>
-                                    <label className="block text-[8.5px] font-bold text-[#5c3d1e] uppercase">
-                                      Citraan Perumpamaan:
-                                    </label>
-                                    <ParchmentSelect
-                                      ariaLabel={`Perumpamaan untuk ${majas.id}`}
-                                      value={pair.comparison}
-                                      placeholder="-- Pilih Perumpamaan --"
-                                      size="sm"
-                                      options={majas.comparisonChoices.map((comp) => ({
-                                        value: comp,
-                                        label: comp,
-                                      }))}
-                                      onChange={(nextVal) =>
-                                        handleUpdateMajasPair(
-                                          majas.id,
-                                          "comparison",
-                                          nextVal
-                                        )
-                                      }
-                                      triggerClassName="mt-0.5 font-serif font-bold italic"
-                                    />
-                                  </div>
+                                  {isSolved ? (
+                                    <p className="mt-0.5 text-[9px] font-bold text-[#14532d]">
+                                      [Tepat ✓] {majas.explanation}
+                                    </p>
+                                  ) : isPairFilled ? (
+                                    <p className="mt-0.5 text-[9px] font-semibold text-[#7f1d1d]">
+                                      [Belum Cocok] Cek lagi apakah &ldquo;{pair.connector}&rdquo; termasuk kata pembanding (seperti/bagaikan/laksana) dan apakah perumpamaannya cocok dengan kalimat konteks!
+                                    </p>
+                                  ) : null}
                                 </div>
-                                {isSolved ? (
-                                  <p className="mt-0.5 text-[9px] font-bold text-[#14532d]">
-                                    [Tepat ✓] {majas.explanation}
-                                  </p>
-                                ) : isPairFilled ? (
-                                  <p className="mt-0.5 text-[9px] font-semibold text-[#7f1d1d]">
-                                    [Belum Cocok] Cek lagi apakah &ldquo;{pair.connector}&rdquo; termasuk kata pembanding (seperti/bagaikan/laksana) dan apakah perumpamaannya cocok dengan kalimat konteks!
-                                  </p>
-                                ) : null}
-                              </div>
-                            );
-                          })}
-                        </div>
+                              );
+                            })}
+                          </div>
 
-                        {/* Tantangan B: Transmutasi Kalimat Langsung -> Tak Langsung */}
-                        <div className="space-y-1.5">
-                          <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
-                            B. Misi Dialog (Pilih Kalimat Tak Langsung yang Benar):
-                          </span>
-                          {DIALOGUE_TRANSMUTATION_CHALLENGES.map((dlg) => {
-                            const selectedOptId =
-                              state.dialogueAnswers[dlg.id];
-                            return (
-                              <div
-                                key={dlg.id}
-                                className="border-b border-[#5c3d1e]/20 pb-1.5 last:border-b-0"
-                              >
-                                <p className="text-[10px] font-bold text-[#2b1a0c]">
-                                  {dlg.speaker}:{" "}
-                                  <span className="font-normal italic">
-                                    {dlg.directSpeech}
-                                  </span>
-                                </p>
-                                <div className="mt-1 space-y-0.5">
-                                  {dlg.options.map((opt) => {
-                                    const isChosen = selectedOptId === opt.id;
-                                    return (
-                                      <div key={opt.id}>
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleSelectDialogueOption(
-                                              dlg.id,
-                                              opt.id
-                                            )
-                                          }
-                                          className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${
-                                            isChosen
+                          {/* Tantangan B: Transmutasi Kalimat Langsung -> Tak Langsung */}
+                          <div className="space-y-1.5">
+                            <span className="block text-[10px] font-bold tracking-wider text-[#4a2f15] uppercase">
+                              B. Misi Dialog (Pilih Kalimat Tak Langsung yang Benar):
+                            </span>
+                            {DIALOGUE_TRANSMUTATION_CHALLENGES.map((dlg) => {
+                              const selectedOptId =
+                                state.dialogueAnswers[dlg.id];
+                              return (
+                                <div
+                                  key={dlg.id}
+                                  className="border-b border-[#5c3d1e]/20 pb-1.5 last:border-b-0"
+                                >
+                                  <p className="text-[10px] font-bold text-[#2b1a0c]">
+                                    {dlg.speaker}:{" "}
+                                    <span className="font-normal italic">
+                                      {dlg.directSpeech}
+                                    </span>
+                                  </p>
+                                  <div className="mt-1 space-y-0.5">
+                                    {dlg.options.map((opt) => {
+                                      const isChosen = selectedOptId === opt.id;
+                                      return (
+                                        <div key={opt.id}>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleSelectDialogueOption(
+                                                dlg.id,
+                                                opt.id
+                                              )
+                                            }
+                                            className={`block w-full cursor-pointer px-1.5 py-0.5 text-left font-serif text-[9.5px] leading-snug transition ${isChosen
                                               ? opt.isCorrect
                                                 ? "bg-[#14532d]/15 font-bold text-[#14532d]"
                                                 : "bg-[#7f1d1d]/15 font-bold text-[#7f1d1d]"
                                               : "text-[#2b1a0c] hover:bg-[#5c3d1e]/10"
-                                          }`}
-                                        >
-                                          {isChosen
-                                            ? opt.isCorrect
-                                              ? "[Tepat ✓] "
-                                              : "[Coba Lagi] "
-                                            : "○ "}
-                                          {opt.text}
-                                        </button>
-                                        {isChosen && (
-                                          <p
-                                            className={`px-1.5 py-0.5 text-[9px] leading-snug italic ${
-                                              opt.isCorrect
+                                              }`}
+                                          >
+                                            {isChosen
+                                              ? opt.isCorrect
+                                                ? "[Tepat ✓] "
+                                                : "[Coba Lagi] "
+                                              : "○ "}
+                                            {opt.text}
+                                          </button>
+                                          {isChosen && (
+                                            <p
+                                              className={`px-1.5 py-0.5 text-[9px] leading-snug italic ${opt.isCorrect
                                                 ? "text-[#14532d]"
                                                 : "text-[#7f1d1d]"
-                                            }`}
-                                          >
-                                            {opt.ruleExplanation}
-                                          </p>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                                }`}
+                                            >
+                                              {opt.ruleExplanation}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
+
+                      <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
+                        <span className="font-semibold">Halaman 6</span>
+                        <button
+                          type="button"
+                          onClick={onNavigateToStudioTulis}
+                          className="cursor-pointer font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950"
+                        >
+                          Ayo Mengarang di Studio Tulis -&gt;
+                        </button>
+                      </div>
                     </div>
+                  </>
+                )}
+              </div>
 
-                    <div className="book-ink-step-3 mt-1.5 flex shrink-0 items-center justify-between border-t border-[#5c3d1e]/25 pt-1 font-serif text-[10px] text-[#5c3d1e]">
-                      <span className="font-semibold">Halaman 6</span>
-                      <button
-                        type="button"
-                        onClick={onNavigateToStudioTulis}
-                        className="cursor-pointer font-bold text-[#14532d] underline decoration-[#14532d]/60 underline-offset-2 transition hover:text-emerald-950"
-                      >
-                        Ayo Mengarang di Studio Tulis -&gt;
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+              {/* Layer 4 & 5: Desktop Book Spine Shadow & 3D Hinge Flipper */}
+              {!isMobileBook && <ParchmentSpineShadowOverlay />}
 
-            {/* Layer 4 & 5: Desktop Book Spine Shadow & 3D Hinge Flipper */}
-            {!isMobileBook && <ParchmentSpineShadowOverlay />}
-
-            {!isMobileBook && flipDirection !== null && (
-              <div
-                style={{
-                  left: flipDirection === "next" ? "49.05%" : "6.55%",
-                  top: "2.16%",
-                  width: flipDirection === "next" ? "44.40%" : "42.49%",
-                  height: "95.02%",
-                  backgroundImage: "url('/assets/studio/single-page.webp')",
-                  backgroundSize:
-                    flipDirection === "next"
-                      ? "327.62% 134.03%"
-                      : "342.29% 134.03%",
-                  backgroundPosition:
-                    flipDirection === "next"
-                      ? "71.03% 53.33%"
-                      : "28.44% 53.33%",
-                  backgroundRepeat: "no-repeat",
-                  transformOrigin:
-                    flipDirection === "next" ? "left center" : "right center",
-                  backfaceVisibility: "hidden",
-                }}
-                className={`pointer-events-none absolute z-30 drop-shadow-[0_0_35px_rgba(0,0,0,0.65)] ${
-                  flipDirection === "next"
+              {!isMobileBook && flipDirection !== null && (
+                <div
+                  style={{
+                    left: flipDirection === "next" ? "49.05%" : "6.55%",
+                    top: "2.16%",
+                    width: flipDirection === "next" ? "44.40%" : "42.49%",
+                    height: "95.02%",
+                    backgroundImage: "url('/assets/studio/single-page.webp')",
+                    backgroundSize:
+                      flipDirection === "next"
+                        ? "327.62% 134.03%"
+                        : "342.29% 134.03%",
+                    backgroundPosition:
+                      flipDirection === "next"
+                        ? "71.03% 53.33%"
+                        : "28.44% 53.33%",
+                    backgroundRepeat: "no-repeat",
+                    transformOrigin:
+                      flipDirection === "next" ? "left center" : "right center",
+                    backfaceVisibility: "hidden",
+                  }}
+                  className={`pointer-events-none absolute z-30 drop-shadow-[0_0_35px_rgba(0,0,0,0.65)] ${flipDirection === "next"
                     ? "animate-studio-flip-next"
                     : "animate-studio-flip-prev"
-                }`}
-                aria-hidden="true"
-              />
-            )}
+                    }`}
+                  aria-hidden="true"
+                />
+              )}
+            </div>
           </div>
-        </div>
 
           {/* Mobile Thumb-Zone Page Switcher (Materi <-> Tantangan) */}
           {isMobileBook && !isCalibrating && (
@@ -3547,11 +3558,10 @@ export function KitabMateriOverlay({
                   playPageFlip();
                   setMobilePageSide("left");
                 }}
-                className={`min-h-[44px] rounded-full border px-3 py-2 text-xs font-bold shadow-[0_8px_22px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all cursor-pointer ${
-                  mobilePageSide === "left"
-                    ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
-                    : "border-[#d6b26f]/55 bg-slate-950/92 text-amber-100"
-                }`}
+                className={`min-h-[44px] rounded-full border px-3 py-2 text-xs font-bold shadow-[0_8px_22px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all cursor-pointer ${mobilePageSide === "left"
+                  ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
+                  : "border-[#d6b26f]/55 bg-slate-950/92 text-amber-100"
+                  }`}
               >
                 {isShowingIntroSpread ? "1. Panduan Awal" : "1. Baca Materi"}
               </button>
@@ -3561,11 +3571,10 @@ export function KitabMateriOverlay({
                   playPageFlip();
                   setMobilePageSide("right");
                 }}
-                className={`min-h-[44px] rounded-full border px-3 py-2 text-xs font-bold shadow-[0_8px_22px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all cursor-pointer ${
-                  mobilePageSide === "right"
-                    ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
-                    : "border-emerald-400/60 bg-emerald-950/92 text-emerald-100"
-                }`}
+                className={`min-h-[44px] rounded-full border px-3 py-2 text-xs font-bold shadow-[0_8px_22px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all cursor-pointer ${mobilePageSide === "right"
+                  ? "border-[#f3d89b] bg-[#f3d89b] text-slate-950"
+                  : "border-emerald-400/60 bg-emerald-950/92 text-emerald-100"
+                  }`}
               >
                 {isShowingIntroSpread
                   ? "2. Daftar 3 Misi ->"
@@ -3600,11 +3609,10 @@ export function KitabMateriOverlay({
                   {MATERI_TOUR_STEPS.map((st, idx) => (
                     <span
                       key={st.title}
-                      className={`h-1.5 rounded-full transition-all ${
-                        idx === materiTourStep
-                          ? "w-5 bg-[#f4d993]"
-                          : "w-1.5 bg-white/25"
-                      }`}
+                      className={`h-1.5 rounded-full transition-all ${idx === materiTourStep
+                        ? "w-5 bg-[#f4d993]"
+                        : "w-1.5 bg-white/25"
+                        }`}
                     />
                   ))}
                 </div>

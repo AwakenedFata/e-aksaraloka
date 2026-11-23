@@ -34,7 +34,7 @@ export interface AksaralokaLearningState {
   readonly selectedAmanatId: string | null;
   readonly customAmanatReflection: string;
   readonly sealAlurUnlocked: boolean;
-  // Babak II: Segel Cermin Watak & Lensa Lima Indera
+  // Babak II: Segel Cermin Watak & Lensa Lima Indra
   readonly characterEvidenceAnswers: Readonly<Record<string, string>>;
   readonly pouchOrderIds: readonly string[];
   readonly sensoryUpgradeAnswers: Readonly<Record<string, string>>;
@@ -137,13 +137,13 @@ function hydrateFromStorageOnce(): void {
     if (parsed && typeof parsed === "object") {
       const mergedDraft: StudioDraftData = parsed.studioDraft
         ? {
-            ...INITIAL_STUDIO_DRAFT,
-            ...parsed.studioDraft,
-            selfRevisionChecks: {
-              ...INITIAL_STUDIO_DRAFT.selfRevisionChecks,
-              ...(parsed.studioDraft.selfRevisionChecks ?? {}),
-            },
-          }
+          ...INITIAL_STUDIO_DRAFT,
+          ...parsed.studioDraft,
+          selfRevisionChecks: {
+            ...INITIAL_STUDIO_DRAFT.selfRevisionChecks,
+            ...(parsed.studioDraft.selfRevisionChecks ?? {}),
+          },
+        }
         : INITIAL_STUDIO_DRAFT;
 
       currentState = recomputeSeals({
@@ -268,7 +268,7 @@ export function computeCompetencyMetrics(state: AksaralokaLearningState): Compet
   const amanatScore = isAmanatCorrect(state.selectedAmanatId) ? 30 : 0;
   const babak1Score = Math.round(plotScore + simScore + amanatScore);
 
-  // Babak II Score (35% character evidence, 30% pouch escalation, 35% sensory 5 indera)
+  // Babak II Score (35% character evidence, 30% pouch escalation, 35% sensory 5 Indra)
   let correctCharCount = 0;
   CHARACTER_EVIDENCE_CHALLENGES.forEach((ch) => {
     const chosen = ch.options.find((o) => o.id === state.characterEvidenceAnswers[ch.id]);
@@ -285,8 +285,8 @@ export function computeCompetencyMetrics(state: AksaralokaLearningState): Compet
   });
   const babak2Score = Math.round(
     (correctCharCount / CHARACTER_EVIDENCE_CHALLENGES.length) * 35 +
-      (correctPouchCount / EMAS_POUCH_STEPS.length) * 30 +
-      (correctSensoryCount / SENSORY_UPGRADE_CHALLENGES.length) * 35
+    (correctPouchCount / EMAS_POUCH_STEPS.length) * 30 +
+    (correctSensoryCount / SENSORY_UPGRADE_CHALLENGES.length) * 35
   );
 
   // Babak III Score (50% majas asosiasi, 50% kalimat langsung/tak langsung)
@@ -304,7 +304,7 @@ export function computeCompetencyMetrics(state: AksaralokaLearningState): Compet
   });
   const babak3Score = Math.round(
     (correctMajasCount / MAJAS_ASOSIASI_CHALLENGES.length) * 50 +
-      (correctDialogueCount / DIALOGUE_TRANSMUTATION_CHALLENGES.length) * 50
+    (correctDialogueCount / DIALOGUE_TRANSMUTATION_CHALLENGES.length) * 50
   );
 
   // Quest Score
