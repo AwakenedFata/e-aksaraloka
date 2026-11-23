@@ -47,7 +47,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
   } catch {
     return Response.json(
-      { error: "Gagal membuat berkas ekspor CSV dari database." },
+      { error: "Belum berhasil menyiapkan berkas rekap Excel. Silakan coba lagi." },
       { status: 503, headers: { "Cache-Control": "no-store" } }
     );
   }

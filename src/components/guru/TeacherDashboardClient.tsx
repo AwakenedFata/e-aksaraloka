@@ -253,7 +253,7 @@ export function TeacherDashboardClient({
           : 0;
 
   // Refs for smooth auto-scroll during interactive tour
-  const actionsRef = useRef<HTMLDivElement | null>(null);
+  const actionsRef = useRef<HTMLElement | null>(null);
   const kpiRef = useRef<HTMLElement | null>(null);
   const tabsRef = useRef<HTMLDivElement | null>(null);
   const filtersRef = useRef<HTMLDivElement | null>(null);
@@ -286,6 +286,7 @@ export function TeacherDashboardClient({
   const [selectedId, setSelectedId] = useState<string | null>(
     initialSelectedSubmissionId
   );
+  const [mobileDetailPane, setMobileDetailPane] = useState<"baca" | "nilai">("baca");
   const [detailRefreshTick, setDetailRefreshTick] = useState<number>(0);
   const [selectedDetail, setSelectedDetail] =
     useState<StudentSubmissionRecord | null>(null);
@@ -879,89 +880,44 @@ export function TeacherDashboardClient({
         activeTourStep ? "pb-64 sm:pb-48" : "pb-14"
       }`}
     >
-      {/* Header Atas */}
+      {/* Header Atas — Ramping, Proporsional di HP, Tablet, maupun Laptop */}
       <header className="sticky top-0 z-30 border-b border-[#cda250]/25 bg-[#050a15]/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3.5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2.5 px-3.5 py-3 sm:px-6">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <Link
               href="/"
-              className="shrink-0 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-stone-200 hover:border-[#f4d993]/60 hover:text-white no-underline whitespace-nowrap"
+              className="shrink-0 rounded-full border border-white/15 bg-white/5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-stone-200 hover:border-[#f4d993]/60 hover:text-white no-underline whitespace-nowrap"
             >
-              &lt;- Halaman Siswa
+              <span className="sm:hidden">&lt;- Siswa</span>
+              <span className="hidden sm:inline">&lt;- Halaman Siswa</span>
             </Link>
             <div className="min-w-0">
-              <p className="font-brand text-[10px] font-bold uppercase tracking-[0.2em] text-[#cda250] truncate">
+              <p className="hidden sm:block font-brand text-[10px] font-bold uppercase tracking-[0.2em] text-[#cda250] truncate">
                 Aksaraloka · Bahasa Indonesia Kelas VII
               </p>
-              <h1 className="font-brand text-base sm:text-lg font-bold text-[#f4d993] truncate">
-                Ruang Guru &amp; Penilaian Karya
+              <h1 className="font-brand text-sm sm:text-lg font-bold text-[#f4d993] truncate">
+                Ruang Guru &amp; Penilaian
               </h1>
             </div>
           </div>
 
-          {/* Tombol Aksi Utama (Coach Mark Target: actions) */}
-          <div
-            ref={actionsRef}
-            className={`flex flex-wrap items-center gap-2 rounded-2xl ${
-              activeTourStep?.target === "actions" ? "p-1.5 bg-[#091224]" : ""
-            } ${highlightRing("actions")}`}
-          >
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={startTour}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#cda250]/55 bg-[#0b1528] hover:bg-[#132240] px-3.5 py-1.5 text-xs font-bold text-[#f4d993] transition-colors cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#cda250]/55 bg-[#0b1528] hover:bg-[#132240] px-3 sm:px-3.5 py-1.5 text-xs font-bold text-[#f4d993] transition-colors cursor-pointer whitespace-nowrap"
             >
               <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#f4d993] text-[10px] font-extrabold text-[#030712]">
                 ?
               </span>
-              Panduan Cepat
+              <span className="hidden sm:inline">Panduan Cepat</span>
+              <span className="sm:hidden">Panduan</span>
             </button>
-
-            {spreadsheetUrl && (
-              <a
-                href={spreadsheetUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/55 bg-emerald-950/70 hover:bg-emerald-900/80 px-3.5 py-1.5 text-xs font-bold text-emerald-100 no-underline transition-colors whitespace-nowrap"
-              >
-                Buka Google Sheets -&gt;
-              </a>
-            )}
-
-            {sheetsConfigured && (
-              <button
-                type="button"
-                onClick={() => void handleSyncSheets()}
-                disabled={isSyncingAll}
-                title="Mengirim ulang karya siswa yang belum masuk ke Google Sheets"
-                className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 ${
-                  stats.unsyncedCount > 0
-                    ? "border border-amber-400/60 bg-amber-950/70 hover:bg-amber-900/80 text-amber-100"
-                    : "border border-white/15 bg-white/5 hover:bg-white/10 text-stone-200"
-                }`}
-              >
-                {isSyncingAll
-                  ? "Sedang Mengirim..."
-                  : stats.unsyncedCount > 0
-                    ? `Kirim Ulang ke Sheets (${stats.unsyncedCount})`
-                    : "Perbarui Google Sheets"}
-              </button>
-            )}
-
-            {databaseConfigured && (
-              <a
-                href={exportCsvUrl}
-                title="Mengunduh seluruh rekap nilai dan naskah cerita dalam berkas siap buka di Microsoft Excel"
-                className="rounded-full border border-white/15 bg-white/5 hover:bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-stone-100 no-underline transition-colors whitespace-nowrap"
-              >
-                Unduh Rekap Excel
-              </a>
-            )}
 
             <button
               type="button"
               onClick={() => void handleLogout()}
-              className="rounded-full border border-rose-400/40 bg-rose-950/45 hover:bg-rose-900/65 px-3.5 py-1.5 text-xs font-semibold text-rose-200 cursor-pointer whitespace-nowrap"
+              className="rounded-full border border-rose-400/40 bg-rose-950/45 hover:bg-rose-900/65 px-3 sm:px-3.5 py-1.5 text-xs font-semibold text-rose-200 cursor-pointer whitespace-nowrap"
             >
               Keluar
             </button>
@@ -969,7 +925,76 @@ export function TeacherDashboardClient({
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
+      <main className="mx-auto max-w-7xl px-3.5 py-5 sm:px-6 sm:py-6 space-y-5 sm:space-y-6">
+        {/* Bilah Aksi Rekap & Google Sheets (Coach Mark Target: actions) */}
+        {(spreadsheetUrl || sheetsConfigured || databaseConfigured) && (
+          <section
+            ref={actionsRef}
+            className={`rounded-2xl border border-[#cda250]/25 bg-[#081021]/90 p-3.5 sm:p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${highlightRing(
+              "actions"
+            )}`}
+          >
+            <div className="space-y-0.5 min-w-0">
+              {activeTourStep?.target === "actions" && (
+                <CoachMarkBadge
+                  stepNumber={5}
+                  totalSteps={GURU_TOUR_STEPS.length}
+                  text={activeTourStep.badge}
+                />
+              )}
+              <p className="text-xs font-bold uppercase tracking-wider text-[#f4d993]">
+                Pintasan Rekap Guru
+              </p>
+              <p className="text-xs text-stone-300 leading-relaxed">
+                Buka rekap otomatis di Google Sheets atau unduh arsip Excel untuk penilaian
+                luring.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2 shrink-0">
+              {spreadsheetUrl && (
+                <a
+                  href={spreadsheetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-10 sm:h-9 items-center justify-center gap-1.5 rounded-xl sm:rounded-full border border-emerald-400/55 bg-emerald-950/75 hover:bg-emerald-900/85 px-4 text-xs font-bold text-emerald-100 no-underline transition-colors whitespace-nowrap"
+                >
+                  Buka Google Sheets -&gt;
+                </a>
+              )}
+
+              {sheetsConfigured && (
+                <button
+                  type="button"
+                  onClick={() => void handleSyncSheets()}
+                  disabled={isSyncingAll}
+                  title="Mengirim ulang karya siswa yang belum masuk ke Google Sheets"
+                  className={`inline-flex h-10 sm:h-9 items-center justify-center rounded-xl sm:rounded-full px-4 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 ${
+                    stats.unsyncedCount > 0
+                      ? "border border-amber-400/60 bg-amber-950/75 hover:bg-amber-900/85 text-amber-100"
+                      : "border border-white/15 bg-white/5 hover:bg-white/10 text-stone-200"
+                  }`}
+                >
+                  {isSyncingAll
+                    ? "Sedang Mengirim..."
+                    : stats.unsyncedCount > 0
+                      ? `Kirim Ulang ke Sheets (${stats.unsyncedCount})`
+                      : "Perbarui Google Sheets"}
+                </button>
+              )}
+
+              {databaseConfigured && (
+                <a
+                  href={exportCsvUrl}
+                  title="Mengunduh seluruh rekap nilai dan naskah cerita dalam berkas siap buka di Microsoft Excel"
+                  className="inline-flex h-10 sm:h-9 items-center justify-center rounded-xl sm:rounded-full border border-white/15 bg-white/5 hover:bg-white/10 px-4 text-xs font-semibold text-stone-100 no-underline transition-colors whitespace-nowrap"
+                >
+                  Unduh Rekap Excel
+                </a>
+              )}
+            </div>
+          </section>
+        )}
         {/* Notifikasi Aksi */}
         {bannerMessage && (
           <div
@@ -1032,11 +1057,11 @@ export function TeacherDashboardClient({
             />
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Kartu 1 */}
-            <div className="rounded-2xl border border-white/10 bg-[#080f1e] p-4 sm:p-5 flex flex-col justify-between gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-wider text-stone-300">
+            <div className="rounded-2xl border border-white/10 bg-[#080f1e] p-3.5 sm:p-5 flex flex-col justify-between gap-2">
+              <div className="flex items-start justify-between gap-1.5">
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-stone-300 leading-snug">
                   Karya Terkumpul
                 </p>
                 <TeacherTooltip
@@ -1044,74 +1069,74 @@ export function TeacherDashboardClient({
                   content="Jumlah siswa yang sudah menekan tombol 'Kumpulkan ke Guru'. Label 'teks contoh' menandai siswa yang belum mengubah teks contoh bawaan."
                 />
               </div>
-              <p className="font-brand text-3xl font-bold text-[#f4d993]">
+              <p className="font-brand text-2xl sm:text-3xl font-bold text-[#f4d993]">
                 {stats.totalStudents}
               </p>
-              <p className="text-xs text-stone-400">
+              <p className="text-[11px] sm:text-xs text-stone-400 leading-snug">
                 {stats.originalCount} karya asli · {stats.presetWarningCount} teks contoh
               </p>
             </div>
 
             {/* Kartu 2 */}
-            <div className="rounded-2xl border border-white/10 bg-[#080f1e] p-4 sm:p-5 flex flex-col justify-between gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-wider text-stone-300">
-                  Rata-Rata Nilai Kelas
+            <div className="rounded-2xl border border-white/10 bg-[#080f1e] p-3.5 sm:p-5 flex flex-col justify-between gap-2">
+              <div className="flex items-start justify-between gap-1.5">
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-stone-300 leading-snug">
+                  Rata-Rata Nilai
                 </p>
                 <TeacherTooltip
                   align="right"
                   content="Gabungan skor otomatis dari latihan materi Babak 1–3 & Kuis (60%) serta pemeriksa naskah Studio Tulis (40%)."
                 />
               </div>
-              <p className="font-brand text-3xl font-bold text-emerald-300">
+              <p className="font-brand text-2xl sm:text-3xl font-bold text-emerald-300">
                 {stats.avgHolisticScore}%
               </p>
-              <p className="text-xs text-stone-400">
-                Rata-rata nilai cerita: {stats.avgStudioScore}%
+              <p className="text-[11px] sm:text-xs text-stone-400 leading-snug">
+                Nilai cerita: {stats.avgStudioScore}%
               </p>
             </div>
 
             {/* Kartu 3 */}
-            <div className="rounded-2xl border border-white/10 bg-[#080f1e] p-4 sm:p-5 flex flex-col justify-between gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-wider text-stone-300">
-                  Masuk Google Sheets
+            <div className="rounded-2xl border border-white/10 bg-[#080f1e] p-3.5 sm:p-5 flex flex-col justify-between gap-2">
+              <div className="flex items-start justify-between gap-1.5">
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-stone-300 leading-snug">
+                  Masuk Sheets
                 </p>
                 <TeacherTooltip
                   align="right"
                   content="Menunjukkan berapa banyak karya yang sudah berhasil diteruskan otomatis ke 3 tab Google Sheets (Rekap Nilai, Naskah Cerita, dan Peta Rancang)."
                 />
               </div>
-              <p className="font-brand text-3xl font-bold text-sky-300">
+              <p className="font-brand text-2xl sm:text-3xl font-bold text-sky-300">
                 {stats.syncedCount}
-                <span className="text-lg font-normal text-stone-400">
+                <span className="text-base sm:text-lg font-normal text-stone-400">
                   /{stats.totalStudents}
                 </span>
               </p>
-              <p className="text-xs text-stone-400">
+              <p className="text-[11px] sm:text-xs text-stone-400 leading-snug">
                 {stats.totalStudents === 0
-                  ? "Menunggu kiriman siswa pertama"
+                  ? "Menunggu kiriman pertama"
                   : stats.unsyncedCount === 0
-                    ? "Semua sudah tercatat di Google Sheets"
-                    : `${stats.unsyncedCount} karya perlu dikirim ulang`}
+                    ? "Semua tercatat di Sheets"
+                    : `${stats.unsyncedCount} perlu dikirim ulang`}
               </p>
             </div>
 
             {/* Kartu 4 */}
-            <div className="rounded-2xl border border-white/10 bg-[#080f1e] p-4 sm:p-5 flex flex-col justify-between gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-wider text-stone-300">
-                  Karya Pilihan Kelas
+            <div className="rounded-2xl border border-white/10 bg-[#080f1e] p-3.5 sm:p-5 flex flex-col justify-between gap-2">
+              <div className="flex items-start justify-between gap-1.5">
+                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-stone-300 leading-snug">
+                  Karya Pilihan
                 </p>
                 <TeacherTooltip
                   align="right"
                   content="Cerita terbaik yang Bapak/Ibu beri tanda 'Karya Pilihan' agar mudah dibuka di Galeri Apresiasi saat sesi refleksi kelas."
                 />
               </div>
-              <p className="font-brand text-3xl font-bold text-amber-300">
+              <p className="font-brand text-2xl sm:text-3xl font-bold text-amber-300">
                 {stats.featuredCount}
               </p>
-              <p className="text-xs text-stone-400">
+              <p className="text-[11px] sm:text-xs text-stone-400 leading-snug">
                 {classrooms.length} kode kelas terdaftar
               </p>
             </div>
@@ -1135,7 +1160,7 @@ export function TeacherDashboardClient({
             />
           )}
 
-          <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
+          <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2 border-b border-white/10 pb-3">
             {(
               [
                 {
@@ -1156,7 +1181,7 @@ export function TeacherDashboardClient({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`rounded-full px-4 py-2 text-xs sm:text-sm font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                className={`rounded-xl sm:rounded-full px-4 py-2.5 sm:py-2 text-xs sm:text-sm font-bold text-center transition-colors cursor-pointer whitespace-nowrap ${
                   activeTab === tab.id
                     ? "bg-[#f4d993] text-[#030712] shadow-md shadow-[#cda250]/15"
                     : "border border-white/15 bg-white/5 text-stone-200 hover:border-[#cda250]/50 hover:text-white"
@@ -1191,9 +1216,9 @@ export function TeacherDashboardClient({
               />
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-              {/* Kotak Pencarian proporsional, ikon kaca pembesar jelas, tidak terpotong */}
-              <div className="relative md:col-span-5">
+            <div className="grid grid-cols-1 sm:grid-cols-6 lg:grid-cols-12 gap-3 items-center">
+              {/* Kotak Pencarian proporsional: full-width di HP & Tablet, 5 kolom di Desktop */}
+              <div className="relative sm:col-span-6 lg:col-span-5">
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
@@ -1216,7 +1241,7 @@ export function TeacherDashboardClient({
               </div>
 
               {/* Filter Kelas */}
-              <div className="md:col-span-3">
+              <div className="sm:col-span-2 lg:col-span-3">
                 <select
                   value={filterClassCode}
                   onChange={(e) => setFilterClassCode(e.target.value)}
@@ -1239,7 +1264,7 @@ export function TeacherDashboardClient({
               </div>
 
               {/* Filter Status Google Sheets */}
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2 lg:col-span-2">
                 <select
                   value={filterSyncStatus}
                   onChange={(e) => setFilterSyncStatus(e.target.value)}
@@ -1265,7 +1290,7 @@ export function TeacherDashboardClient({
               </div>
 
               {/* Tombol Segarkan */}
-              <div className="md:col-span-2 flex items-center gap-2">
+              <div className="sm:col-span-2 lg:col-span-2 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={triggerReloadDashboard}
@@ -1296,18 +1321,44 @@ export function TeacherDashboardClient({
               />
             )}
 
-            {listError && (
-              <div
-                role="alert"
-                className="rounded-2xl border border-rose-400/45 bg-rose-950/45 p-4 text-sm text-rose-100"
-              >
-                {listError}
-              </div>
-            )}
-
             {isLoadingList ? (
               <div className="rounded-2xl border border-white/10 bg-[#080f1e] p-10 text-center text-sm text-stone-300">
                 Sedang memuat daftar karya siswa...
+              </div>
+            ) : listError ? (
+              <div
+                role="alert"
+                className="rounded-2xl border border-rose-400/45 bg-rose-950/35 p-5 sm:p-6 space-y-3"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="font-brand text-sm sm:text-base font-bold text-rose-200">
+                      Koneksi ke Penyimpanan Karya Sedang Terganggu
+                    </p>
+                    <p className="text-xs sm:text-sm leading-relaxed text-rose-100/90">
+                      {listError}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={triggerReloadDashboard}
+                    className="shrink-0 self-start sm:self-center rounded-full bg-[#f4d993] hover:bg-white px-4 py-2 text-xs font-bold text-[#030712] cursor-pointer whitespace-nowrap"
+                  >
+                    Coba Muat Ulang
+                  </button>
+                </div>
+                <details className="rounded-xl border border-rose-400/25 bg-black/25 px-3.5 py-2.5 text-xs text-stone-300">
+                  <summary className="cursor-pointer font-semibold text-rose-200">
+                    Petunjuk Perbaikan untuk Pengelola Aplikasi
+                  </summary>
+                  <p className="mt-1.5 leading-relaxed">
+                    Jika terjadi di server produksi (Vercel), pastikan menu{" "}
+                    <strong>Network Access</strong> di MongoDB Atlas sudah mengizinkan IP{" "}
+                    <code className="text-[#f4d993]">0.0.0.0/0</code> (Allow Access from
+                    Anywhere) dan variabel <code className="text-[#f4d993]">MONGODB_URI</code>{" "}
+                    sudah benar tanpa spasi/tanda kutip berlebih.
+                  </p>
+                </details>
               </div>
             ) : submissions.length === 0 ? (
               <div className="rounded-2xl border border-white/10 bg-[#080f1e] p-8 sm:p-10 text-center space-y-3">
@@ -1319,7 +1370,7 @@ export function TeacherDashboardClient({
                 <p className="mx-auto max-w-lg text-sm leading-relaxed text-stone-400">
                   {hasActiveFilters
                     ? "Coba ubah kata kunci pencarian atau pilih 'Semua Kelas' untuk melihat seluruh pengumpulan."
-                    : "Saat siswa selesai menulis di Studio Tulis dan menekan tombol 'Kumpulkan ke Guru', naskah cerita dan nilainya akan otomatis muncul di tabel ini serta masuk ke Google Sheets."}
+                    : "Saat siswa selesai menulis di Studio Tulis dan menekan tombol 'Kumpulkan ke Guru', naskah cerita dan nilainya akan otomatis muncul di daftar ini serta masuk ke Google Sheets."}
                 </p>
                 {hasActiveFilters && (
                   <button
@@ -1336,7 +1387,104 @@ export function TeacherDashboardClient({
                 )}
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[#080f1e]">
+              <>
+                {/* Tampilan Kartu Adaptif untuk HP & Tablet (< 1024px) — Bebas Scroll Horizontal */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 lg:hidden">
+                  {submissions.map((item) => {
+                    const authBadge = getAuthenticityBadge(
+                      item.analysis.authenticityStatus
+                    );
+                    const sheetBadge = getSheetStatusBadge(item.sheetSync.status);
+                    return (
+                      <article
+                        key={item.submissionId}
+                        className="rounded-2xl border border-white/12 bg-[#080f1e] p-4 space-y-3.5 flex flex-col justify-between"
+                      >
+                        <div className="space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-bold text-base text-stone-100 truncate">
+                                {item.authorName}
+                              </p>
+                              <p className="text-xs text-stone-400">
+                                {item.authorClass}
+                                {item.absenNumber ? ` · No. ${item.absenNumber}` : ""} ·{" "}
+                                <span className="font-semibold text-[#cda250]">
+                                  {item.classCode}
+                                </span>
+                              </p>
+                            </div>
+                            <span
+                              className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${authBadge.className}`}
+                            >
+                              {authBadge.label}
+                            </span>
+                          </div>
+
+                          <div className="rounded-xl border border-white/8 bg-black/25 px-3 py-2.5 space-y-1">
+                            <p className="font-semibold text-sm text-[#f4d993] line-clamp-2 leading-snug">
+                              {item.storyTitle}
+                            </p>
+                            <p className="text-[11px] text-stone-400">
+                              {item.analysis.totalWords} kata · Kiriman ke-{item.version} ·{" "}
+                              {formatWibDate(item.submittedAtIso)}
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-1.5 text-center">
+                            <div className="rounded-lg bg-black/30 py-1.5 px-1">
+                              <span className="block text-[10px] text-stone-400">Latihan</span>
+                              <strong className="text-xs text-stone-100">
+                                {item.metrics.overallPercentage}%
+                              </strong>
+                            </div>
+                            <div className="rounded-lg bg-black/30 py-1.5 px-1">
+                              <span className="block text-[10px] text-stone-400">Cerita</span>
+                              <strong className="text-xs text-stone-100">
+                                {item.metrics.babak4Score}%
+                              </strong>
+                            </div>
+                            <div className="rounded-lg bg-emerald-950/50 border border-emerald-400/25 py-1.5 px-1">
+                              <span className="block text-[10px] text-emerald-200/80">Total</span>
+                              <strong className="text-xs text-emerald-200">
+                                {item.metrics.holisticTotalPercentage}%
+                              </strong>
+                            </div>
+                            <div className="rounded-lg bg-[#cda250]/12 border border-[#cda250]/30 py-1.5 px-1">
+                              <span className="block text-[10px] text-[#f4d993]/80">Guru</span>
+                              <strong className="text-xs text-[#f4d993]">
+                                {item.teacherReview.teacherScore !== null
+                                  ? item.teacherReview.teacherScore
+                                  : "-"}
+                              </strong>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 border-t border-white/10 pt-3">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${sheetBadge.className}`}
+                          >
+                            {sheetBadge.label}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileDetailPane("baca");
+                              setSelectedId(item.submissionId);
+                            }}
+                            className="rounded-full bg-[#f4d993] hover:bg-white px-4 py-2 text-xs font-bold text-[#030712] cursor-pointer transition-colors whitespace-nowrap"
+                          >
+                            Baca &amp; Nilai -&gt;
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                {/* Tampilan Tabel Penuh untuk Desktop (>= 1024px) */}
+                <div className="hidden lg:block overflow-x-auto rounded-2xl border border-white/10 bg-[#080f1e]">
                 <table className="w-full min-w-[920px] text-left text-sm">
                   <thead className="border-b border-white/10 bg-[#0c162b] text-xs font-bold uppercase tracking-wider text-stone-300">
                     <tr>
@@ -1478,7 +1626,10 @@ export function TeacherDashboardClient({
                           <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap">
                             <button
                               type="button"
-                              onClick={() => setSelectedId(item.submissionId)}
+                              onClick={() => {
+                                setMobileDetailPane("baca");
+                                setSelectedId(item.submissionId);
+                              }}
                               className="rounded-full bg-[#f4d993] hover:bg-white px-4 py-1.5 text-xs font-bold text-[#030712] cursor-pointer transition-colors whitespace-nowrap"
                             >
                               Baca &amp; Nilai
@@ -1489,7 +1640,8 @@ export function TeacherDashboardClient({
                     })}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </>
             )}
           </section>
         )}
@@ -1545,7 +1697,10 @@ export function TeacherDashboardClient({
                       </span>
                       <button
                         type="button"
-                        onClick={() => setSelectedId(item.submissionId)}
+                        onClick={() => {
+                          setMobileDetailPane("baca");
+                          setSelectedId(item.submissionId);
+                        }}
                         className="rounded-full border border-[#cda250]/60 bg-[#0d182d] hover:bg-[#cda250]/20 px-3.5 py-1.5 text-xs font-bold text-[#f4d993] cursor-pointer whitespace-nowrap"
                       >
                         Baca Cerita Utuh -&gt;
@@ -1822,15 +1977,15 @@ export function TeacherDashboardClient({
       {/* ==================================================================== */}
       {selectedId && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5 backdrop-blur-md"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-0 sm:p-5 backdrop-blur-md"
           role="dialog"
           aria-modal="true"
           aria-label="Lembar Baca Cerita dan Penilaian Guru"
         >
-          <div className="flex h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-[#cda250]/55 bg-[#070d19] shadow-2xl">
+          <div className="flex h-dvh sm:h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-none sm:rounded-3xl border-0 sm:border border-[#cda250]/55 bg-[#070d19] shadow-2xl">
             {/* Modal Header */}
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#cda250]/25 bg-[#0b1324] px-5 py-4">
-              <div className="min-w-0">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2.5 border-b border-[#cda250]/25 bg-[#0b1324] px-4 py-3.5 sm:px-5 sm:py-4">
+              <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-[#cda250] truncate">
                   {selectedDetail
                     ? `${selectedDetail.authorName} · ${selectedDetail.authorClass}${
@@ -1840,7 +1995,7 @@ export function TeacherDashboardClient({
                       } · Kiriman ke-${selectedDetail.version}`
                     : "Memuat naskah siswa..."}
                 </p>
-                <h2 className="font-brand text-lg sm:text-xl font-bold text-[#f4d993] truncate">
+                <h2 className="font-brand text-base sm:text-xl font-bold text-[#f4d993] truncate">
                   {selectedDetail?.storyTitle ?? "Memuat karya siswa..."}
                 </h2>
               </div>
@@ -1853,9 +2008,9 @@ export function TeacherDashboardClient({
                     onClick={() =>
                       void handleSyncSheets(selectedDetail.submissionId)
                     }
-                    className="rounded-full border border-sky-400/50 bg-sky-950/65 hover:bg-sky-900/75 px-3.5 py-1.5 text-xs font-bold text-sky-100 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                    className="rounded-full border border-sky-400/50 bg-sky-950/65 hover:bg-sky-900/75 px-3 sm:px-3.5 py-1.5 text-xs font-bold text-sky-100 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                   >
-                    {isSyncingOne ? "Mengirim..." : "Kirim ke Google Sheets"}
+                    {isSyncingOne ? "Mengirim..." : "Kirim ke Sheets"}
                   </button>
                 )}
                 <button
@@ -1871,14 +2026,46 @@ export function TeacherDashboardClient({
               </div>
             </div>
 
+            {/* Switcher 2-Tab Khusus HP & Tablet (< 1024px) agar tidak perlu scroll panjang */}
+            {selectedDetail && !isLoadingDetail && (
+              <div className="grid grid-cols-2 gap-2 border-b border-white/10 bg-[#081021] px-4 py-2.5 lg:hidden shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMobileDetailPane("baca")}
+                  className={`rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer ${
+                    mobileDetailPane === "baca"
+                      ? "bg-[#f4d993] text-[#030712]"
+                      : "border border-white/15 bg-white/5 text-stone-200"
+                  }`}
+                >
+                  1. Baca Cerita &amp; LKS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileDetailPane("nilai")}
+                  className={`rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer ${
+                    mobileDetailPane === "nilai"
+                      ? "bg-emerald-400 text-[#030712]"
+                      : "border border-white/15 bg-white/5 text-stone-200"
+                  }`}
+                >
+                  2. Beri Nilai &amp; EYD V
+                </button>
+              </div>
+            )}
+
             {isLoadingDetail || !selectedDetail ? (
               <div className="flex flex-1 items-center justify-center p-10 text-sm text-stone-300">
                 Sedang membuka naskah cerita, Peta Rancang, dan catatan ejaan...
               </div>
             ) : (
-              <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-12 overflow-y-auto lg:overflow-hidden">
-                {/* Kolom Kiri (7 col): Lembar Baca Cerita + Peta Rancang (scroll mandiri di desktop) */}
-                <div className="lg:col-span-7 border-b lg:border-b-0 lg:border-r border-white/10 p-5 sm:p-6 space-y-5 lg:overflow-y-auto">
+              <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-12 overflow-hidden">
+                {/* Kolom Kiri (7 col): Lembar Baca Cerita + Peta Rancang */}
+                <div
+                  className={`${
+                    mobileDetailPane === "baca" ? "block" : "hidden"
+                  } lg:block lg:col-span-7 lg:border-r border-white/10 p-4 sm:p-6 space-y-5 overflow-y-auto`}
+                >
                   {/* Riwayat Kiriman / Revisi */}
                   {selectedRevisions.length > 1 && (
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#0b1324] px-3.5 py-2.5 text-xs">
@@ -2050,8 +2237,12 @@ export function TeacherDashboardClient({
                   </div>
                 </div>
 
-                {/* Kolom Kanan (5 col): Penilaian Guru + Ringkasan Pemeriksa Otomatis (scroll mandiri di desktop) */}
-                <div className="lg:col-span-5 p-5 sm:p-6 space-y-5 lg:overflow-y-auto">
+                {/* Kolom Kanan (5 col): Penilaian Guru + Ringkasan Pemeriksa Otomatis */}
+                <div
+                  className={`${
+                    mobileDetailPane === "nilai" ? "block" : "hidden"
+                  } lg:block lg:col-span-5 p-4 sm:p-6 space-y-5 overflow-y-auto`}
+                >
                   {/* Form Penilaian Guru ditaruh di ATAS agar guru langsung bisa memberi nilai saat membaca */}
                   <form
                     onSubmit={handleSaveReview}

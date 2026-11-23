@@ -51,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
     const classroom = await upsertClassroom(parsed.data);
     if (!classroom) {
       return Response.json(
-        { error: "Database MongoDB belum dikonfigurasi." },
+        { error: "Penyimpanan karya daring belum diaktifkan oleh pengelola aplikasi." },
         { status: 503, headers: { "Cache-Control": "no-store" } }
       );
     }
@@ -61,7 +61,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   } catch {
     return Response.json(
-      { error: "Gagal menyimpan kode kelas ke database." },
+      { error: "Belum berhasil menyimpan kode kelas. Silakan coba beberapa saat lagi." },
       { status: 503, headers: { "Cache-Control": "no-store" } }
     );
   }

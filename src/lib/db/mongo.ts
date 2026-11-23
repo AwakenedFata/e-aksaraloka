@@ -10,7 +10,8 @@ import { getServerEnv } from "@/lib/config/env";
  * - Callers must handle `null` from `getMongoClient()` (database not configured).
  */
 
-const SERVER_SELECTION_TIMEOUT_MS = 3_000;
+const DEFAULT_SERVER_SELECTION_TIMEOUT_MS = 8_000;
+const CONNECT_TIMEOUT_MS = 8_000;
 
 type GlobalWithMongo = typeof globalThis & {
   __aksaralokaMongoClient?: Promise<MongoClient>;
@@ -27,9 +28,14 @@ export function getMongoClient(): Promise<MongoClient> | null {
   if (!MONGODB_URI) return null;
 
   if (!globalWithMongo.__aksaralokaMongoClient) {
+    const hasExplicitSelectionTimeout = /serverSelectionTimeoutMS=/i.test(MONGODB_URI);
     const client = new MongoClient(MONGODB_URI, {
       appName: "aksaraloka",
-      serverSelectionTimeoutMS: SERVER_SELECTION_TIMEOUT_MS,
+      connectTimeoutMS: CONNECT_TIMEOUT_MS,
+      maxPoolSize: 5,
+      ...(hasExplicitSelectionTimeout
+        ? {}
+        : { serverSelectionTimeoutMS: DEFAULT_SERVER_SELECTION_TIMEOUT_MS }),
     });
     globalWithMongo.__aksaralokaMongoClient = client.connect().catch((error: unknown) => {
       // Drop the failed promise so the next call can retry instead of caching the failure.

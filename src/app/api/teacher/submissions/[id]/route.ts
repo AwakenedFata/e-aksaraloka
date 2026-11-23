@@ -46,7 +46,7 @@ export async function GET(
     );
   } catch {
     return Response.json(
-      { error: "Gagal memuat detail karya dari database." },
+      { error: "Belum dapat memuat detail naskah siswa. Silakan coba lagi beberapa saat." },
       { status: 503, headers: { "Cache-Control": "no-store" } }
     );
   }
@@ -107,7 +107,7 @@ export async function PATCH(
     );
   } catch {
     return Response.json(
-      { error: "Gagal menyimpan penilaian guru ke database." },
+      { error: "Belum berhasil menyimpan nilai guru. Silakan coba beberapa saat lagi." },
       { status: 503, headers: { "Cache-Control": "no-store" } }
     );
   }

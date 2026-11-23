@@ -117,7 +117,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   } catch {
     return Response.json(
-      { error: "Gagal memproses sinkronisasi ulang dari database." },
+      { error: "Belum berhasil mengirim ulang data ke Google Sheets. Silakan coba lagi." },
       { status: 503, headers: { "Cache-Control": "no-store" } }
     );
   }

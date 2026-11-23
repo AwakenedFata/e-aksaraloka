@@ -102,7 +102,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   } catch {
     return Response.json(
-      { error: "Gagal mengambil daftar pengumpulan dari database MongoDB." },
+      {
+        error:
+          "Belum dapat terhubung ke layanan penyimpanan karya. Silakan tunggu sebentar lalu tekan 'Segarkan Data'.",
+      },
       { status: 503, headers: { "Cache-Control": "no-store" } }
     );
   }
