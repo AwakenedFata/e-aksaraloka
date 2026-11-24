@@ -48,7 +48,7 @@ export interface StudioDraftData {
   readonly protagonistTraitAction: string;
   readonly antagonistName: string;
   readonly antagonistConflictTrigger: string;
-  // Langkah 3: Latar Tempat & Peta Lima Indera (Peluang Peran Media #4)
+  // Langkah 3: Latar Tempat & Peta Pancaindra (Peluang Peran Media #4)
   readonly settingPlace: string;
   readonly sensorySight: string;
   readonly sensorySound: string;
@@ -160,7 +160,7 @@ export const SELF_REVISION_CHECKLIST: readonly SelfRevisionChecklistItem[] = [
   {
     id: "rev-watak-Indera",
     label:
-      "Sifat tokohku sudah terlihat dari perbuatannya dan ada gambaran panca Indera (cahaya, suara, atau aroma/suhu).",
+      "Sifat tokohku sudah terlihat dari perbuatannya dan ada gambaran pancaindra (cahaya, suara, atau aroma/suhu).",
     category: "Detail & Tokoh",
   },
   {
@@ -918,7 +918,7 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   if (resolusiWords > 0) strukturSnippets.push(`Resolusi: ${resolusiWords} kata`);
 
   // --------------------------------------------------------------------------
-  // 2. Indikator Konsistensi Tokoh, Latar, & Detail Lima Indera (Bobot 20)
+  // 2. Indikator Konsistensi Tokoh, Latar, & Detail Pancaindra (Bobot 20)
   // --------------------------------------------------------------------------
   const protag = draft.protagonistName.trim();
   const antag = draft.antagonistName.trim();
@@ -946,7 +946,7 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
   if (placeUsed) konsistensiSnippets.push(`Latar: "${place}"`);
   if (detectedSensoryWords.length > 0) {
     konsistensiSnippets.push(
-      `Diksi Indera (${detectedSensoryWords.length}): ${detectedSensoryWords.slice(0, 4).join(", ")}`
+      `Diksi Indra (${detectedSensoryWords.length}): ${detectedSensoryWords.slice(0, 4).join(", ")}`
     );
   }
 
@@ -1042,14 +1042,14 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
     },
     {
       id: "konsistensi_Indera",
-      title: "2. Nama Tokoh, Tempat, & Kata Panca Indera",
+      title: "2. Nama Tokoh, Tempat, & Kata Pancaindra",
       tpCode: "TP 3",
       passed: konsistensiPassed,
       scoreWeight: 20,
       earnedScore: konsistensiEarned,
       summary: konsistensiPassed
-        ? "Mantap! Nama tokoh, tempat kejadian, dan kata-kata panca Indera sudah hidup di dalam ceritamu."
-        : "Sebutkan nama Tokoh Utama dan Lawan/Tempat dari Lembar 1 di dalam ceritamu, lalu tambahkan minimal 2 kata panca Indera.",
+        ? "Mantap! Nama tokoh, tempat kejadian, dan kata-kata pancaindra sudah hidup di dalam ceritamu."
+        : "Sebutkan nama Tokoh Utama dan Lawan/Tempat dari Lembar 1 di dalam ceritamu, lalu tambahkan minimal 2 kata pancaindra.",
       detectedSnippets: konsistensiSnippets,
       improvementHint:
         "Pakai nama tokoh dan tempat yang kamu tulis di Lembar 1, lalu tambahkan kata suasana seperti 'berpendar', 'gemuruh', 'harum', atau 'dingin'.",

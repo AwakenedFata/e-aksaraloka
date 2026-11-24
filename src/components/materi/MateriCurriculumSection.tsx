@@ -61,7 +61,7 @@ export function MateriCurriculumSection({
           </p>
 
           <div className="mt-6 pt-4 border-t border-white/10 text-[11px] text-[#f4d993]/90 font-medium">
-            Kunci: Deskripsi Inderawi latar magis
+            Kunci: Deskripsi Indrawi latar magis
           </div>
         </div>
 

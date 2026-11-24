@@ -328,7 +328,7 @@ export function PetaPembelajaranModal({
       <div class="score-val">${metrics.babak1Score}/100</div>
     </div>
     <div class="score-box">
-      <div>Segel II · Watak &amp; 5 Indera</div>
+      <div>Segel II · Watak &amp; Pancaindra</div>
       <div class="score-val">${metrics.babak2Score}/100</div>
     </div>
     <div class="score-box">
@@ -350,13 +350,13 @@ export function PetaPembelajaranModal({
     <thead>
       <tr>
         <th style="width: 24%;">Bagian Cerita</th>
-        <th style="width: 38%;">Contoh Kata Panca Indera</th>
+        <th style="width: 38%;">Contoh Kata Pancaindra</th>
         <th style="width: 38%;">Contoh Perumpamaan &amp; Dialog yang Rapi</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td><strong>Suasana &amp; Panca Indera</strong></td>
+        <td><strong>Suasana &amp; Pancaindra</strong></td>
         <td>
           • <em>Penglihatan:</em> berpendar merah delima, kabut keperakan, temaram lentera<br/>
           • <em>Pendengaran:</em> dentuman langkah, desir angin magis, gemerincing kristal<br/>
@@ -393,7 +393,7 @@ export function PetaPembelajaranModal({
         <td>Nama & bukti sifat lewat perbuatan (bukan cuma disebut baik/jahat): ....................................................................................</td>
       </tr>
       <tr>
-        <th>3. Tempat & 3 Panca Indera</th>
+        <th>3. Tempat &amp; Pancaindra</th>
         <td>Apa yang terlihat, terdengar, dan terasa di tempat itu: ..................................................................................................................</td>
       </tr>
       <tr>
@@ -420,7 +420,7 @@ export function PetaPembelajaranModal({
   <div class="checklist">
     <div>[ ] Ada bagian Awal, Puncak Masalah, dan Akhir yang urut.</div>
     <div>[ ] Penyelesaian masalah sesuai dengan aturan keajaiban cerita.</div>
-    <div>[ ] Ada minimal 2 kata panca Indera (cahaya, suara, atau aroma/suhu).</div>
+    <div>[ ] Ada minimal 2 kata pancaindra (cahaya, suara, atau aroma/suhu).</div>
     <div>[ ] Ada minimal 1 perumpamaan (seperti/bagaikan/laksana/bak).</div>
     <div>[ ] Ada kalimat langsung bertanda petik ("...") dan kalimat tak langsung.</div>
     <div>[ ] Kata depan tempat (di atas, di dalam, di sekolah) ditulis dipisah.</div>

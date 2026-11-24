@@ -423,7 +423,7 @@ export function StudioHybridToolkitDrawer({
                 Cari Kata &amp; Perumpamaan untuk Temamu!
               </span>
               <p className="text-[11px] text-stone-300 leading-snug">
-                Tulis tema fantasimu sendiri (misalnya: <em>Kerajaan Awan</em> atau <em>Kota Bawah Laut</em>). Asisten AI akan memberi 6 kata panca Indera dan 3 kerangka kalimat rumpang [...] untuk kamu lengkapi sendiri!
+                Tulis tema fantasimu sendiri (misalnya: <em>Kerajaan Awan</em> atau <em>Kota Bawah Laut</em>). Asisten AI akan memberi 6 kata pancaindra dan 3 kerangka kalimat rumpang [...] untuk kamu lengkapi sendiri!
               </p>
             </div>
 

@@ -105,7 +105,7 @@ const SEAL_BADGES: readonly {
   readonly label: string;
 }[] = [
     { id: "alur", label: "Misi 1 · Alur" },
-    { id: "watak", label: "Misi 2 · Tokoh & Indera" },
+    { id: "watak", label: "Misi 2 · Tokoh & Indra" },
     { id: "bahasa", label: "Misi 3 · Perumpamaan & Dialog" },
   ];
 
@@ -1107,7 +1107,7 @@ export function StudioTulisStageOverlay({
           <td><strong>${safeAntagName}</strong> — ${safeAntagTrigger}</td>
         </tr>
         <tr>
-          <th>Latar Tempat &amp; Peta Lima Indera</th>
+          <th>Latar Tempat &amp; Peta Pancaindra</th>
           <td>
             <strong>Latar:</strong> ${safePlace}<br/>
             <strong>Penglihatan:</strong> ${safeSight} |
@@ -2160,7 +2160,7 @@ export function StudioTulisStageOverlay({
                                 onChange={(e) =>
                                   updateStudioDraft({ storyTitle: e.target.value })
                                 }
-                                placeholder="Tulis judul cerita yang bikin penasaran..."
+                                placeholder="Tulis judul cerita yang membuat penasaran..."
                                 className="parchment-contour-warp parchment-pen-input w-full px-1 py-0.5 font-serif text-[15px] sm:text-base font-bold text-[#241407]/95 placeholder:text-[#5c3d1e]/75"
                               />
                             </div>
@@ -2477,7 +2477,7 @@ export function StudioTulisStageOverlay({
                     className="book-ink-sweep-right flex flex-1 min-h-0 flex-col justify-between"
                   >
                     <div className="parchment-scroll flex flex-1 min-h-0 flex-col overflow-y-auto pr-1.5">
-                      {/* TAB 1, SPREAD 0 — HALAMAN 2: LANGKAH 3 (5 Indera) & LANGKAH 4 (KERANGKA ALUR) */}
+                      {/* TAB 1, SPREAD 0 — HALAMAN 2: LANGKAH 3 (PANCAINDRA) & LANGKAH 4 (KERANGKA ALUR) */}
                       {activeViewTab === "dual_book" && safeCurrentSpread === 0 && (
                         <div className="space-y-1.5">
                           <div className="flex min-h-[26px] items-center justify-between gap-2 border-b border-[#5c3d1e]/45 pb-1">
@@ -2493,10 +2493,10 @@ export function StudioTulisStageOverlay({
                             </button>
                           </div>
 
-                          {/* Langkah 3: Latar Tempat & Peta Lima Indera (Tanpa Kotak Background) */}
+                          {/* Langkah 3: Latar Tempat & Peta Pancaindra (Tanpa Kotak Background) */}
                           <div className="space-y-1">
                             <p className="font-brand text-[10px] font-bold uppercase tracking-[0.08em] text-[#3d250b] truncate">
-                              DI MANA CERITAMU TERJADI? (PANCA Indera)
+                              DI MANA CERITAMU TERJADI? (PANCAINDRA)
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5">
                               <div className="min-w-0">

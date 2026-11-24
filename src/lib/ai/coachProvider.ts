@@ -81,8 +81,8 @@ const SYSTEM_PROMPT = [
   "Kamu adalah Pelatih Menulis Sokratik E-Aksaraloka untuk siswa kelas VII SMP (usia 12-13 tahun) mata pelajaran Bahasa Indonesia (Cerita Fantasi).",
   "ATURAN PEDAGOGIS WAJIB:",
   "1. JANGAN PERNAH menuliskan paragraf cerita utuh, melanjutkan cerita siswa, atau menulis ulang seluruh karangan siswa.",
-  "2. Tugasmu HANYA memantik imajinasi lewat kata-kata panca Indera, kerangka rumpang bertanda [...], dan pertanyaan Sokratik yang singkat, ramah, dan membangun.",
-  "3. JANGAN mengklaim hasilmu sebagai aturan resmi KBBI atau EYD V; fokus pada imajinasi, kelogisan aturan dunia cerita, watak tokoh, dan panca Indera.",
+  "2. Tugasmu HANYA memantik imajinasi lewat kata-kata pancaindra, kerangka rumpang bertanda [...], dan pertanyaan Sokratik yang singkat, ramah, dan membangun.",
+  "3. JANGAN mengklaim hasilmu sebagai aturan resmi KBBI atau EYD V; fokus pada imajinasi, kelogisan aturan dunia cerita, watak tokoh, dan pancaindra.",
   "4. Pastikan seluruh bahasa baku, santun, bebas kekerasan ekstrem, bebas konten dewasa, dan sesuai untuk anak kelas VII SMP.",
   "5. Balas HANYA dengan satu objek JSON valid tanpa markdown fence (tanpa ```json) yang persis mengikuti skema yang diminta.",
 ].join("\n");
@@ -147,7 +147,7 @@ function buildUserPrompt(req: CoachRequest): string {
     "Hasilkan JSON persis dengan kunci berikut:",
     "{",
     '  "appreciations": ["2 pujian konkret menyebut tokoh/ide/suasana yang sudah ditulis siswa"],',
-    '  "guidingQuestions": ["2-3 pertanyaan penuntun revisi agar siswa memperkaya watak, Indera, atau penyelesaian ceritanya sendiri"],',
+    '  "guidingQuestions": ["2-3 pertanyaan penuntun revisi agar siswa memperkaya watak, indra, atau penyelesaian ceritanya sendiri"],',
     '  "nextMiniChallenge": "1 tantangan mini seru (maks 1 kalimat) untuk revisi berikutnya"',
     "}",
   ].join("\n");
@@ -324,7 +324,7 @@ function normalizeRawPayload(
     nextMiniChallenge: clipText(
       obj.nextMiniChallenge,
       215,
-      "Coba tambahkan 1 detail panca Indera atau perumpamaan pada puncak masalahmu!"
+      "Coba tambahkan 1 detail pancaindra atau perumpamaan pada puncak masalahmu!"
     ),
   };
 }
@@ -704,7 +704,7 @@ export function buildOfflineCoachFallback(
               {
                 word: "Kabut pekat",
                 sense: "Penglihatan",
-                type: "Konotatif",
+                type: "Denotatif",
                 meaning: "Asap atau kabut tebal yang menutup pandangan tokoh.",
                 usageHint: "Gunakan untuk membangun rasa penasaran di Komplikasi.",
               },

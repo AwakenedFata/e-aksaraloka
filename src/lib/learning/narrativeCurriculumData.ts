@@ -41,11 +41,11 @@ export const TUJUAN_PEMBELAJARAN_LIST: readonly TujuanPembelajaranItem[] = [
   {
     id: "tp-3",
     code: "TP 3",
-    title: "Menghidupkan Tokoh & Suasana Panca Indera",
+    title: "Menghidupkan Tokoh & Suasana Pancaindra",
     description:
-      "Mengembangkan cerita dengan sifat tokoh yang terlihat dari aksinya dan gambaran tempat yang melibatkan panca Indera.",
+      "Mengembangkan cerita dengan sifat tokoh yang terlihat dari aksinya dan gambaran tempat yang melibatkan pancaindra.",
     targetIssue: "Tokoh terasa datar dan gambaran tempat masih terlalu singkat.",
-    mediaRole: "Tebak Bukti Sifat Mao & Emas serta latihan kalimat Panca Indera.",
+    mediaRole: "Tebak Bukti Sifat Mao & Emas serta latihan kalimat pancaindra.",
     targetDestination: "watak",
   },
   {
@@ -89,7 +89,7 @@ export interface PlotBeatItem {
 }
 
 export const PEMBUKA_PUSTAKA_AUDIO_SCRIPT =
-  "Selamat datang di Pustaka Aksaraloka! Sebelum mengarang ceritamu sendiri di Studio Tulis, yuk kumpulkan tiga Segel Rahasia lewat tiga kisah seru: Bola-Bola Waktu, Sihir Unik Mao, dan Keberanian Emas. Cerita fantasi adalah cerita yang berisi khayalan dan hal-hal ajaib, seperti benda yang memiliki kekuatan, makhluk ajaib, atau perjalanan waktu. Meskipun tidak terjadi di dunia nyata, cerita fantasi memiliki jalan cerita yang jelas dan dapat mengandung pesan yang ingin disampaikan penulis. Ingat tiga kuncinya ya: pertama, keajaiban memiliki aturan. Kedua, sifat tokoh terlihat dari aksinya. Dan ketiga, hidupkan ceritamu dengan panca Indera serta perumpamaan.";
+  "Selamat datang di Pustaka Aksaraloka! Sebelum mengarang ceritamu sendiri di Studio Tulis, yuk kumpulkan tiga Segel Rahasia lewat tiga kisah seru: Bola-Bola Waktu, Sihir Unik Mao, dan Keberanian Emas. Cerita fantasi adalah cerita yang berisi khayalan dan hal-hal ajaib, seperti benda yang memiliki kekuatan, makhluk ajaib, atau perjalanan waktu. Meskipun tidak terjadi di dunia nyata, cerita fantasi memiliki jalan cerita yang jelas dan dapat mengandung pesan yang ingin disampaikan penulis. Ingat tiga kuncinya ya: pertama, keajaiban memiliki aturan. Kedua, sifat tokoh terlihat dari aksinya. Dan ketiga, hidupkan ceritamu dengan pancaindra serta perumpamaan.";
 
 export const BOLA_WAKTU_AUDIO_SCRIPT =
   "Kisah Bola-Bola Waktu karya Fauzia A. Setiap pukul empat pagi, Ivan harus membantu ibunya membuat kue basah untuk dititipkan di kantin sekolah. Ivan merasa malu karena Fiam sering mengejeknya sebagai tukang kue. Suatu sore, pria berkerudung hitam memberinya bola-bola waktu bercahaya. Ivan memilih bola merah untuk melompat ke tahun 2022 agar tidak perlu lagi berjualan kue. Di masa depan itu, Ivan memang menjadi bintang basket populer, tetapi ia terkejut mendapati makam ayahnya yang wafat karena kelelahan bekerja seorang diri. Ivan menangis menyesal, lalu terbangun kembali di masa kini. Ia memeluk kedua orang tuanya dan bertekad bangga membantu ibunya sambil tetap giat berlatih basket.";
@@ -107,7 +107,7 @@ export const BOLA_WAKTU_PLOT_BEATS: readonly PlotBeatItem[] = [
     stagePosition: "Orientasi (Awal)",
     correctOrder: 1,
     summary:
-      "Ivan bangun pukul 04.00 pagi membantu ibunya membuat kue basah, tapi ia malu membawanya ke sekolah.",
+      "Ivan bangun pukul 04.00 pagi membantu ibunya membuat kue basah, tetapi ia malu membawanya ke sekolah.",
     logicNote: "Mengenalkan siapa tokohnya (Ivan), di mana kejadiannya, dan apa yang ia rasakan.",
   },
   {
@@ -125,7 +125,7 @@ export const BOLA_WAKTU_PLOT_BEATS: readonly PlotBeatItem[] = [
     stagePosition: "Komplikasi (Tengah)",
     correctOrder: 3,
     summary:
-      "Ivan bertemu pria misterius berkerudung hitam dan memilih bola waktu merah untuk pindah ke tahun 2022.",
+      "Ivan bertemu pria misterius berkerudung hitam dan memilih bola waktu merah untuk melompat ke tahun 2022.",
     logicNote: "Keajaiban mulai muncul! Bola waktu membawa Ivan melompat ke masa depan.",
   },
   {
@@ -134,7 +134,7 @@ export const BOLA_WAKTU_PLOT_BEATS: readonly PlotBeatItem[] = [
     stagePosition: "Klimaks (Puncak)",
     correctOrder: 4,
     summary:
-      "Di tahun 2022 Ivan jadi pemain basket terkenal, tetapi ia menangis sedih saat tahu Ayahnya sudah tiada karena kelelahan bekerja sendirian.",
+      "Pada tahun 2022, Ivan menjadi pemain basket terkenal, tetapi ia menangis sedih saat tahu ayahnya sudah tiada karena kelelahan bekerja sendirian.",
     logicNote: "Momen paling menegangkan dan mengharukan! Pilihan Ivan ternyata membawa akibat besar.",
   },
   {
@@ -143,7 +143,7 @@ export const BOLA_WAKTU_PLOT_BEATS: readonly PlotBeatItem[] = [
     stagePosition: "Resolusi (Akhir)",
     correctOrder: 5,
     summary:
-      "Ivan terbangun kembali di masa kini, memeluk Ayah-Ibunya dengan bersyukur, dan tidak malu lagi membantu berjualan kue.",
+      "Ivan terbangun kembali di masa kini, memeluk ayah dan ibunya dengan bersyukur, dan tidak malu lagi membantu berjualan kue.",
     logicNote: "Masalah selesai dan sifat Ivan berubah menjadi lebih baik.",
   },
 ];
@@ -189,7 +189,7 @@ export const BOLA_WAKTU_AMANAT_OPTIONS: readonly AmanatOption[] = [
 ];
 
 // ============================================================================
-// MISI 2 (BABAK II): SEGEL CERMIN WATAK & PANCA Indera (Hlm. 59–67)
+// MISI 2 (BABAK II): SEGEL CERMIN WATAK & PANCAINDRA (Hlm. 59–67)
 // ============================================================================
 
 export interface CharacterEvidenceChallenge {
@@ -270,28 +270,28 @@ export const EMAS_POUCH_STEPS: readonly PouchEscalationStep[] = [
     order: 1,
     pouchId: "biji-timun",
     itemName: "Kantong Biji Timun",
-    transformation: "Berubah jadi kebun timun lebat yang menghambat langkah Raksasa.",
+    transformation: "Berubah menjadi kebun timun lebat yang menghambat langkah Raksasa.",
     tensionLevel: "Bahaya Awal (35%) — Raksasa melambat karena asyik makan timun.",
   },
   {
     order: 2,
     pouchId: "jarum",
     itemName: "Kantong Jarum",
-    transformation: "Tumbuh cepat jadi hutan bambu tajam dan rapat yang melukai kaki Raksasa.",
+    transformation: "Tumbuh cepat menjadi hutan bambu tajam dan rapat yang melukai kaki Raksasa.",
     tensionLevel: "Bahaya Naik (60%) — Raksasa kesakitan dan makin marah!",
   },
   {
     order: 3,
     pouchId: "garam",
     itemName: "Kantong Garam",
-    transformation: "Berubah jadi lautan luas berombak besar yang hampir menenggelamkan Raksasa.",
-    tensionLevel: "Hampir Puncak (85%) — Rintangan makin besar, tapi Raksasa masih bisa berenang!",
+    transformation: "Berubah menjadi lautan luas berombak besar yang hampir menenggelamkan Raksasa.",
+    tensionLevel: "Hampir Puncak (85%) — Rintangan makin besar, tetapi Raksasa masih bisa berenang.",
   },
   {
     order: 4,
     pouchId: "terasi",
     itemName: "Kantong Terasi",
-    transformation: "Meledak jadi lautan lumpur mendidih yang mengalahkan Raksasa dan menyelamatkan Emas!",
+    transformation: "Meledak menjadi lautan lumpur mendidih yang mengalahkan Raksasa dan menyelamatkan Emas.",
     tensionLevel: "Puncak Klimaks (100%) — Momen penentu kemenangan Emas!",
   },
 ];
@@ -500,7 +500,7 @@ export const DIALOGUE_TRANSMUTATION_CHALLENGES: readonly DialogueTransmutationIt
 ];
 
 // ============================================================================
-// KAMUS KATA FANTASI & PANCA Indera
+// KAMUS KATA FANTASI & PANCAINDRA
 // ============================================================================
 
 export interface FantasyLexiconCategory {
@@ -547,7 +547,7 @@ export const FANTASY_LEXICON_BANK: readonly FantasyLexiconCategory[] = [
       },
       {
         word: "Pekat",
-        type: "Konotatif",
+        type: "Denotatif",
         meaning: "Sangat gelap atau tebal sehingga pandangan tertutup rapat.",
         example: "Kabut hitam pekat menelan ujung jembatan kayu di depan mereka.",
       },
@@ -871,11 +871,11 @@ export const ASTROLABE_SIDE_QUESTS: readonly SideQuestItem[] = [
   {
     id: "quest-ide",
     code: "KUIS BONUS 1 · CARI IDE SERU",
-    title: "Bikin Ide Cerita yang Tidak Membosankan!",
+    title: "Membuat Ide Cerita yang Tidak Membosankan!",
     targetCompetency: "Mencari ide cerita yang segar & punya aturan keajaiban",
     scenario:
-      "Raka ingin mengarang cerita fantasi, tapi idenya cuma: 'Seorang anak menemukan pedang sakti lalu langsung mengalahkan raja monster.' Cerita seperti ini terlalu biasa dan cepat selesai.",
-    question: "Ide mana di bawah ini yang lebih seru dan bikin pembaca penasaran?",
+      "Raka ingin mengarang cerita fantasi, tetapi idenya hanya: 'Seorang anak menemukan pedang sakti lalu langsung mengalahkan raja monster.' Cerita seperti ini terlalu biasa dan cepat selesai.",
+    question: "Ide mana di bawah ini yang lebih seru dan membuat pembaca penasaran?",
     options: [
       {
         id: "q1-b",
@@ -889,7 +889,7 @@ export const ASTROLABE_SIDE_QUESTS: readonly SideQuestItem[] = [
         text: "Seorang siswa yang sering terlambat sekolah menemukan jam saku tua milik kakeknya yang bisa memutar waktu 10 menit, tapi setiap dipakai satu benda kesayangannya berubah jadi batu.",
         isCorrect: true,
         feedback:
-          "Keren banget! Ceritanya dekat dengan kehidupan kita di sekolah, dan jam ajaibnya punya aturan/risiko yang bikin tegang!",
+          "Keren banget! Ceritanya dekat dengan kehidupan kita di sekolah, dan jam ajaibnya punya aturan/risiko yang membuat tegang!",
       },
     ],
   },
