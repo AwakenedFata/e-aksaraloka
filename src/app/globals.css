@@ -70,19 +70,24 @@
 
 @media (max-width: 767px) {
   .mobile-parchment-sheet {
-    font-size: 13.5px;
+    font-size: 14px;
   }
   .mobile-parchment-sheet p {
+    font-size: 13.5px !important;
+    line-height: 1.55 !important;
+  }
+  .mobile-parchment-sheet button.text-left {
     font-size: 13px !important;
     line-height: 1.5 !important;
   }
   .mobile-parchment-sheet label {
-    font-size: 12px !important;
-    line-height: 1.4 !important;
+    font-size: 12.5px !important;
+    line-height: 1.45 !important;
   }
   .mobile-parchment-sheet input,
   .mobile-parchment-sheet textarea {
     font-size: 16px !important;
+    font-weight: 700 !important;
   }
 }
 
@@ -123,13 +128,17 @@
     0 0.4px 0.9px rgba(92, 61, 30, 0.16);
 }
 
-/* High-legibility 2D book typography (friendly for astigmatism / mata silinder) */
+/* High-legibility 2D book typography (engineered for astigmatism / mata silinder) */
 .parchment-2d-readable {
-  font-weight: 600;
-  color: #1c1006;
+  font-family: var(--font-jakarta), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 700;
+  color: #120902;
   text-shadow: none;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: auto;
 }
 
+.parchment-2d-readable .font-serif,
 .parchment-2d-readable p,
 .parchment-2d-readable li,
 .parchment-2d-readable blockquote,
@@ -137,8 +146,10 @@
 .parchment-2d-readable textarea,
 .parchment-2d-readable input,
 .parchment-2d-readable select,
+.parchment-2d-readable label,
 .parchment-2d-readable .font-normal {
-  font-weight: 600;
+  font-family: var(--font-jakarta), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 700;
 }
 
 .parchment-2d-readable strong,
@@ -151,9 +162,46 @@
   font-weight: 800;
 }
 
+.parchment-2d-readable .parchment-contour-warp {
+  filter: none;
+}
+
+.parchment-2d-readable p,
+.parchment-2d-readable li {
+  font-size: 11.5px;
+  line-height: 1.52;
+}
+
+.parchment-2d-readable button.text-left {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.parchment-2d-readable .text-\[\#2b1a0c\],
+.parchment-2d-readable .text-\[\#3a2512\],
+.parchment-2d-readable .text-\[\#4a2f15\],
+.parchment-2d-readable .text-\[\#5c3d1e\],
+.parchment-2d-readable .text-\[\#3d250b\],
+.parchment-2d-readable .text-\[\#6b4826\],
+.parchment-2d-readable .text-\[\#2f1d0c\] {
+  color: #120902;
+}
+
+.parchment-2d-readable .text-\[\#14532d\] {
+  color: #093b1c;
+}
+
+.parchment-2d-readable .text-\[\#7f1d1d\],
+.parchment-2d-readable .text-\[\#7c2d12\],
+.parchment-2d-readable .text-\[\#5a1818\] {
+  color: #6b1111;
+}
+
 .parchment-2d-readable .parchment-pen-input,
 .parchment-2d-readable .parchment-pen-textarea {
-  color: rgba(24, 13, 5, 0.98);
+  font-family: var(--font-jakarta), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 700;
+  color: #100802;
   text-shadow: none;
 }
 
