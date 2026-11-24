@@ -1189,11 +1189,11 @@ export function StudioTulisStageOverlay({
 
   // Gaya input/textarea goresan pena transparan murni agar teks menyatu langsung di atas perkamen
   const inkInputClass =
-    "parchment-pen-input w-full px-1 py-0.5 text-base md:text-[11.5px] leading-tight font-semibold italic placeholder:text-[#5c3d1e]/70";
+    "parchment-pen-input w-full px-1 py-0.5 text-base md:text-[11.5px] leading-tight font-semibold italic placeholder:text-[#4a2f15]/80";
   const inkTextareaClass =
-    "parchment-scroll-hidden parchment-pen-input w-full resize-none px-1 py-0.5 text-base md:text-[11px] leading-[1.35] italic placeholder:text-[#5c3d1e]/70";
+    "parchment-scroll-hidden parchment-pen-input w-full resize-none px-1 py-0.5 text-base md:text-[11px] leading-[1.35] font-semibold italic placeholder:text-[#4a2f15]/80";
   const inkStoryTextareaClass =
-    "parchment-scroll parchment-pen-textarea w-full flex-1 min-h-[200px] md:min-h-0 resize-none border-0 bg-transparent px-1 py-0.5 font-serif text-base md:text-xs lg:text-[13px] placeholder:text-[#5c3d1e]/70";
+    "parchment-scroll parchment-pen-textarea w-full flex-1 min-h-[200px] md:min-h-0 resize-none border-0 bg-transparent px-1 py-0.5 font-serif text-base md:text-xs lg:text-[13px] font-semibold placeholder:text-[#4a2f15]/80";
 
   const scalePx = (n: number) => `${(n * stageMetrics.scale).toFixed(2)}px`;
 
@@ -1226,8 +1226,8 @@ export function StudioTulisStageOverlay({
     };
 
   const studio2dPageClass = isMobileBook
-    ? "parchment-ink parchment-ink-bleed mobile-parchment-sheet pointer-events-auto relative h-full w-full min-h-0 flex-col justify-between overflow-hidden px-4 py-3.5"
-    : "parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5";
+    ? "parchment-ink parchment-ink-bleed parchment-2d-readable mobile-parchment-sheet pointer-events-auto relative h-full w-full min-h-0 flex-col justify-between overflow-hidden px-4 py-3.5"
+    : "parchment-ink parchment-ink-bleed parchment-2d-readable pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5";
 
   const mobileSideLabels: readonly [string, string] =
     activeViewTab === "audit_revisi"
@@ -1488,7 +1488,7 @@ export function StudioTulisStageOverlay({
                 </div>
               )}
 
-              <div className="pointer-events-auto flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto md:flex-wrap md:justify-between md:overflow-visible rounded-2xl border border-[#d6b26f]/35 bg-slate-950/94 md:bg-slate-950/85 px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] md:backdrop-blur-md">
+              <div className="parchment-scroll-hidden pointer-events-auto flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto touch-pan-x md:flex-wrap md:justify-between md:overflow-visible rounded-2xl border border-[#d6b26f]/35 bg-slate-950/94 md:bg-slate-950/85 px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] md:backdrop-blur-md">
                 <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                   <span className="hidden md:inline-block rounded-full bg-[#090d16]/75 border border-white/10 px-3 py-1 text-[11px] font-medium text-stone-200 shadow-md">
                     Status:{" "}
@@ -1612,21 +1612,21 @@ export function StudioTulisStageOverlay({
           {/* ================================================================= */}
           {/* 1. FLOATING HEADER TIPIS DI ATAS BUKU                             */}
           {/* ================================================================= */}
-          <div className="relative z-40 flex w-full max-w-[1180px] flex-col gap-1.5 md:flex-row md:flex-wrap md:items-center md:justify-between shrink-0">
-            {/* Mobile Row 1 / Desktop Kanan: Utility & Tutup */}
-            <div className="flex items-center justify-between gap-1.5 md:order-2">
-              <div className="flex items-center gap-1.5 rounded-full md:rounded-lg border border-[#cda250]/45 bg-[#090d16]/88 px-3 py-1.5 md:py-1 text-[11px] text-stone-200 shadow-md whitespace-nowrap">
-                <span className="font-brand uppercase tracking-wider text-[#f4d993]">
-                  Skor:
-                </span>
-                <span className="font-bold text-white">{analysis.studioScore}%</span>
-                <span className="text-stone-500">|</span>
-                <span className="text-emerald-300 font-semibold">
-                  {analysis.totalWords} Kata
-                </span>
-              </div>
+          <div className="relative z-40 flex w-full min-w-0 max-w-[1180px] flex-col gap-1.5 md:flex-row md:flex-wrap md:items-center md:justify-between shrink-0">
+            {/* Mobile Row 1: Swipeable Utility Strip + Pinned Close Button | Desktop Right Group */}
+            <div className="flex w-full min-w-0 items-center gap-1.5 md:order-2 md:w-auto">
+              <div className="parchment-scroll-hidden flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto touch-pan-x pr-1 pb-0.5 md:flex-none md:overflow-visible md:pr-0 md:pb-0">
+                <div className="shrink-0 flex items-center gap-1.5 rounded-full md:rounded-lg border border-[#cda250]/45 bg-[#090d16]/88 px-3 py-1.5 md:py-1 text-[11px] text-stone-200 shadow-md whitespace-nowrap">
+                  <span className="font-brand uppercase tracking-wider text-[#f4d993]">
+                    Skor:
+                  </span>
+                  <span className="font-bold text-white">{analysis.studioScore}%</span>
+                  <span className="text-stone-500">|</span>
+                  <span className="text-emerald-300 font-semibold">
+                    {analysis.totalWords} Kata
+                  </span>
+                </div>
 
-              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -1636,7 +1636,7 @@ export function StudioTulisStageOverlay({
                   }}
                   aria-label="Buka panduan cara menulis di Studio Tulis"
                   title="Cara Pakai Studio Tulis"
-                  className="min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-[#f4d993]/55 bg-[#0d0a07]/90 hover:bg-[#0d0a07] px-2.5 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-md whitespace-nowrap"
+                  className="shrink-0 min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-[#f4d993]/55 bg-[#0d0a07]/90 hover:bg-[#0d0a07] px-2.5 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-md whitespace-nowrap"
                 >
                   ?
                 </button>
@@ -1647,7 +1647,7 @@ export function StudioTulisStageOverlay({
                     setIsGuideDrawerOpen((prev) => !prev);
                   }}
                   aria-expanded={isGuideDrawerOpen}
-                  className={`min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer shadow-md whitespace-nowrap ${isGuideDrawerOpen
+                  className={`shrink-0 min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer shadow-md whitespace-nowrap ${isGuideDrawerOpen
                     ? "border-[#f4d993] bg-[#cda250]/35 text-[#f4d993]"
                     : "border-[#cda250]/55 bg-[#0d0a07]/90 hover:bg-[#0d0a07] text-[#f4d993]"
                     }`}
@@ -1665,14 +1665,14 @@ export function StudioTulisStageOverlay({
                     <button
                       type="button"
                       onClick={() => triggerTabFlip("audit_revisi")}
-                      className="min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-emerald-400/55 bg-emerald-950/90 hover:bg-emerald-900/90 px-2.5 py-1 text-[11px] font-bold text-emerald-200 cursor-pointer shadow-md whitespace-nowrap transition-colors"
+                      className="shrink-0 min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-emerald-400/55 bg-emerald-950/90 hover:bg-emerald-900/90 px-2.5 py-1 text-[11px] font-bold text-emerald-200 cursor-pointer shadow-md whitespace-nowrap transition-colors"
                     >
                       Cek &amp; AI ({analysis.passedIndicatorsCount}/5)
                     </button>
                     <button
                       type="button"
                       onClick={handleResetDraft}
-                      className={`hidden md:inline-block rounded-lg border px-2.5 py-1 text-[11px] transition-colors cursor-pointer shadow-md whitespace-nowrap ${isConfirmingResetDraft
+                      className={`hidden shrink-0 md:inline-block rounded-lg border px-2.5 py-1 text-[11px] transition-colors cursor-pointer shadow-md whitespace-nowrap ${isConfirmingResetDraft
                         ? "border-rose-400/80 bg-rose-950/95 font-bold text-rose-100"
                         : "border-white/20 bg-[#0d0a07]/85 hover:bg-[#0d0a07] text-stone-200"
                         }`}
@@ -1684,17 +1684,19 @@ export function StudioTulisStageOverlay({
                   <button
                     type="button"
                     onClick={() => triggerTabFlip("dual_book")}
-                    className="min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-[#cda250]/55 bg-[#090d16]/85 hover:bg-[#090d16] px-2.5 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-md whitespace-nowrap"
+                    className="shrink-0 min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-[#cda250]/55 bg-[#090d16]/85 hover:bg-[#090d16] px-2.5 py-1 text-[11px] font-bold text-[#f4d993] transition-colors cursor-pointer shadow-md whitespace-nowrap"
                   >
                     &lt;- Menulis
                   </button>
                 )}
+              </div>
 
+              <div className="flex shrink-0 items-center border-l border-[#cda250]/25 pl-1.5 md:border-l-0 md:pl-0">
                 <button
                   type="button"
                   onClick={handleExitFocusBookToDesk}
                   aria-label="Tutup tampilan tulis penuh"
-                  className="min-h-[36px] md:min-h-0 rounded-full md:rounded-lg border border-rose-400/45 bg-[#090d16]/90 hover:bg-rose-950/75 px-2.5 py-1 text-[11px] font-bold text-stone-100 hover:text-rose-200 transition-colors cursor-pointer shadow-md whitespace-nowrap"
+                  className="shrink-0 min-h-[36px] min-w-[40px] md:min-h-0 md:min-w-0 inline-flex items-center justify-center rounded-full md:rounded-lg border border-rose-400/55 bg-[#090d16]/90 hover:bg-rose-950/75 px-2.5 py-1 text-[11px] font-bold text-rose-100 hover:text-rose-200 transition-colors cursor-pointer shadow-md whitespace-nowrap"
                 >
                   <span className="lg:hidden">[ X ]</span>
                   <span className="hidden lg:inline">[ X ] Meja</span>
@@ -1703,7 +1705,7 @@ export function StudioTulisStageOverlay({
             </div>
 
             {/* Kiri: Tab Struktur Lembar Buku (Scrollable di Mobile, Compact 1-Baris di Desktop) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 md:order-1 md:flex-wrap md:overflow-visible md:pb-0">
+            <div className="parchment-scroll-hidden flex w-full min-w-0 items-center gap-1.5 overflow-x-auto touch-pan-x pb-0.5 md:order-1 md:w-auto md:flex-wrap md:overflow-visible md:pb-0">
               {CORE_SPREAD_LABELS.map((sp) => {
                 const isSpreadActive =
                   activeViewTab === "dual_book" && safeCurrentSpread === sp.index;

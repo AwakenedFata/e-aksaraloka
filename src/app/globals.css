@@ -123,6 +123,40 @@
     0 0.4px 0.9px rgba(92, 61, 30, 0.16);
 }
 
+/* High-legibility 2D book typography (friendly for astigmatism / mata silinder) */
+.parchment-2d-readable {
+  font-weight: 600;
+  color: #1c1006;
+  text-shadow: none;
+}
+
+.parchment-2d-readable p,
+.parchment-2d-readable li,
+.parchment-2d-readable blockquote,
+.parchment-2d-readable button,
+.parchment-2d-readable textarea,
+.parchment-2d-readable input,
+.parchment-2d-readable select,
+.parchment-2d-readable .font-normal {
+  font-weight: 600;
+}
+
+.parchment-2d-readable strong,
+.parchment-2d-readable b,
+.parchment-2d-readable h1,
+.parchment-2d-readable h2,
+.parchment-2d-readable h3,
+.parchment-2d-readable h4,
+.parchment-2d-readable .font-bold {
+  font-weight: 800;
+}
+
+.parchment-2d-readable .parchment-pen-input,
+.parchment-2d-readable .parchment-pen-textarea {
+  color: rgba(24, 13, 5, 0.98);
+  text-shadow: none;
+}
+
 /* Warmer walnut-sepia ink capillary bleed tuned for bright sunlit desk paper */
 .parchment-desk-ink-bleed {
   color: rgba(66, 38, 15, 0.86);

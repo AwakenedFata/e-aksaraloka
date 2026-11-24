@@ -1117,8 +1117,8 @@ export function KitabMateriOverlay({
         : book2dRightPageStyle;
 
   const page2dContainerClass = isMobileBook
-    ? "parchment-ink parchment-ink-bleed mobile-parchment-sheet pointer-events-auto relative h-full w-full min-h-0 flex-col justify-between overflow-hidden px-4 py-3.5"
-    : "parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5";
+    ? "parchment-ink parchment-ink-bleed parchment-2d-readable mobile-parchment-sheet pointer-events-auto relative h-full w-full min-h-0 flex-col justify-between overflow-hidden px-4 py-3.5"
+    : "parchment-ink parchment-ink-bleed parchment-2d-readable pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5";
 
   if (!isVisible) return null;
 
@@ -1600,7 +1600,7 @@ export function KitabMateriOverlay({
                 </button>
               </div>
 
-              <div className="pointer-events-auto flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto md:flex-wrap md:justify-between md:overflow-visible rounded-2xl border border-[#d6b26f]/35 bg-slate-950/94 md:bg-slate-950/85 px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] md:backdrop-blur-md">
+              <div className="parchment-scroll-hidden pointer-events-auto flex w-full max-w-[1180px] items-center gap-2 overflow-x-auto touch-pan-x md:flex-wrap md:justify-between md:overflow-visible rounded-2xl border border-[#d6b26f]/35 bg-slate-950/94 md:bg-slate-950/85 px-3 py-2 shadow-[0_14px_34px_rgba(0,0,0,0.85)] md:backdrop-blur-md">
                 <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                   <span className="text-[11px] font-medium text-amber-100/85 whitespace-nowrap">
                     Segel:{" "}
@@ -1774,15 +1774,15 @@ export function KitabMateriOverlay({
           {/* --------------------------------------------------------------- */}
           {/* TOP FLOATING CONTROLS (COMPACT THUMB BAR DI HP, 1 BARIS DI DESKTOP) */}
           {/* --------------------------------------------------------------- */}
-          <div className="relative z-40 flex w-full max-w-[1180px] shrink-0 flex-col gap-1.5 md:flex-row md:flex-wrap md:items-center md:justify-between px-0.5 sm:px-1">
-            {/* Mobile Row 1: Utility Badge & Actions | Desktop Right Group */}
-            <div className="flex items-center justify-between gap-1.5 md:order-2">
-              <div className="rounded-full border border-[#d6b26f]/45 bg-slate-950/85 px-3 py-1.5 md:py-1 text-[11px] font-bold text-[#ffe8b6] shadow-md backdrop-blur-md whitespace-nowrap">
-                Segel: {totalSealsUnlocked}/3{" "}
-                <span className="mx-1 text-[#d6b26f]/50">|</span>
-                <span className="text-emerald-300">{masteryPercentage}%</span>
-              </div>
-              <div className="flex items-center gap-1.5">
+          <div className="relative z-40 flex w-full min-w-0 max-w-[1180px] shrink-0 flex-col gap-1.5 md:flex-row md:flex-wrap md:items-center md:justify-between px-0.5 sm:px-1">
+            {/* Mobile Row 1: Swipeable Utility Strip + Pinned Close Button | Desktop Right Group */}
+            <div className="flex w-full min-w-0 items-center gap-1.5 md:order-2 md:w-auto">
+              <div className="parchment-scroll-hidden flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto touch-pan-x pr-1 pb-0.5 md:flex-none md:overflow-visible md:pr-0 md:pb-0">
+                <div className="shrink-0 rounded-full border border-[#d6b26f]/45 bg-slate-950/85 px-3 py-1.5 md:py-1 text-[11px] font-bold text-[#ffe8b6] shadow-md backdrop-blur-md whitespace-nowrap">
+                  Segel: {totalSealsUnlocked}/3{" "}
+                  <span className="mx-1 text-[#d6b26f]/50">|</span>
+                  <span className="text-emerald-300">{masteryPercentage}%</span>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -1791,29 +1791,32 @@ export function KitabMateriOverlay({
                   }}
                   aria-label="Buka panduan cara belajar di Pustaka"
                   title="Panduan Singkat Pustaka"
-                  className="cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-[#f3d89b]/55 bg-slate-950/85 px-2.5 py-1 text-[11px] font-bold text-[#ffe8b6] shadow-md backdrop-blur-md transition hover:bg-slate-900 whitespace-nowrap"
+                  className="shrink-0 cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-[#f3d89b]/55 bg-slate-950/85 px-2.5 py-1 text-[11px] font-bold text-[#ffe8b6] shadow-md backdrop-blur-md transition hover:bg-slate-900 whitespace-nowrap"
                 >
                   ?
                 </button>
                 <button
                   type="button"
                   onClick={onOpenPetaModal}
-                  className="cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-[#d6b26f]/45 bg-slate-950/85 px-3 py-1 text-[11px] font-semibold text-[#f5ddab] shadow-md backdrop-blur-md transition hover:border-[#f3d89b] hover:text-white whitespace-nowrap"
+                  className="shrink-0 cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-[#d6b26f]/45 bg-slate-950/85 px-3 py-1 text-[11px] font-semibold text-[#f5ddab] shadow-md backdrop-blur-md transition hover:border-[#f3d89b] hover:text-white whitespace-nowrap"
                 >
                   Peta &amp; LKS
                 </button>
                 <button
                   type="button"
                   onClick={onNavigateToStudioTulis}
-                  className="cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-emerald-400/55 bg-emerald-950/85 px-3 py-1 text-[11px] font-bold text-emerald-200 shadow-md backdrop-blur-md transition hover:border-emerald-300 hover:bg-emerald-900/90 whitespace-nowrap"
+                  className="shrink-0 cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-emerald-400/55 bg-emerald-950/85 px-3 py-1 text-[11px] font-bold text-emerald-200 shadow-md backdrop-blur-md transition hover:border-emerald-300 hover:bg-emerald-900/90 whitespace-nowrap"
                 >
                   Studio Tulis -&gt;
                 </button>
+              </div>
+
+              <div className="flex shrink-0 items-center border-l border-[#d6b26f]/25 pl-1.5 md:border-l-0 md:pl-0">
                 <button
                   type="button"
                   onClick={() => onSetBookFocused(false)}
                   aria-label="Tutup tampilan baca penuh"
-                  className="cursor-pointer min-h-[36px] md:min-h-0 rounded-full border border-rose-300/50 bg-slate-950/85 px-3 py-1 text-[11px] font-bold text-rose-200 shadow-md backdrop-blur-md transition hover:border-rose-300 hover:bg-rose-950/80 whitespace-nowrap"
+                  className="shrink-0 cursor-pointer min-h-[36px] min-w-[40px] md:min-h-0 md:min-w-0 inline-flex items-center justify-center rounded-full border border-rose-300/55 bg-slate-950/90 px-2.5 md:px-3 py-1 text-[11px] font-bold text-rose-200 shadow-md backdrop-blur-md transition hover:border-rose-300 hover:bg-rose-950/80 whitespace-nowrap"
                 >
                   <span className="md:hidden">[ X ]</span>
                   <span className="hidden md:inline">[ X ] Kembali ke Meja</span>
@@ -1822,7 +1825,7 @@ export function KitabMateriOverlay({
             </div>
 
             {/* Chapter & Intro Tabs (Horizontal swipeable strip on mobile) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 md:order-1 md:flex-wrap md:overflow-visible md:pb-0">
+            <div className="parchment-scroll-hidden flex w-full min-w-0 items-center gap-1.5 overflow-x-auto touch-pan-x pb-0.5 md:order-1 md:w-auto md:flex-wrap md:overflow-visible md:pb-0">
               <button
                 type="button"
                 onClick={handleOpenIntroSpread}
@@ -2652,7 +2655,7 @@ export function KitabMateriOverlay({
                                   handleCustomAmanatChange(e.target.value)
                                 }
                                 placeholder="Contoh: Aku ingin selalu bersyukur dan membantu orang tua..."
-                                className="parchment-pen-input mt-0.5 w-full px-1 py-1 font-serif text-[10.5px] italic placeholder:text-[#6b4826]/60"
+                                className="parchment-pen-input mt-0.5 w-full px-1 py-1 font-serif text-[10.5px] font-semibold italic placeholder:text-[#4a2f15]/75"
                               />
                             </div>
                           </div>
