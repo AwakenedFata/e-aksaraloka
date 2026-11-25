@@ -117,10 +117,31 @@
 
 /* Subtle ink-bleed onto warm parchment paper fibers */
 .parchment-ink-bleed {
-  color: rgba(34, 20, 9, 0.92);
+  color: rgba(28, 16, 6, 0.96);
   text-shadow:
-    0 0 0.55px rgba(43, 26, 12, 0.3),
-    0 0.4px 0.9px rgba(92, 61, 30, 0.16);
+    0 0 0.4px rgba(43, 26, 12, 0.24),
+    0 0.3px 0.7px rgba(92, 61, 30, 0.12);
+}
+
+/* Gentle +1 step weight (500 Medium) & slightly deeper sepia ink for body paragraphs/options/textareas */
+.parchment-ink-bleed p:not(.font-bold):not(.font-semibold),
+.parchment-ink-bleed li:not(.font-bold):not(.font-semibold),
+.parchment-ink-bleed button.text-left:not(.font-bold):not(.font-semibold),
+.parchment-ink-bleed textarea:not(.font-bold):not(.font-semibold) {
+  font-weight: 500;
+}
+
+.parchment-ink-bleed p.text-\[\#3a2512\],
+.parchment-ink-bleed li.text-\[\#3a2512\],
+.parchment-ink-bleed button.text-left.text-\[\#3a2512\] {
+  color: #2c1a0a;
+}
+
+.parchment-ink-bleed p.text-\[\#2b1a0c\],
+.parchment-ink-bleed li.text-\[\#2b1a0c\],
+.parchment-ink-bleed button.text-left.text-\[\#2b1a0c\],
+.parchment-ink-bleed p.text-\[\#2f1d0c\] {
+  color: #211307;
 }
 
 /* Warmer walnut-sepia ink capillary bleed tuned for bright sunlit desk paper */
@@ -152,9 +173,9 @@
 
 /* Pen-on-parchment styling for interactive <input> and <select> controls */
 .parchment-pen-input {
-  color: rgba(36, 20, 8, 0.95);
+  color: rgba(28, 15, 5, 0.97);
   caret-color: #7f1d1d;
-  text-shadow: 0 0 0.45px rgba(43, 26, 12, 0.25);
+  text-shadow: 0 0 0.35px rgba(43, 26, 12, 0.2);
   background-color: transparent;
   border: 0;
   background-image: linear-gradient(
@@ -183,9 +204,9 @@
 
 /* Multi-line ruled ink area for handwritten story drafts on parchment */
 .parchment-pen-textarea {
-  color: rgba(34, 19, 8, 0.94);
+  color: rgba(26, 14, 5, 0.97);
   caret-color: #7f1d1d;
-  text-shadow: 0 0 0.4px rgba(43, 26, 12, 0.2);
+  text-shadow: 0 0 0.3px rgba(43, 26, 12, 0.18);
   background-color: transparent;
   background-image: linear-gradient(
     to bottom,
