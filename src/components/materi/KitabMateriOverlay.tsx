@@ -1585,7 +1585,7 @@ export function KitabMateriOverlay({
               <div className="flex flex-col items-center gap-1">
                 {totalSealsUnlocked === 0 && (
                   <span className="hidden sm:inline-block rounded-full border border-[#f4d993]/75 bg-[#040915]/92 px-3 py-0.5 text-[10px] font-bold text-[#f4d993] shadow-lg animate-float-gentle text-center">
-                    Petunjuk: Klik buku atau tombol di bawah buat mulai Misi 1!
+                    Petunjuk: Klik buku atau tombol di bawah untuk mulai Misi 1!
                   </span>
                 )}
                 <button

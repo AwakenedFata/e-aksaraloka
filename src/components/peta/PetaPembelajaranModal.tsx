@@ -194,6 +194,16 @@ export function PetaPembelajaranModal({
       "Pelajaran kebaikan yang dipetik dari perubahan tokoh utama: ......................................................................................"
     );
 
+    const lexiconPrintSectionsHtml = FANTASY_LEXICON_BANK.map((cat) => {
+      const itemsHtml = cat.entries
+        .map(
+          (entry) =>
+            `<li><strong>${escapeHtml(entry.word)}</strong> <em>(${escapeHtml(entry.type)})</em>: ${escapeHtml(entry.meaning)}</li>`
+        )
+        .join("");
+      return `<div class="lex-card"><h3>${escapeHtml(cat.category)}</h3><ul>${itemsHtml}</ul></div>`;
+    }).join("");
+
     const html = `<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -284,7 +294,7 @@ export function PetaPembelajaranModal({
     }
     .write-box {
       border: 1px dashed #8c6826;
-      min-height: 74px;
+      min-height: 66px;
       padding: 8px 10px;
       margin-top: 6px;
       border-radius: 4px;
@@ -298,6 +308,39 @@ export function PetaPembelajaranModal({
       gap: 6px 16px;
       font-size: 12.5px;
       margin-top: 6px;
+    }
+    .page-break {
+      page-break-before: always;
+      break-before: page;
+    }
+    .lex-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .lex-card {
+      border: 1px solid #cab894;
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: #fdfbf6;
+      break-inside: avoid;
+    }
+    .lex-card h3 {
+      margin: 0 0 5px;
+      font-size: 12px;
+      color: #5c4010;
+      border-bottom: 1px solid #e2d3b3;
+      padding-bottom: 3px;
+    }
+    .lex-card ul {
+      margin: 0;
+      padding-left: 15px;
+      font-size: 10.5px;
+      line-height: 1.4;
+    }
+    .lex-card li {
+      margin-bottom: 2.5px;
     }
     @media print {
       body { padding: 12px 16px; }
@@ -345,7 +388,7 @@ export function PetaPembelajaranModal({
     </div>
   </div>
 
-  <h2>Bagian 1 · Kamus Kata Fantasi & Contoh Perumpamaan (Majas Asosiasi)</h2>
+  <h2>Bagian 1 · Panduan Ringkas Pancaindra, Perumpamaan & Dialog</h2>
   <table>
     <thead>
       <tr>
@@ -381,7 +424,7 @@ export function PetaPembelajaranModal({
     </tbody>
   </table>
 
-  <h2>Bagian 2 · Rencana Cerita 6 Langkah</h2>
+  <h2>Bagian 2 · Rencana Cerita 5 Langkah</h2>
   <table>
     <tbody>
       <tr>
@@ -390,7 +433,7 @@ export function PetaPembelajaranModal({
       </tr>
       <tr>
         <th>2. Tokoh Utama & Lawan</th>
-        <td>Nama & bukti sifat lewat perbuatan (bukan cuma disebut baik/jahat): ....................................................................................</td>
+        <td>Nama & bukti sifat lewat perbuatan (bukan hanya disebut baik/jahat): ....................................................................................</td>
       </tr>
       <tr>
         <th>3. Tempat &amp; Pancaindra</th>
@@ -411,19 +454,29 @@ export function PetaPembelajaranModal({
     </tbody>
   </table>
 
-  <h2>Bagian 3 · Lembar Menulis Cerita Fantasi</h2>
-  <div class="write-box"><strong>Judul Cerita Fantasi:</strong> ........................................................................................................................<br/><br/><strong>Paragraf 1 (Awal Cerita / Orientasi — Kenalkan Tokoh, Tempat, & Awal Keajaiban):</strong><br/><br/><br/></div>
-  <div class="write-box"><strong>Paragraf 2 (Masalah & Puncak / Klimaks — Muncul Masalah, Dialog "...", & Perumpamaan):</strong><br/><br/><br/></div>
-  <div class="write-box"><strong>Paragraf 3 (Akhir Cerita / Resolusi — Penyelesaian Masalah & Pesan Kebaikan):</strong><br/><br/><br/></div>
+  <h2>Bagian 3 · Lembar Menulis Cerita Fantasi (4 Paragraf)</h2>
+  <div class="write-box"><strong>Judul Cerita Fantasi:</strong> ........................................................................................................................<br/><br/><strong>Paragraf 1 (Awal Cerita / Orientasi — Kenalkan Tokoh, Tempat, &amp; Awal Keajaiban):</strong><br/><br/><br/></div>
+  <div class="write-box"><strong>Paragraf 2 (Munculnya Masalah / Komplikasi — Tokoh Lawan atau Rintangan Awal):</strong><br/><br/><br/></div>
+  <div class="write-box"><strong>Paragraf 3 (Puncak Masalah / Klimaks — Bagian Paling Menegangkan, Dialog "...", &amp; Perumpamaan):</strong><br/><br/><br/></div>
+  <div class="write-box"><strong>Paragraf 4 (Akhir Cerita / Resolusi — Penyelesaian Masalah Sesuai Aturan Ajaib &amp; Pesan Kebaikan):</strong><br/><br/><br/></div>
 
-  <h2>Bagian 4 · 6 Ceklis Sebelum Dikumpulkan</h2>
+  <h2>Bagian 4 · 5 Ceklis Sebelum Dikumpulkan</h2>
   <div class="checklist">
-    <div>[ ] Ada bagian Awal, Puncak Masalah, dan Akhir yang urut.</div>
+    <div>[ ] Cerita sudah memiliki bagian Awal, Masalah, Puncak, dan Akhir yang berurutan.</div>
     <div>[ ] Penyelesaian masalah sesuai dengan aturan keajaiban cerita.</div>
-    <div>[ ] Ada minimal 2 kata pancaindra (cahaya, suara, atau aroma/suhu).</div>
-    <div>[ ] Ada minimal 1 perumpamaan (seperti/bagaikan/laksana/bak).</div>
-    <div>[ ] Ada kalimat langsung bertanda petik ("...") dan kalimat tak langsung.</div>
-    <div>[ ] Kata depan tempat (di atas, di dalam, di sekolah) ditulis dipisah.</div>
+    <div>[ ] Sifat tokoh terlihat dari perbuatannya dan memuat minimal 2 kata pancaindra.</div>
+    <div>[ ] Memuat perumpamaan (seperti/bagaikan/laksana/bak) dan kalimat dialog tokoh.</div>
+    <div>[ ] Kata depan tempat (di atas, di dalam, di sekolah) dipisah dan tanda baca dialog rapi.</div>
+  </div>
+
+  <div class="page-break">
+    <h2>Lampiran · Kamus 48 Kata Fantasi Terkurasi (6 Kategori)</h2>
+    <p style="font-size: 11.5px; margin: 0 0 6px; color: #44403c;">
+      Gunakan pilihan diksi berikut untuk menghidupkan latar, watak, aksi, dan alur cerita fantasimu saat menulis di kertas.
+    </p>
+    <div class="lex-grid">
+      ${lexiconPrintSectionsHtml}
+    </div>
   </div>
 
   <script>
@@ -626,7 +679,7 @@ export function PetaPembelajaranModal({
                     <strong className="text-[#f4d993]">
                       Misi Bonus Penjaga Aksara:
                     </strong>{" "}
-                    Jawab 3 teka-teki singkat ini buat latihan mencari ide
+                    Jawab 3 teka-teki singkat ini untuk latihan mencari ide
                     cerita dan mengecek ejaan sebelum mengarang!
                   </span>
                   <button

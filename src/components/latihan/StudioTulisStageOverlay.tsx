@@ -1463,7 +1463,7 @@ export function StudioTulisStageOverlay({
               <div className="flex flex-col items-center gap-1">
                 {analysis.totalWords === 0 && (
                   <span className="hidden sm:inline-block rounded-full border border-[#f4d993]/75 bg-[#040915]/92 px-3 py-0.5 text-[10px] font-bold text-[#f4d993] shadow-lg animate-float-gentle text-center">
-                    Petunjuk: Klik buku di meja buat mulai mengarang ceritamu!
+                    Petunjuk: Klik buku di meja untuk mulai mengarang ceritamu!
                   </span>
                 )}
                 <button

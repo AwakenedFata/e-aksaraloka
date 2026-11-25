@@ -148,7 +148,7 @@ export const HeroContent = memo(function HeroContent({
             style={paragraphStyle}
             className="mt-2.5 min-[380px]:mt-3.5 sm:mt-5 2xl:mt-6 max-w-lg 2xl:max-w-xl text-[13px] min-[380px]:text-sm sm:text-base lg:text-lg 2xl:text-xl text-white/95 font-normal leading-relaxed select-text drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]"
           >
-            Rangkai orientasi yang memikat, susun komplikasi mendebarkan, dan hidupkan resolusi ceritamu!.
+            Rangkai orientasi yang memikat, susun komplikasi mendebarkan, dan hidupkan resolusi ceritamu!
           </p>
 
           {/* Action Buttons Row: White Pill Button + Translucent Play Button */}

@@ -882,14 +882,14 @@ export const ASTROLABE_SIDE_QUESTS: readonly SideQuestItem[] = [
         text: "Seorang pangeran dari negeri awan punya kekuatan paling hebat di dunia dan mengalahkan semua musuhnya dengan sekali pukul tanpa kesulitan.",
         isCorrect: false,
         feedback:
-          "Kalau jagoannya terlalu sempurna dan menang gampang, pembaca jadi tidak ikut deg-degan. Yuk pilih ide yang punya tantangan!",
+          "Kalau jagoannya terlalu sempurna dan menang mudah, pembaca menjadi tidak ikut deg-degan. Yuk, pilih ide yang punya tantangan!",
       },
       {
         id: "q1-a",
-        text: "Seorang siswa yang sering terlambat sekolah menemukan jam saku tua milik kakeknya yang bisa memutar waktu 10 menit, tapi setiap dipakai satu benda kesayangannya berubah jadi batu.",
+        text: "Seorang siswa yang sering terlambat sekolah menemukan jam saku tua milik kakeknya yang bisa memutar waktu 10 menit, tetapi setiap dipakai satu benda kesayangannya berubah menjadi batu.",
         isCorrect: true,
         feedback:
-          "Keren banget! Ceritanya dekat dengan kehidupan kita di sekolah, dan jam ajaibnya punya aturan/risiko yang membuat tegang!",
+          "Keren sekali! Ceritanya dekat dengan kehidupan kita di sekolah, dan jam ajaibnya punya aturan/risiko yang membuat tegang!",
       },
     ],
   },
@@ -899,7 +899,7 @@ export const ASTROLABE_SIDE_QUESTS: readonly SideQuestItem[] = [
     title: "Jangan Sampai Jalan Ceritamu Bolong!",
     targetCompetency: "Menjaga kejadian cerita tetap masuk akal sesuai aturan keajaibannya",
     scenario:
-      "Di paragraf awal cerita Dinda tertulis: 'Kantong ajaib Aruna HANYA BISA menyala kalau terkena sinar matahari.' Tapi saat di dalam gua bawah tanah yang gelap gulita, tiba-tiba kantong Aruna langsung menyala terang tanpa alasan.",
+      "Di paragraf awal cerita Dinda tertulis: 'Kantong ajaib Aruna HANYA BISA menyala kalau terkena sinar matahari.' Tetapi saat di dalam gua bawah tanah yang gelap gulita, tiba-tiba kantong Aruna langsung menyala terang tanpa alasan.",
     question: "Kenapa cerita Dinda terasa janggal, dan bagaimana cara memperbaikinya?",
     options: [
       {
@@ -932,7 +932,7 @@ export const ASTROLABE_SIDE_QUESTS: readonly SideQuestItem[] = [
         text: 'Diperpustakaan tua itu, Aruna berbisik "Jangan sentuh segel emas yang ada di atas meja".',
         isCorrect: false,
         feedback:
-          "Hampir benar! Tapi ingat: kata tempat 'Di perpustakaan' harus dipisah, dan tanda titik/seru diletakkan DI DALAM sebelum tanda petik penutup.",
+          "Hampir benar! Tetapi ingat: kata tempat 'Di perpustakaan' harus dipisah, dan tanda titik/seru diletakkan DI DALAM sebelum tanda petik penutup.",
       },
       {
         id: "q3-a",

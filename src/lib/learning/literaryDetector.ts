@@ -1078,7 +1078,7 @@ export function analyzeStudentManuscript(draft: StudioDraftData): LiteraryAnalys
       summary: dialogPassed
         ? "Bagus sekali! Dialog tokohmu sudah memakai tanda petik dua dan tanda baca yang rapi."
         : dialogMatches.length >= 1
-          ? "Dialog sudah ada, tapi pastikan tanda seru/tanya/titik ditaruh DI DALAM sebelum tanda petik penutup ya!"
+          ? "Dialog sudah ada, tetapi pastikan tanda seru/tanya/titik ditaruh DI DALAM sebelum tanda petik penutup ya!"
           : "Belum ada ucapan langsung tokoh yang memakai tanda petik dua (\"...\").",
       detectedSnippets: dialogMatches,
       improvementHint:
