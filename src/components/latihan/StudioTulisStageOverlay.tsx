@@ -1189,11 +1189,11 @@ export function StudioTulisStageOverlay({
 
   // Gaya input/textarea goresan pena transparan murni agar teks menyatu langsung di atas perkamen
   const inkInputClass =
-    "parchment-pen-input w-full px-1 py-0.5 font-sans text-base md:text-[12px] leading-tight font-bold placeholder:text-[#3d250b]/80";
+    "parchment-pen-input w-full px-1 py-0.5 text-base md:text-[11.5px] leading-tight font-semibold italic placeholder:text-[#5c3d1e]/70";
   const inkTextareaClass =
-    "parchment-scroll-hidden parchment-pen-input w-full resize-none px-1 py-0.5 font-sans text-base md:text-[11.5px] leading-[1.4] font-bold placeholder:text-[#3d250b]/80";
+    "parchment-scroll-hidden parchment-pen-input w-full resize-none px-1 py-0.5 text-base md:text-[11px] leading-[1.35] italic placeholder:text-[#5c3d1e]/70";
   const inkStoryTextareaClass =
-    "parchment-scroll parchment-pen-textarea w-full flex-1 min-h-[200px] md:min-h-0 resize-none border-0 bg-transparent px-1 py-0.5 font-sans text-base md:text-[13px] lg:text-[13.5px] font-bold placeholder:text-[#3d250b]/80";
+    "parchment-scroll parchment-pen-textarea w-full flex-1 min-h-[200px] md:min-h-0 resize-none border-0 bg-transparent px-1 py-0.5 font-serif text-base md:text-xs lg:text-[13px] placeholder:text-[#5c3d1e]/70";
 
   const scalePx = (n: number) => `${(n * stageMetrics.scale).toFixed(2)}px`;
 
@@ -1208,6 +1208,7 @@ export function StudioTulisStageOverlay({
       height: `${studio2dBaseHeight}px`,
       transformOrigin: "0 0",
       transform: studio2dProj.leftMatrixCss,
+      filter: studio2dProj.hasLeftCurve ? "url(#studio-2d-curve-left)" : undefined,
     };
 
   const studio2dRightPageStyle: CSSProperties = isMobileBook
@@ -1221,11 +1222,12 @@ export function StudioTulisStageOverlay({
       height: `${studio2dBaseHeight}px`,
       transformOrigin: "0 0",
       transform: studio2dProj.rightMatrixCss,
+      filter: studio2dProj.hasRightCurve ? "url(#studio-2d-curve-right)" : undefined,
     };
 
   const studio2dPageClass = isMobileBook
-    ? "parchment-2d-readable mobile-parchment-sheet pointer-events-auto relative h-full w-full min-h-0 flex-col justify-between overflow-hidden px-4 py-3.5"
-    : "parchment-2d-readable pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5";
+    ? "parchment-ink parchment-ink-bleed mobile-parchment-sheet pointer-events-auto relative h-full w-full min-h-0 flex-col justify-between overflow-hidden px-4 py-3.5"
+    : "parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5";
 
   const mobileSideLabels: readonly [string, string] =
     activeViewTab === "audit_revisi"
@@ -1599,6 +1601,14 @@ export function StudioTulisStageOverlay({
           data-lenis-prevent
           className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-center gap-2 overscroll-none bg-black/10 px-3 pt-2.5 pb-2.5 backdrop-blur-[6px] transition-all duration-300 sm:px-6 sm:pt-3 sm:pb-3 lg:px-10"
         >
+          <BookPageDisplacementDefs
+            prefix="studio-2d"
+            leftWidth={studio2dLeftBaseWidth}
+            rightWidth={studio2dRightBaseWidth}
+            pageHeight={studio2dBaseHeight}
+            leftDisp={studio2dProj.leftDisp}
+            rightDisp={studio2dProj.rightDisp}
+          />
           {/* ================================================================= */}
           {/* 1. FLOATING HEADER TIPIS DI ATAS BUKU                             */}
           {/* ================================================================= */}

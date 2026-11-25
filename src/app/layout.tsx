@@ -11,14 +11,12 @@ const cinzel = Cinzel({
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
-  style: ["normal", "italic"],
   variable: "--font-playfair",
   display: "swap",
 });
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  style: ["normal", "italic"],
   variable: "--font-jakarta",
   display: "swap",
 });

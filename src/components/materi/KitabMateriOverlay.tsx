@@ -1049,14 +1049,49 @@ export function KitabMateriOverlay({
     book2dRightBaseW,
   ]);
 
+  const book2dLeftDisp = useMemo(
+    () =>
+      buildPageDisplacementSpec(
+        "left",
+        book2dCalibration.leftCurve,
+        book2dScale
+      ),
+    [book2dCalibration.leftCurve, book2dScale]
+  );
+
+  const book2dRightDisp = useMemo(
+    () =>
+      buildPageDisplacementSpec(
+        "right",
+        book2dCalibration.rightCurve,
+        book2dScale
+      ),
+    [book2dCalibration.rightCurve, book2dScale]
+  );
+
+  const hasBook2dLeftCurve =
+    Math.max(
+      Math.abs(book2dCalibration.leftCurve.archLiftPx),
+      Math.abs(book2dCalibration.leftCurve.spineDipPx),
+      Math.abs(book2dCalibration.leftCurve.outerDropPx)
+    ) > 0.1;
+
+  const hasBook2dRightCurve =
+    Math.max(
+      Math.abs(book2dCalibration.rightCurve.archLiftPx),
+      Math.abs(book2dCalibration.rightCurve.spineDipPx),
+      Math.abs(book2dCalibration.rightCurve.outerDropPx)
+    ) > 0.1;
+
   const book2dLeftPageStyle = useMemo<React.CSSProperties>(
     () => ({
       width: `${book2dLeftBaseW}px`,
       height: `${book2dBaseH}px`,
       transformOrigin: "0 0",
       transform: book2dLeftMatrixCss,
+      filter: hasBook2dLeftCurve ? "url(#reading-2d-curve-left)" : undefined,
     }),
-    [book2dBaseH, book2dLeftBaseW, book2dLeftMatrixCss]
+    [book2dBaseH, book2dLeftBaseW, book2dLeftMatrixCss, hasBook2dLeftCurve]
   );
 
   const book2dRightPageStyle = useMemo<React.CSSProperties>(
@@ -1065,8 +1100,9 @@ export function KitabMateriOverlay({
       height: `${book2dBaseH}px`,
       transformOrigin: "0 0",
       transform: book2dRightMatrixCss,
+      filter: hasBook2dRightCurve ? "url(#reading-2d-curve-right)" : undefined,
     }),
-    [book2dBaseH, book2dRightBaseW, book2dRightMatrixCss]
+    [book2dBaseH, book2dRightBaseW, book2dRightMatrixCss, hasBook2dRightCurve]
   );
 
   const get2dPageStyle = (side: "left" | "right"): React.CSSProperties =>
@@ -1081,14 +1117,16 @@ export function KitabMateriOverlay({
         : book2dRightPageStyle;
 
   const page2dContainerClass = isMobileBook
-    ? "parchment-2d-readable mobile-parchment-sheet pointer-events-auto relative h-full w-full min-h-0 flex-col justify-between overflow-hidden px-4 py-3.5"
-    : "parchment-2d-readable pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5";
+    ? "parchment-ink parchment-ink-bleed mobile-parchment-sheet pointer-events-auto relative h-full w-full min-h-0 flex-col justify-between overflow-hidden px-4 py-3.5"
+    : "parchment-ink parchment-ink-bleed pointer-events-auto absolute top-0 left-0 flex min-h-0 flex-col justify-between overflow-hidden px-2 py-1 sm:px-3 sm:py-1.5";
 
   if (!isVisible) return null;
 
   const scalePx = (n: number) => `${(n * stageMetrics.scale).toFixed(2)}px`;
   const leftFilterPad = Math.ceil(leftDisp.filterScale + 4);
   const rightFilterPad = Math.ceil(rightDisp.filterScale + 4);
+  const book2dLeftFilterPad = Math.ceil(book2dLeftDisp.filterScale + 4);
+  const book2dRightFilterPad = Math.ceil(book2dRightDisp.filterScale + 4);
 
   return (
     <div className="pointer-events-none fixed inset-0 flex flex-col justify-between overflow-hidden select-none">
@@ -1657,6 +1695,82 @@ export function KitabMateriOverlay({
           data-lenis-prevent
           className="pointer-events-auto fixed inset-0 z-40 flex flex-col items-center justify-center gap-2 overscroll-none bg-black/15 px-2.5 py-2.5 backdrop-blur-[6px] transition-all duration-300 sm:px-4 sm:py-2.5"
         >
+          <svg
+            width="0"
+            height="0"
+            aria-hidden="true"
+            className="pointer-events-none absolute overflow-hidden"
+          >
+            <defs>
+              <filter
+                id="reading-2d-curve-left"
+                filterUnits="userSpaceOnUse"
+                colorInterpolationFilters="sRGB"
+                x={-book2dLeftFilterPad}
+                y={-book2dLeftFilterPad}
+                width={book2dLeftBaseW + book2dLeftFilterPad * 2}
+                height={book2dBaseH + book2dLeftFilterPad * 2}
+              >
+                <feFlood floodColor="rgb(128,128,128)" result="book2dLeftNeutralDisp" />
+                <feImage
+                  href={book2dLeftDisp.dataUri}
+                  x={0}
+                  y={0}
+                  width={book2dLeftBaseW}
+                  height={book2dBaseH}
+                  preserveAspectRatio="none"
+                  result="book2dLeftDispImg"
+                />
+                <feComposite
+                  in="book2dLeftDispImg"
+                  in2="book2dLeftNeutralDisp"
+                  operator="over"
+                  result="book2dLeftDispMap"
+                />
+                <feDisplacementMap
+                  in="SourceGraphic"
+                  in2="book2dLeftDispMap"
+                  scale={book2dLeftDisp.filterScale}
+                  xChannelSelector="R"
+                  yChannelSelector="G"
+                />
+              </filter>
+
+              <filter
+                id="reading-2d-curve-right"
+                filterUnits="userSpaceOnUse"
+                colorInterpolationFilters="sRGB"
+                x={-book2dRightFilterPad}
+                y={-book2dRightFilterPad}
+                width={book2dRightBaseW + book2dRightFilterPad * 2}
+                height={book2dBaseH + book2dRightFilterPad * 2}
+              >
+                <feFlood floodColor="rgb(128,128,128)" result="book2dRightNeutralDisp" />
+                <feImage
+                  href={book2dRightDisp.dataUri}
+                  x={0}
+                  y={0}
+                  width={book2dRightBaseW}
+                  height={book2dBaseH}
+                  preserveAspectRatio="none"
+                  result="book2dRightDispImg"
+                />
+                <feComposite
+                  in="book2dRightDispImg"
+                  in2="book2dRightNeutralDisp"
+                  operator="over"
+                  result="book2dRightDispMap"
+                />
+                <feDisplacementMap
+                  in="SourceGraphic"
+                  in2="book2dRightDispMap"
+                  scale={book2dRightDisp.filterScale}
+                  xChannelSelector="R"
+                  yChannelSelector="G"
+                />
+              </filter>
+            </defs>
+          </svg>
           {/* --------------------------------------------------------------- */}
           {/* TOP FLOATING CONTROLS (COMPACT THUMB BAR DI HP, 1 BARIS DI DESKTOP) */}
           {/* --------------------------------------------------------------- */}
@@ -2541,7 +2655,7 @@ export function KitabMateriOverlay({
                                   handleCustomAmanatChange(e.target.value)
                                 }
                                 placeholder="Contoh: Aku ingin selalu bersyukur dan membantu orang tua..."
-                                className="parchment-pen-input mt-0.5 w-full px-1 py-1 font-serif text-[10.5px] font-semibold italic placeholder:text-[#4a2f15]/75"
+                                className="parchment-pen-input mt-0.5 w-full px-1 py-1 font-serif text-[10.5px] italic placeholder:text-[#6b4826]/60"
                               />
                             </div>
                           </div>
